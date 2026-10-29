@@ -1,0 +1,18 @@
+{
+ "schema": "basic",
+ "vertices": [
+  {"id": "s", "kind": "pill", "label": "source", "x": 60, "y": 100, "placed": true},
+  {"id": "a", "kind": "box", "label": "a", "x": 220, "y": 100, "placed": true, "attrs": {"p": "0.5"}},
+  {"id": "b", "kind": "box", "label": "b", "x": 420, "y": 40, "placed": true},
+  {"id": "c", "kind": "diamond", "label": "c?", "x": 420, "y": 160, "placed": true},
+  {"id": "d", "kind": "circle", "label": "d", "x": 620, "y": 100, "placed": true}
+ ],
+ "edges": [
+  {"id": "e1", "kind": "arrow", "from": "s", "to": "a"},
+  {"id": "e2", "kind": "curve", "from": "a", "to": "b", "label": "fail", "weight": 0.3},
+  {"id": "e3", "kind": "curve", "from": "a", "to": "c", "label": "pass", "weight": 0.7},
+  {"id": "e4", "kind": "curve", "from": "b", "to": "d", "weight": 0.3},
+  {"id": "e5", "kind": "wire", "from": "c", "to": "d"}
+ ],
+ "view": {"x": 0, "y": 0, "w": 700, "h": 220}
+}

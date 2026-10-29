@@ -1,0 +1,17 @@
+# Build outputs: tools under bin/, the commands when built in place,
+# test binaries and anything compiled. make verify refuses any tracked
+# binary file.
+/bin/
+/graphedwright
+/graphedwright-wasm
+*.exe
+*.wasm
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.test
+*.out
+*.prof
+web/wasm_exec.js

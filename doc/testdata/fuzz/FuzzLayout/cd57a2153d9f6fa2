@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"schema\":\"basic\",\"vertices\":[{\"id\":\"0\",\"kind\":\"box\"},{\"id\":\"1\",\"kind\":\"box\",\"x\":100000,\"placed\":true},{\"id\":\"2\",\"kind\":\"box\",\"x\":0,\"placed\":true}]}")

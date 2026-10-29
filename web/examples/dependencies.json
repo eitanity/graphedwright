@@ -1,0 +1,148 @@
+{
+ "schema": "basic",
+ "flow": "top-to-bottom",
+ "vertices": [
+  {
+   "id": "web-app",
+   "kind": "box",
+   "label": "web-app"
+  },
+  {
+   "id": "router",
+   "kind": "box",
+   "label": "router"
+  },
+  {
+   "id": "ui-kit",
+   "kind": "box",
+   "label": "ui-kit"
+  },
+  {
+   "id": "api-client",
+   "kind": "box",
+   "label": "api-client"
+  },
+  {
+   "id": "logger",
+   "kind": "box",
+   "label": "logger"
+  },
+  {
+   "id": "history",
+   "kind": "box",
+   "label": "history"
+  },
+  {
+   "id": "icons",
+   "kind": "box",
+   "label": "icons"
+  },
+  {
+   "id": "theme",
+   "kind": "box",
+   "label": "theme"
+  },
+  {
+   "id": "http",
+   "kind": "box",
+   "label": "http"
+  },
+  {
+   "id": "auth",
+   "kind": "box",
+   "label": "auth"
+  },
+  {
+   "id": "crypto",
+   "kind": "box",
+   "label": "crypto"
+  },
+  {
+   "id": "url",
+   "kind": "box",
+   "label": "url"
+  },
+  {
+   "id": "format",
+   "kind": "box",
+   "label": "format"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "arrow",
+   "from": "web-app",
+   "to": "router"
+  },
+  {
+   "kind": "arrow",
+   "from": "web-app",
+   "to": "ui-kit"
+  },
+  {
+   "kind": "arrow",
+   "from": "web-app",
+   "to": "api-client"
+  },
+  {
+   "kind": "arrow",
+   "from": "web-app",
+   "to": "logger"
+  },
+  {
+   "kind": "arrow",
+   "from": "router",
+   "to": "history"
+  },
+  {
+   "kind": "arrow",
+   "from": "ui-kit",
+   "to": "icons"
+  },
+  {
+   "kind": "arrow",
+   "from": "ui-kit",
+   "to": "theme"
+  },
+  {
+   "kind": "arrow",
+   "from": "api-client",
+   "to": "http"
+  },
+  {
+   "kind": "arrow",
+   "from": "api-client",
+   "to": "auth"
+  },
+  {
+   "kind": "arrow",
+   "from": "api-client",
+   "to": "logger"
+  },
+  {
+   "kind": "arrow",
+   "from": "auth",
+   "to": "crypto"
+  },
+  {
+   "kind": "arrow",
+   "from": "auth",
+   "to": "http"
+  },
+  {
+   "kind": "arrow",
+   "from": "http",
+   "to": "url"
+  },
+  {
+   "kind": "arrow",
+   "from": "logger",
+   "to": "format"
+  },
+  {
+   "kind": "arrow",
+   "from": "history",
+   "to": "url"
+  }
+ ]
+}

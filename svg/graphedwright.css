@@ -1,0 +1,56 @@
+/* The default look of a graphedwright drawing. A host styles by class;
+   nothing here is required. */
+
+.graphedwright { font-family: system-ui, sans-serif; font-size: 12px; }
+
+.graphedwright .vertex .shape { fill: #f5f7fa; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .label { fill: #1a202c; }
+.graphedwright .vertex .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .vertex.container > .shape { fill: #f8fafc; stroke: #718096; }
+.graphedwright .vertex.container > .label { fill: #4a5568; font-weight: 600; }
+.graphedwright .vertex .box { fill: transparent; stroke: none; }
+.graphedwright .vertex .store { stroke: none; }
+.graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
+.graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+
+.graphedwright .edge path { fill: none; stroke: #718096; }
+.graphedwright .edge .label { fill: #2d3748; }
+.graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
+.graphedwright .edge.hold path { stroke-dasharray: 6 3; }
+.graphedwright .arrowhead path { fill: #718096; stroke: none; }
+.graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
+.graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
+.graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A selected vertex is outlined; a selected edge has a halo as wide as
+   the stroke-width the renderer writes on it, which a width here would
+   override. */
+.graphedwright .overlay rect.selection { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.graphedwright .overlay path.selection { fill: none; stroke: #3182ce; stroke-opacity: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+.graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
+.graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
+
+.graphedwright[data-mode="edit"] .vertex { cursor: move; }
+.graphedwright[data-mode="edit"] .port { cursor: crosshair; }
+.graphedwright[data-mode="edit"] .edge path { cursor: pointer; }
+
+/* The elements the browser binding makes around the drawing: the host
+   holds the palette, the drawing, which takes the room below it, the
+   zoom buttons over the drawing's bottom right corner, and the input
+   that edits a label, placed over the label. A page gives the host or
+   the drawing a height. */
+.graphedwright-host { position: relative; display: flex; flex-direction: column; }
+.graphedwright-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid #e2e8f0; background: #f7fafc; }
+.graphedwright-palette:empty { display: none; }
+.graphedwright-item.graphedwright-edge { font-style: italic; }
+.graphedwright-drawing { flex: 1 1 auto; min-height: 320px; touch-action: none; }
+.graphedwright-drawing svg { width: 100%; height: 100%; display: block; }
+.graphedwright-label { position: absolute; box-sizing: border-box; padding: 0 4px; font: inherit; text-align: center; border: 1px solid #3182ce; border-radius: 3px; background: #ffffff; }
+.graphedwright-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.graphedwright-zoom button { min-width: 28px; }
+.graphedwright-chosen { background: #bee3f8; border-color: #3182ce; }

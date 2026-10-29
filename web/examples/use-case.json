@@ -1,0 +1,23 @@
+{
+ "schema": "use-case",
+ "vertices": [
+  {"id": "customer", "kind": "actor", "label": "Customer", "x": 80, "y": 112, "placed": true},
+  {"id": "member", "kind": "actor", "label": "Member", "x": 80, "y": 304, "placed": true},
+  {"id": "shop", "kind": "system", "label": "Online shop", "x": 0, "y": 0},
+  {"id": "browse", "kind": "use case", "label": "Browse catalogue", "x": 320, "y": 64, "placed": true, "parent": "shop"},
+  {"id": "order", "kind": "use case", "label": "Place order", "x": 320, "y": 160, "placed": true, "parent": "shop"},
+  {"id": "pay", "kind": "use case", "label": "Pay", "x": 528, "y": 160, "placed": true, "parent": "shop"},
+  {"id": "voucher", "kind": "use case", "label": "Apply voucher", "x": 320, "y": 256, "placed": true, "parent": "shop"},
+  {"id": "track", "kind": "use case", "label": "Track delivery", "x": 320, "y": 344, "placed": true, "parent": "shop"},
+  {"id": "bank", "kind": "actor", "label": "Payment provider", "x": 760, "y": 160, "placed": true}
+ ],
+ "edges": [
+  {"id": "e1", "kind": "association", "from": "customer", "to": "browse"},
+  {"id": "e2", "kind": "association", "from": "customer", "to": "order"},
+  {"id": "e3", "kind": "include", "from": "order", "to": "pay"},
+  {"id": "e4", "kind": "extend", "from": "voucher", "to": "order"},
+  {"id": "e5", "kind": "association", "from": "member", "to": "track"},
+  {"id": "e6", "kind": "generalisation", "from": "member", "to": "customer"},
+  {"id": "e7", "kind": "association", "from": "bank", "to": "pay"}
+ ]
+}

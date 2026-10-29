@@ -1,0 +1,20 @@
+{
+ "schema": "threat-model",
+ "vertices": [
+  {"id": "user", "kind": "external entity", "label": "User", "attrs": {"trust": "untrusted"}},
+  {"id": "idp", "kind": "external entity", "label": "Identity provider", "attrs": {"trust": "partial"}},
+  {"id": "dc", "kind": "trust boundary", "label": "Data centre", "attrs": {"trust": "partial"}},
+  {"id": "web", "kind": "process", "label": "Web app", "parent": "dc", "attrs": {"trust": "partial", "threats": "S: session theft; D: request floods"}},
+  {"id": "api", "kind": "process", "label": "Orders API", "parent": "dc", "attrs": {"trust": "partial"}},
+  {"id": "core", "kind": "trust boundary", "label": "Database zone", "parent": "dc", "attrs": {"trust": "trusted"}},
+  {"id": "db", "kind": "data store", "label": "Orders DB", "parent": "core", "attrs": {"encrypted": "yes", "threats": "I: backups readable"}},
+  {"id": "audit", "kind": "data store", "label": "Audit log", "parent": "core", "attrs": {"encrypted": "no", "threats": "T: log tampering; R: entries deleted"}}
+ ],
+ "edges": [
+  {"id": "f1", "kind": "data flow", "from": "user", "to": "web", "label": "orders", "attrs": {"protocol": "HTTPS", "encrypted": "yes", "authenticated": "yes"}},
+  {"id": "f2", "kind": "data flow", "from": "idp", "to": "web", "label": "ID token", "attrs": {"protocol": "OIDC", "encrypted": "yes", "authenticated": "yes"}},
+  {"id": "f3", "kind": "data flow", "from": "web", "to": "api", "label": "REST", "attrs": {"protocol": "HTTP", "encrypted": "no", "authenticated": "yes", "threats": "I: plaintext inside the data centre"}},
+  {"id": "f4", "kind": "data flow", "from": "api", "to": "db", "label": "SQL", "attrs": {"protocol": "TLS", "encrypted": "yes", "authenticated": "yes"}},
+  {"id": "f5", "kind": "data flow", "from": "api", "to": "audit", "label": "events", "attrs": {"protocol": "syslog", "encrypted": "no", "authenticated": "no", "threats": "T, R"}}
+ ]
+}

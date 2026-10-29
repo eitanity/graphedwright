@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>graphedwright tutorial: a dependency tree</title>
+<!-- The default look, and the rules the binding's elements need. -->
+<link rel="stylesheet" href="graphedwright.css">
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+  #graph { height: 520px; border: 1px solid #cbd5e0; }
+  #props label { display: block; margin: 6px 0 2px; color: #4a5568; font-size: 13px; }
+  #props input, #props select { width: 100%; box-sizing: border-box; font: inherit; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<aside>
+  <button id="layout">Lay out</button> <button id="undo">Undo</button> <button id="redo">Redo</button>
+  <div id="props"><p>Select a package or a dependency.</p></div>
+  <p id="error" style="color:#c53030"></p>
+</aside>
+<script src="wasm_exec.js"></script>
+<script src="tutorial.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="28 -20 812 428" class="graphedwright" data-mode="view" role="img" aria-labelledby="graphedwright-title"><title id="graphedwright-title"></title><desc></desc><style>/* The default look of a graphedwright drawing. A host styles by class;
+   nothing here is required. */
+
+.graphedwright { font-family: system-ui, sans-serif; font-size: 12px; }
+
+.graphedwright .vertex .shape { fill: #f5f7fa; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .label { fill: #1a202c; }
+.graphedwright .vertex .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .vertex.container &gt; .shape { fill: #f8fafc; stroke: #718096; }
+.graphedwright .vertex.container &gt; .label { fill: #4a5568; font-weight: 600; }
+.graphedwright .vertex .box { fill: transparent; stroke: none; }
+.graphedwright .vertex .store { stroke: none; }
+.graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
+.graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+
+.graphedwright .edge path { fill: none; stroke: #718096; }
+.graphedwright .edge .label { fill: #2d3748; }
+.graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
+.graphedwright .edge.hold path { stroke-dasharray: 6 3; }
+.graphedwright .arrowhead path { fill: #718096; stroke: none; }
+.graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
+.graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
+.graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A selected vertex is outlined; a selected edge has a halo as wide as
+   the stroke-width the renderer writes on it, which a width here would
+   override. */
+.graphedwright .overlay rect.selection { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.graphedwright .overlay path.selection { fill: none; stroke: #3182ce; stroke-opacity: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+.graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
+.graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
+
+.graphedwright[data-mode="edit"] .vertex { cursor: move; }
+.graphedwright[data-mode="edit"] .port { cursor: crosshair; }
+.graphedwright[data-mode="edit"] .edge path { cursor: pointer; }
+
+/* The elements the browser binding makes around the drawing: the host
+   holds the palette, the drawing, which takes the room below it, the
+   zoom buttons over the drawing's bottom right corner, and the input
+   that edits a label, placed over the label. A page gives the host or
+   the drawing a height. */
+.graphedwright-host { position: relative; display: flex; flex-direction: column; }
+.graphedwright-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid #e2e8f0; background: #f7fafc; }
+.graphedwright-palette:empty { display: none; }
+.graphedwright-item.graphedwright-edge { font-style: italic; }
+.graphedwright-drawing { flex: 1 1 auto; min-height: 320px; touch-action: none; }
+.graphedwright-drawing svg { width: 100%; height: 100%; display: block; }
+.graphedwright-label { position: absolute; box-sizing: border-box; padding: 0 4px; font: inherit; text-align: center; border: 1px solid #3182ce; border-radius: 3px; background: #ffffff; }
+.graphedwright-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.graphedwright-zoom button { min-width: 28px; }
+.graphedwright-chosen { background: #bee3f8; border-color: #3182ce; }
+</style><defs><marker id="arrow-1" class="arrowhead include open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10"/></marker><marker id="arrow-2" class="arrowhead extend open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10"/></marker><marker id="arrow-3" class="arrowhead generalisation hollow" viewBox="-1 -1 12 12" refX="1" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g class="containers"><g class="vertex system container unplaced" id="shop" data-kind="system" transform="translate(424 194)"><rect class="shape" x="-195" y="-190" width="390" height="380"/><text class="label" x="-187" y="-176" text-anchor="start">Online shop</text></g></g><g class="edges"><g class="edge association" id="e1" data-kind="association" data-from="customer" data-to="browse"><path d="M 100 108 L 256.4 76.72" stroke-width="1.5"/></g><g class="edge association" id="e2" data-kind="association" data-from="customer" data-to="order"><path d="M 100 116 L 256.4 147.28" stroke-width="1.5"/></g><g class="edge include dashed" id="e3" data-kind="include" data-from="order" data-to="pay"><path d="M 395 160 L 453 160" stroke-width="1.5" marker-end="url(#arrow-1)"/><text class="stereotype" x="424" y="155.25" text-anchor="middle">«include»</text></g><g class="edge extend dashed" id="e4" data-kind="extend" data-from="voucher" data-to="order"><path d="M 320 232 L 320 184" stroke-width="1.5" marker-end="url(#arrow-2)"/><text class="stereotype" x="320" y="203.25" text-anchor="middle">«extend»</text></g><g class="edge association" id="e5" data-kind="association" data-from="member" data-to="track"><path d="M 100 307.33 L 253.48 332.91" stroke-width="1.5"/></g><g class="edge generalisation" id="e6" data-kind="generalisation" data-from="member" data-to="customer"><path d="M 80 266 L 80 159" stroke-width="1.5" marker-end="url(#arrow-3)"/></g><g class="edge association" id="e7" data-kind="association" data-from="bank" data-to="pay"><path d="M 740 160 L 603 160" stroke-width="1.5"/></g></g><g class="vertices"><g class="vertex actor" id="customer" data-kind="actor" transform="translate(80 112)"><rect class="shape box" x="-20" y="-38" width="40" height="76"/><circle class="figure head" cx="0" cy="-29.2" r="8.8"/><path class="figure" d="M 0 -20.4 V -0.8 M -20 -13.2 H 20 M -16 22 L 0 -0.8 L 16 22"/><text class="label" x="0" y="34" text-anchor="middle">Customer</text></g><g class="vertex actor" id="member" data-kind="actor" transform="translate(80 304)"><rect class="shape box" x="-20" y="-38" width="40" height="76"/><circle class="figure head" cx="0" cy="-29.2" r="8.8"/><path class="figure" d="M 0 -20.4 V -0.8 M -20 -13.2 H 20 M -16 22 L 0 -0.8 L 16 22"/><text class="label" x="0" y="34" text-anchor="middle">Member</text></g><g class="vertex use_case" id="browse" data-kind="use case" transform="translate(320 64)"><ellipse class="shape" cx="0" cy="0" rx="75" ry="24"/><text class="label" x="0" y="4" text-anchor="middle">Browse catalogue</text></g><g class="vertex use_case" id="order" data-kind="use case" transform="translate(320 160)"><ellipse class="shape" cx="0" cy="0" rx="75" ry="24"/><text class="label" x="0" y="4" text-anchor="middle">Place order</text></g><g class="vertex use_case" id="pay" data-kind="use case" transform="translate(528 160)"><ellipse class="shape" cx="0" cy="0" rx="75" ry="24"/><text class="label" x="0" y="4" text-anchor="middle">Pay</text></g><g class="vertex use_case" id="voucher" data-kind="use case" transform="translate(320 256)"><ellipse class="shape" cx="0" cy="0" rx="75" ry="24"/><text class="label" x="0" y="4" text-anchor="middle">Apply voucher</text></g><g class="vertex use_case" id="track" data-kind="use case" transform="translate(320 344)"><ellipse class="shape" cx="0" cy="0" rx="75" ry="24"/><text class="label" x="0" y="4" text-anchor="middle">Track delivery</text></g><g class="vertex actor" id="bank" data-kind="actor" transform="translate(760 160)"><rect class="shape box" x="-20" y="-38" width="40" height="76"/><circle class="figure head" cx="0" cy="-29.2" r="8.8"/><path class="figure" d="M 0 -20.4 V -0.8 M -20 -13.2 H 20 M -16 22 L 0 -0.8 L 16 22"/><text class="label" x="0" y="34" text-anchor="middle">Payment provider</text></g></g><g class="overlay"></g></svg>

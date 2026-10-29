@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-94 -70 807 260" class="graphedwright" data-mode="view" role="img" aria-labelledby="graphedwright-title"><title id="graphedwright-title"></title><desc></desc><style>/* The default look of a graphedwright drawing. A host styles by class;
+   nothing here is required. */
+
+.graphedwright { font-family: system-ui, sans-serif; font-size: 12px; }
+
+.graphedwright .vertex .shape { fill: #f5f7fa; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .label { fill: #1a202c; }
+.graphedwright .vertex .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .vertex.container &gt; .shape { fill: #f8fafc; stroke: #718096; }
+.graphedwright .vertex.container &gt; .label { fill: #4a5568; font-weight: 600; }
+.graphedwright .vertex .box { fill: transparent; stroke: none; }
+.graphedwright .vertex .store { stroke: none; }
+.graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
+.graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+
+.graphedwright .edge path { fill: none; stroke: #718096; }
+.graphedwright .edge .label { fill: #2d3748; }
+.graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
+.graphedwright .edge.hold path { stroke-dasharray: 6 3; }
+.graphedwright .arrowhead path { fill: #718096; stroke: none; }
+.graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
+.graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
+.graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A selected vertex is outlined; a selected edge has a halo as wide as
+   the stroke-width the renderer writes on it, which a width here would
+   override. */
+.graphedwright .overlay rect.selection { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.graphedwright .overlay path.selection { fill: none; stroke: #3182ce; stroke-opacity: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+.graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
+.graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
+
+.graphedwright[data-mode="edit"] .vertex { cursor: move; }
+.graphedwright[data-mode="edit"] .port { cursor: crosshair; }
+.graphedwright[data-mode="edit"] .edge path { cursor: pointer; }
+
+/* The elements the browser binding makes around the drawing: the host
+   holds the palette, the drawing, which takes the room below it, the
+   zoom buttons over the drawing's bottom right corner, and the input
+   that edits a label, placed over the label. A page gives the host or
+   the drawing a height. */
+.graphedwright-host { position: relative; display: flex; flex-direction: column; }
+.graphedwright-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid #e2e8f0; background: #f7fafc; }
+.graphedwright-palette:empty { display: none; }
+.graphedwright-item.graphedwright-edge { font-style: italic; }
+.graphedwright-drawing { flex: 1 1 auto; min-height: 320px; touch-action: none; }
+.graphedwright-drawing svg { width: 100%; height: 100%; display: block; }
+.graphedwright-label { position: absolute; box-sizing: border-box; padding: 0 4px; font: inherit; text-align: center; border: 1px solid #3182ce; border-radius: 3px; background: #ffffff; }
+.graphedwright-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.graphedwright-zoom button { min-width: 28px; }
+.graphedwright-chosen { background: #bee3f8; border-color: #3182ce; }
+</style><defs><marker id="arrow-0" class="arrowhead data_flow" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g class="containers"><g class="vertex trust_boundary container dashed unplaced" id="dc" data-kind="trust boundary" transform="translate(418.5 60)" data-trust="partial"><rect class="shape" x="-270.5" y="-106" width="541" height="212" rx="6"/><text class="label" x="-262.5" y="-92" text-anchor="start">Data centre</text></g><g class="vertex trust_boundary container dashed unplaced" id="core" data-kind="trust boundary" transform="translate(592 70)" data-trust="trusted"><rect class="shape" x="-81" y="-80" width="162" height="160" rx="6"/><text class="label" x="-73" y="-66" text-anchor="start">Database zone</text></g></g><g class="edges"><g class="edge data_flow" id="f1" data-kind="data flow" data-from="user" data-to="web" data-encrypted="yes" data-authenticated="yes" data-protocol="HTTPS"><path d="M 70 66.5 L 155.14 69.54" stroke-width="1.5" marker-end="url(#arrow-0)"/><text class="label" x="117.07" y="63.43" text-anchor="middle">orders</text></g><g class="edge data_flow" id="f2" data-kind="data flow" data-from="idp" data-to="web" data-encrypted="yes" data-authenticated="yes" data-protocol="OIDC"><path d="M 70 116 L 162.46 89.58" stroke-width="1.5" marker-end="url(#arrow-0)"/><text class="label" x="120.56" y="96.81" text-anchor="middle">ID token</text></g><g class="edge data_flow" id="f3" data-kind="data flow" data-from="web" data-to="api" data-encrypted="no" data-authenticated="yes" data-protocol="HTTP" data-threats="I: plaintext inside the data centre"><path d="M 284 72 L 323 72" stroke-width="1.5" marker-end="url(#arrow-0)"/><text class="label" x="308" y="67.25" text-anchor="middle">REST</text></g><g class="edge data_flow" id="f4" data-kind="data flow" data-from="api" data-to="db" data-encrypted="yes" data-authenticated="yes" data-protocol="TLS"><path d="M 450.54 64.98 L 518.06 56.87" stroke-width="1.5" marker-end="url(#arrow-0)"/><text class="label" x="488.77" y="55.64" text-anchor="middle">SQL</text></g><g class="edge data_flow" id="f5" data-kind="data flow" data-from="api" data-to="audit" data-encrypted="no" data-authenticated="no" data-protocol="syslog" data-threats="T, R"><path d="M 448.18 83.24 L 518.17 97.23" stroke-width="1.5" marker-end="url(#arrow-0)"/><text class="label" x="487.59" y="86.37" text-anchor="middle">events</text></g></g><g class="vertices"><g class="vertex external_entity unplaced" id="user" data-kind="external entity" transform="translate(0 64)" data-trust="untrusted"><rect class="shape" x="-70" y="-24" width="140" height="48"/><text class="label" x="0" y="4" text-anchor="middle">User</text></g><g class="vertex external_entity unplaced" id="idp" data-kind="external entity" transform="translate(0 136)" data-trust="partial"><rect class="shape" x="-70" y="-24" width="140" height="48"/><text class="label" x="0" y="4" text-anchor="middle">Identity provider</text></g><g class="vertex process unplaced" id="web" data-kind="process" transform="translate(224 72)" data-trust="partial" data-threats="S: session theft; D: request floods"><ellipse class="shape" cx="0" cy="0" rx="60" ry="32"/><text class="label" x="0" y="4" text-anchor="middle">Web app</text></g><g class="vertex process unplaced" id="api" data-kind="process" transform="translate(392 72)" data-trust="partial"><ellipse class="shape" cx="0" cy="0" rx="60" ry="32"/><text class="label" x="0" y="4" text-anchor="middle">Orders API</text></g><g class="vertex data_store unplaced" id="db" data-kind="data store" transform="translate(592 48)" data-encrypted="yes" data-threats="I: backups readable"><rect class="shape store" x="-65" y="-22" width="130" height="44"/><path class="figure" d="M -65 -22 H 65 M -65 22 H 65"/><text class="label" x="0" y="4" text-anchor="middle">Orders DB</text></g><g class="vertex data_store unplaced" id="audit" data-kind="data store" transform="translate(592 112)" data-encrypted="no" data-threats="T: log tampering; R: entries deleted"><rect class="shape store" x="-65" y="-22" width="130" height="44"/><path class="figure" d="M -65 -22 H 65 M -65 22 H 65"/><text class="label" x="0" y="4" text-anchor="middle">Audit log</text></g></g><g class="overlay"></g></svg>

@@ -1,0 +1,2 @@
+# Receiver types that hold the interface they implement; interface dispatch
+# into their methods is not followed by the recursion check.

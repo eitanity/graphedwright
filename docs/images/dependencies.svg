@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="268 -42 768 468" class="graphedwright" data-mode="view" role="img" aria-labelledby="graphedwright-title"><title id="graphedwright-title"></title><desc></desc><style>/* The default look of a graphedwright drawing. A host styles by class;
+   nothing here is required. */
+
+.graphedwright { font-family: system-ui, sans-serif; font-size: 12px; }
+
+.graphedwright .vertex .shape { fill: #f5f7fa; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .label { fill: #1a202c; }
+.graphedwright .vertex .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .vertex.container &gt; .shape { fill: #f8fafc; stroke: #718096; }
+.graphedwright .vertex.container &gt; .label { fill: #4a5568; font-weight: 600; }
+.graphedwright .vertex .box { fill: transparent; stroke: none; }
+.graphedwright .vertex .store { stroke: none; }
+.graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
+.graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+
+.graphedwright .edge path { fill: none; stroke: #718096; }
+.graphedwright .edge .label { fill: #2d3748; }
+.graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
+.graphedwright .edge.hold path { stroke-dasharray: 6 3; }
+.graphedwright .arrowhead path { fill: #718096; stroke: none; }
+.graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
+.graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
+.graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A selected vertex is outlined; a selected edge has a halo as wide as
+   the stroke-width the renderer writes on it, which a width here would
+   override. */
+.graphedwright .overlay rect.selection { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.graphedwright .overlay path.selection { fill: none; stroke: #3182ce; stroke-opacity: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+.graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
+.graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
+
+.graphedwright[data-mode="edit"] .vertex { cursor: move; }
+.graphedwright[data-mode="edit"] .port { cursor: crosshair; }
+.graphedwright[data-mode="edit"] .edge path { cursor: pointer; }
+
+/* The elements the browser binding makes around the drawing: the host
+   holds the palette, the drawing, which takes the room below it, the
+   zoom buttons over the drawing's bottom right corner, and the input
+   that edits a label, placed over the label. A page gives the host or
+   the drawing a height. */
+.graphedwright-host { position: relative; display: flex; flex-direction: column; }
+.graphedwright-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid #e2e8f0; background: #f7fafc; }
+.graphedwright-palette:empty { display: none; }
+.graphedwright-item.graphedwright-edge { font-style: italic; }
+.graphedwright-drawing { flex: 1 1 auto; min-height: 320px; touch-action: none; }
+.graphedwright-drawing svg { width: 100%; height: 100%; display: block; }
+.graphedwright-label { position: absolute; box-sizing: border-box; padding: 0 4px; font: inherit; text-align: center; border: 1px solid #3182ce; border-radius: 3px; background: #ffffff; }
+.graphedwright-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.graphedwright-zoom button { min-width: 28px; }
+.graphedwright-chosen { background: #bee3f8; border-color: #3182ce; }
+</style><defs><marker id="arrow-0" class="arrowhead arrow" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-2" class="arrowhead curve" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g class="containers"></g><g class="edges"><g class="edge arrow" id="e1" data-kind="arrow" data-from="web-app" data-to="router"><path d="M 652 16 L 420.7 77.68" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e2" data-kind="arrow" data-from="web-app" data-to="ui-kit"><path d="M 685 18 L 602.49 73.01" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e3" data-kind="arrow" data-from="web-app" data-to="api-client"><path d="M 740.5 18 L 827.89 73.19" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e4" data-kind="arrow" data-from="web-app" data-to="logger"><path d="M 772 18 L 952 72 L 952 120 L 952 165" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e5" data-kind="arrow" data-from="router" data-to="history"><path d="M 352 114 L 352 165" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e6" data-kind="arrow" data-from="ui-kit" data-to="icons"><path d="M 554.5 114 L 514.9 166.8" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e7" data-kind="arrow" data-from="ui-kit" data-to="theme"><path d="M 581.5 114 L 621.1 166.8" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e8" data-kind="arrow" data-from="api-client" data-to="http"><path d="M 864 114 L 864 168 L 864 216 L 704.57 267.25" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e9" data-kind="arrow" data-from="api-client" data-to="auth"><path d="M 849 114 L 804.76 167.09" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e10" data-kind="arrow" data-from="api-client" data-to="logger"><path d="M 880.5 114 L 929.42 167.37" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e11" data-kind="arrow" data-from="auth" data-to="crypto"><path d="M 730 210 L 558.54 267.15" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e12" data-kind="arrow" data-from="auth" data-to="http"><path d="M 757 210 L 674.49 265.01" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e13" data-kind="arrow" data-from="http" data-to="url"><path d="M 586 306 L 414.54 363.15" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e14" data-kind="arrow" data-from="logger" data-to="format"><path d="M 920.5 210 L 823.31 265.53" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge arrow" id="e15" data-kind="arrow" data-from="history" data-to="url"><path d="M 352 210 L 352 264 L 352 312 L 352 357" stroke-width="1.5" marker-end="url(#arrow-0)"/></g></g><g class="vertices"><g class="vertex box unplaced" id="web-app" data-kind="box" transform="translate(712 0)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">web-app</text></g><g class="vertex box unplaced" id="router" data-kind="box" transform="translate(352 96)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">router</text></g><g class="vertex box unplaced" id="ui-kit" data-kind="box" transform="translate(568 96)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">ui-kit</text></g><g class="vertex box unplaced" id="api-client" data-kind="box" transform="translate(864 96)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">api-client</text></g><g class="vertex box unplaced" id="logger" data-kind="box" transform="translate(952 192)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">logger</text></g><g class="vertex box unplaced" id="history" data-kind="box" transform="translate(352 192)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">history</text></g><g class="vertex box unplaced" id="icons" data-kind="box" transform="translate(496 192)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">icons</text></g><g class="vertex box unplaced" id="theme" data-kind="box" transform="translate(640 192)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">theme</text></g><g class="vertex box unplaced" id="http" data-kind="box" transform="translate(640 288)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">http</text></g><g class="vertex box unplaced" id="auth" data-kind="box" transform="translate(784 192)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">auth</text></g><g class="vertex box unplaced" id="crypto" data-kind="box" transform="translate(496 288)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">crypto</text></g><g class="vertex box unplaced" id="url" data-kind="box" transform="translate(352 384)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">url</text></g><g class="vertex box unplaced" id="format" data-kind="box" transform="translate(784 288)"><rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/><text class="label" x="0" y="4" text-anchor="middle">format</text></g></g><g class="overlay"></g></svg>

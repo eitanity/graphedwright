@@ -1,0 +1,34 @@
+{
+ "schema": "state-machine",
+ "vertices": [
+  {"id": "start", "kind": "initial", "label": ""},
+  {"id": "idle", "kind": "state", "label": "Idle", "attrs": {"internal": "Tab / select the next vertex; Delete, an arrow, Ctrl-Z, Ctrl-Y / a command, refused in view mode"}},
+  {"id": "press", "kind": "choice", "label": "under it?"},
+  {"id": "gesture", "kind": "composite state", "label": "Pointer gesture", "attrs": {"internal": "a key other than Escape: ignored", "exit": "drop what the gesture held"}},
+  {"id": "selecting", "kind": "state", "label": "Selecting", "parent": "gesture", "attrs": {"internal": "Move / draw the marquee; Press: ignored, a second pointer"}},
+  {"id": "dragging", "kind": "state", "label": "Dragging", "parent": "gesture", "attrs": {"internal": "Move / move the selection; Press: ignored, a second pointer"}},
+  {"id": "connecting", "kind": "state", "label": "Connecting", "parent": "gesture", "attrs": {"internal": "Move / draw the edge to the pointer; Press / only the pointer moves, and with the middle button or Alt it pans"}},
+  {"id": "placing", "kind": "state", "label": "Placing", "parent": "gesture", "attrs": {"internal": "Move / the new vertex follows the pointer; Press / only the pointer moves, and with the middle button or Alt it pans"}},
+  {"id": "panning", "kind": "state", "label": "Panning", "parent": "gesture", "attrs": {"internal": "Move / pan the view; Press: ignored, a second pointer"}},
+  {"id": "resizing", "kind": "state", "label": "Resizing", "parent": "gesture", "attrs": {"internal": "Move / draw the new size; Press: ignored, a second pointer"}},
+  {"id": "editing", "kind": "state", "label": "EditingText", "attrs": {"entry": "the host shows the label input", "exit": "the host hides it", "internal": "Release, a key: ignored; the input has the keyboard"}}
+ ],
+ "edges": [
+  {"id": "t1", "kind": "transition", "from": "start", "to": "idle", "label": "New"},
+  {"id": "t2", "kind": "transition", "from": "idle", "to": "press", "label": "Press", "attrs": {"event": "Press"}},
+  {"id": "t3", "kind": "transition", "from": "press", "to": "panning", "label": "[middle button or Alt]", "attrs": {"guard": "middle button or Alt"}},
+  {"id": "t4", "kind": "transition", "from": "press", "to": "resizing", "label": "[resize handle]", "attrs": {"guard": "on the resize handle, in edit mode"}},
+  {"id": "t5", "kind": "transition", "from": "press", "to": "dragging", "label": "[vertex] / select", "attrs": {"guard": "on a vertex, in edit mode", "actions": "select it; remember where the selection is"}},
+  {"id": "t6", "kind": "transition", "from": "press", "to": "connecting", "label": "[port or outline]", "attrs": {"guard": "on a port or an outline, in edit mode", "actions": "remember where the edge starts"}},
+  {"id": "t7", "kind": "transition", "from": "press", "to": "selecting", "label": "[background]", "attrs": {"guard": "on the background", "actions": "clear the selection, unless Shift is held"}},
+  {"id": "t8", "kind": "transition", "from": "press", "to": "idle", "label": "[edge, or view mode] / select", "attrs": {"guard": "on an edge, or on a vertex in view mode", "actions": "select it"}},
+  {"id": "t9", "kind": "transition", "from": "idle", "to": "placing", "label": "PaletteVertex", "attrs": {"event": "PaletteVertex", "guard": "edit mode", "actions": "remember the vertex kind"}},
+  {"id": "t10", "kind": "transition", "from": "gesture", "to": "idle", "label": "Release / finish", "attrs": {"event": "Release", "actions": "move the selection, select in the marquee, add the edge, add the vertex or resize, by command"}},
+  {"id": "t11", "kind": "transition", "from": "gesture", "to": "idle", "label": "Escape, Blur / cancel", "attrs": {"event": "Escape, Blur, TextCancel, PaletteEdge, View, Edit", "actions": "put a drag back where it began"}},
+  {"id": "t12", "kind": "transition", "from": "idle", "to": "editing", "label": "Enter, F2, a key [one selected]", "attrs": {"event": "Enter, F2, a printable key", "guard": "one element selected, edit mode"}},
+  {"id": "t13", "kind": "transition", "from": "idle", "to": "editing", "label": "DoubleClick [element] / select", "attrs": {"event": "DoubleClick", "guard": "on a vertex or an edge, edit mode", "actions": "select it alone"}},
+  {"id": "t14", "kind": "transition", "from": "editing", "to": "idle", "label": "TextDone / relabel", "attrs": {"event": "TextDone", "actions": "relabel the element, by command"}},
+  {"id": "t15", "kind": "transition", "from": "editing", "to": "idle", "label": "TextCancel, Escape", "attrs": {"event": "TextCancel, Escape, Blur"}},
+  {"id": "t16", "kind": "transition", "from": "editing", "to": "press", "label": "Press / end editing", "attrs": {"event": "Press", "actions": "end the editing; the host commits the text first"}}
+ ]
+}

@@ -1,0 +1,4 @@
+# Files in which no value may escape to the heap, one repository-relative
+# path per line: the render path and the editor's event path. Checked by
+# internal/lint/escapes. Filled as those packages are written.
+svg/render.go

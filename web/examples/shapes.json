@@ -1,0 +1,17 @@
+{
+ "schema": "basic",
+ "vertices": [
+  {"id": "box", "kind": "box", "label": "a round box with a long label"},
+  {"id": "pill", "kind": "pill", "label": "pill"},
+  {"id": "diamond", "kind": "diamond", "label": "diamond"},
+  {"id": "circle", "kind": "circle", "label": "o"},
+  {"id": "end", "kind": "box", "label": "end"}
+ ],
+ "edges": [
+  {"id": "straight", "kind": "arrow", "from": "box", "to": "pill", "label": "arrow"},
+  {"id": "line", "kind": "line", "from": "box", "to": "diamond", "label": "line"},
+  {"id": "curve", "kind": "curve", "from": "pill", "to": "circle", "label": "curve", "weight": 2},
+  {"id": "wire", "kind": "wire", "from": "diamond", "to": "circle", "label": "wire"},
+  {"id": "last", "kind": "curve", "from": "circle", "to": "end", "weight": 1}
+ ]
+}
