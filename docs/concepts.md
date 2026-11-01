@@ -141,12 +141,13 @@ The layout (`layout.Layouter`) is layered:
    down and up (8 times by default) and keeping the best order seen.
 4. **Coordinates:** layers are a pitch apart (160 units, or 96 top to
    bottom), or further where a wide node needs it, or, left to right,
-   the label or stereotype of an edge drawn in the gap between them.
-   Within a layer, vertices are centred on their neighbours and kept a
-   gap (24) apart.
-   Everything lands on a grid (8).
+   the label or stereotype of an edge drawn in the gap between them
+   (twice as wide for a right-angled edge, whose text is on the half
+   past its turn). Within a layer, vertices are centred on their
+   neighbours and kept a gap (24) apart. Everything lands on a grid (8).
 5. **Routes:** each long edge is routed through its placeholders as
-   bends (below).
+   bends, and an edge that would cross a vertex beside one of its ends
+   is routed around it (below).
 
 Every pass is a loop with a stated bound, nothing recurses, and the
 working arrays are allocated once, in `layout.New`. The same input gives
@@ -159,7 +160,8 @@ default), or `TopToBottom`, as a dependency tree or an org chart is
 drawn. It changes the layout and how curved and right-angled edges
 leave and enter their vertices: right and left sides for left to right,
 bottom and top for top to bottom. Edge labels sit above the line left
-to right and beside it top to bottom.
+to right and beside it top to bottom, at the middle of the edge, or of
+a right-angled edge's last leg, past its turn.
 
 The flow changes only through a `Layout` command whose `Value` names
 it, `"left-to-right"` or `"top-to-bottom"`, so undoing the layout puts
@@ -192,6 +194,13 @@ layer it runs past the layer's widest node, clear of the vertices
 there, and changes height only in the room between layers. Its points
 are the edge's `Bends`.
 
+A layer is as wide as its widest node, a container say, so an edge's
+end narrower than that leaves or enters the layer some way in. Where
+the edge would pass another node of that layer on its way, such as a
+container above or below the end, it runs level from the end to the
+layer's edge instead, at the end's height, which no other node of the
+layer shares, and turns only in the room between layers.
+
 Bends are derived from the positions, not edited. A route holds for
 where the edge's two ends were when it was routed. Move or resize an
 end and the edge is drawn straight; put the end back, by an undo or a
@@ -201,7 +210,9 @@ routes of the edges inside it. Only the latest layout's routes are kept.
 **Lanes.** Edges between the same two vertices, either way, without
 bends or ports, would be drawn on top of each other. Each runs instead
 in a lane of its own through a point midway, a label's height from the
-next, so that their labels stack (`Document.Parallel`).
+next, so that their labels stack (`Document.Parallel`). A lane's texts
+go on its outer side, away from the middle, so that of two edges
+neither's label crosses the other.
 
 ## Containers
 

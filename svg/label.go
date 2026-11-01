@@ -42,23 +42,37 @@ func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 
 // EdgeLabelBox is the box of an edge's label, where it is drawn or
 // would be when it has none: above the middle of its route, or to the
-// right of it in a top-to-bottom flow, as wide as its text.
+// right of it in a top-to-bottom flow, as wide as its text; below or to
+// the left for a lane on that side of the others.
 func EdgeLabelBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
+	b, _ := edgeLabelBox(d, i)
+	return b
+}
+
+// edgeLabelBox is EdgeLabelBox and the side of its lane it is on.
+func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	e := &d.Edges[i]
 	kind := d.Schema.EdgeKinds[e.Kind]
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
 	mid := wy.middle(kind.Route)
+	side := wy.side()
 	w := math.Max(float64(float64(runeCount(e.Label))*defaultCharWidth)+16, minLabelWidth)
 	if f.down {
-		return gw.Viewport{X: mid.X + 2, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
+		if side < 0 {
+			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}, side
+		}
+		return gw.Viewport{X: mid.X + 2, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}, side
 	}
-	base := mid.Y - defaultStroke/2 - 4
+	base, step := mid.Y-defaultStroke/2-4, -float64(defaultFontSize)
+	if side < 0 {
+		base, step = mid.Y+defaultStroke/2+defaultFontSize, defaultFontSize
+	}
 	if kind.Stereotype != "" {
-		base -= defaultFontSize
+		base += step
 	}
-	return centred(mid.X, base-defaultFontSize/3, w)
+	return centred(mid.X, base-defaultFontSize/3, w), side
 }
 
 // defaultStroke is the stroke width of an unweighted edge.
@@ -75,13 +89,16 @@ func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	if d.Edges[i].Label == "" {
 		return false
 	}
-	b := EdgeLabelBox(d, i)
+	b, side := edgeLabelBox(d, i)
 	// The box for typing in is wider than the text; the text's own
 	// width is what is drawn and hit.
 	w := float64(float64(runeCount(d.Edges[i].Label))*defaultCharWidth) + 8
-	if d.Flow != gw.TopToBottom {
+	switch {
+	case d.Flow != gw.TopToBottom:
 		b.X, b.W = b.X+float64(b.W/2)-float64(w/2), w
-	} else {
+	case side < 0:
+		b.X, b.W = b.X+b.W-w, w
+	default:
 		b.W = w
 	}
 	return p.X >= b.X && p.X <= b.X+b.W && p.Y >= b.Y && p.Y <= b.Y+b.H

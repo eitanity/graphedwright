@@ -8,11 +8,14 @@ import (
 	"code.eitanity.com/graphedwright/layout"
 )
 
-// checkBends: an edge has bends exactly when a vertex of its level lies
-// in a layer between its ends; they come in pairs, run strictly between
-// its ends in the edge's own direction, against the flow for one
-// reversed to break a cycle, and every leg between two bends misses
-// every vertex but the ends and the containers that hold them.
+// checkBends: an edge has bends when a vertex of its level lies in a
+// layer between its ends, a pair for each layer it crosses, and at each
+// end's band one more where its route would cross a node beside that
+// end. They run strictly between its ends in the edge's own direction:
+// against the flow for one reversed to break a cycle, and for one
+// between adjacent layers the way its ends lie. Every leg between two
+// bends misses every vertex but the ends and the containers that hold
+// them.
 func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 	t.Helper()
 	for i := range d.Edges {
@@ -25,11 +28,14 @@ func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 		if reversed(res, gw.EdgeIndex(i)) { //nolint:gosec // bounded
 			dir = -1
 		}
-		if len(e.Bends)%2 != 0 {
-			t.Errorf("%s: edge %s has %d bends", name, e.ID, len(e.Bends))
-		}
-		if between(d, e) && len(e.Bends) == 0 {
+		long := between(d, e)
+		if long && len(e.Bends) == 0 {
 			t.Errorf("%s: edge %s from %v to %v crosses a layer without bends", name, e.ID, from.Pos, to.Pos)
+		}
+		if !long && lay(d, to.Pos) < lay(d, from.Pos) {
+			dir = -1
+		} else if !long {
+			dir = 1
 		}
 		for k, p := range e.Bends {
 			if dir*lay(d, p) <= dir*lay(d, from.Pos) || dir*lay(d, p) >= dir*lay(d, to.Pos) || (k > 0 && dir*lay(d, p) < dir*lay(d, e.Bends[k-1])) {

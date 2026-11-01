@@ -88,8 +88,9 @@ const (
 // labelRoom gives each layer the room the text in the gap before it
 // needs: the widest of the edges without dummies between it and the
 // layer before, whose label and kind's stereotype are drawn in that gap,
-// one above the other at the middle of the edge. A top-to-bottom flow
-// puts them beside their edges, so it needs none.
+// one above the other at the middle of the edge, or of an orthogonal
+// edge's last leg, past its turn halfway. A top-to-bottom flow puts them
+// beside their edges, so it needs none.
 func (l *Layouter) labelRoom(d *gw.Document) {
 	// bound: the layers
 	for k := 0; k <= l.layers; k++ {
@@ -105,8 +106,14 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 			continue
 		}
 		k := max(a, b)
-		chars := max(utf8.RuneCountInString(d.Edges[e].Label), utf8.RuneCountInString(d.Schema.EdgeKinds[d.Edges[e].Kind].Stereotype))
+		kind := d.Schema.EdgeKinds[d.Edges[e].Kind]
+		chars := max(utf8.RuneCountInString(d.Edges[e].Label), utf8.RuneCountInString(kind.Stereotype))
 		w := float64(float64(chars)*labelChar) + 2*labelPad
+		if kind.Route == gw.Orthogonal {
+			// Its text is drawn on its last leg, the half of the gap
+			// past its turn.
+			w *= 2
+		}
 		l.lg[k] = math.Max(l.lg[k], w)
 	}
 }
@@ -166,6 +173,7 @@ type Layouter struct {
 	layers   int
 	x0       float64 // the x of layer zero
 	down     bool    // the flow is top to bottom: the frame's axes are swapped
+	sorted   bool    // the level has no placed vertex, so each layer's order runs down in y
 }
 
 // New makes a layouter for documents with the capacities. A capacity
@@ -369,41 +377,229 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		return
 	}
 	g := opts.Grid
+	l.sorted = !l.anyPinned()
 	for i := range l.eOn[:l.edges] {
 		if !l.eOn[i] {
 			continue
 		}
 		e := &d.Edges[i]
 		src, dst := 4*crossed(d, e.From, c), 4*crossed(d, e.To, c)
-		if l.dN[i] == 0 && src+dst == 0 {
+		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Schema.EdgeKinds[e.Kind].Route)
+		ns, nt := 0, 0
+		if sOK {
+			ns = 2
+		}
+		if tOK {
+			nt = 2
+		}
+		if l.dN[i] == 0 && src+dst+ns+nt == 0 {
 			continue
 		}
-		all := d.ReserveBends(gw.EdgeIndex(i), src+2*int(l.dN[i])+dst) //nolint:gosec // bounded by the capacity
+		all := d.ReserveBends(gw.EdgeIndex(i), src+ns+2*int(l.dN[i])+nt+dst) //nolint:gosec // bounded by the capacity
 		if all == nil {
 			continue
 		}
-		pts := all[src : src+2*int(l.dN[i])]
+		route := all[src : src+ns+2*int(l.dN[i])+nt]
+		if sOK {
+			route[0] = gw.Point{X: sIn.X - ox, Y: sIn.Y - oy}
+			route[1] = gw.Point{X: sOut.X - ox, Y: sOut.Y - oy}
+		}
+		if tOK {
+			route[len(route)-2] = gw.Point{X: tOut.X - ox, Y: tOut.Y - oy}
+			route[len(route)-1] = gw.Point{X: tIn.X - ox, Y: tIn.Y - oy}
+		}
 		l.eLevel[i], l.route[i] = c, all
-		l.rOff[i], l.rLen[i] = int32(src), int32(len(pts)) //nolint:gosec // bounded by the budget
-		// A backward edge's dummies run from its target's layer, so its
-		// bends are taken last dummy first, each band right side first.
-		back := l.layer[l.eFrom[i]] > l.layer[l.eTo[i]]
-		// bound: the dummies of one edge, below the budget
-		for k := int32(0); k < l.dN[i]; k++ {
-			j := l.dFirst[i] + k
-			near, far := 2*k, 2*k+1
-			if back {
-				j = l.dFirst[i] + l.dN[i] - 1 - k
-				near, far = far, near
-			}
-			lx, half := l.lx[l.layer[j]], float64(l.lw[l.layer[j]]/2)+float64(g/2)
-			y := math.Round(l.y[j]/g) * g
-			x, py := l.swap(math.Floor((lx-half)/g)*g, y)
-			pts[near] = gw.Point{X: x - ox, Y: py - oy}
-			x, py = l.swap(math.Ceil((lx+half)/g)*g, y)
-			pts[far] = gw.Point{X: x - ox, Y: py - oy}
+		l.rOff[i], l.rLen[i] = int32(src), int32(len(route)) //nolint:gosec // bounded by the budget
+		l.dummyBends(i, g, ox, oy, route[ns:ns+2*int(l.dN[i])])
+	}
+}
+
+// dummyBends writes the bends of edge i's dummies into pts, in the
+// edge's own direction: a backward edge's dummies run from its target's
+// layer, so its bends are taken last dummy first, each band right side
+// first.
+func (l *Layouter) dummyBends(i int, g, ox, oy float64, pts []gw.Point) {
+	back := l.layer[l.eFrom[i]] > l.layer[l.eTo[i]]
+	// bound: the dummies of one edge, below the budget
+	for k := int32(0); k < l.dN[i]; k++ {
+		j := l.dFirst[i] + k
+		near, far := 2*k, 2*k+1
+		if back {
+			j = l.dFirst[i] + l.dN[i] - 1 - k
+			near, far = far, near
+		}
+		lx, half := l.lx[l.layer[j]], float64(l.lw[l.layer[j]]/2)+float64(g/2)
+		y := math.Round(l.y[j]/g) * g
+		x, py := l.swap(math.Floor((lx-half)/g)*g, y)
+		pts[near] = gw.Point{X: x - ox, Y: py - oy}
+		x, py = l.swap(math.Ceil((lx+half)/g)*g, y)
+		pts[far] = gw.Point{X: x - ox, Y: py - oy}
+	}
+}
+
+// endPairs gives edge i the pair of bends each of its ends needs, if
+// any, to clear its band (clearance), source and then target, each with
+// the inner bend first. Each end's route runs to the other end, or to
+// the dummy next to it. The target's is found first, then the source's
+// towards where the route then goes; and the target's again from the
+// source's band edge if only the source needed a pair, since a straight
+// route then comes from there.
+func (l *Layouter) endPairs(i int, g float64, route gw.Route) (sIn, sOut gw.Point, sOK bool, tIn, tOut gw.Point, tOK bool) {
+	f, t := l.eFrom[i], l.eTo[i]
+	srcTo, dstFrom := t, f
+	if l.dN[i] > 0 {
+		srcTo, dstFrom = l.dFirst[i], l.dFirst[i]+l.dN[i]-1
+		if l.layer[f] > l.layer[t] {
+			srcTo, dstFrom = dstFrom, srcTo
 		}
 	}
+	tIn, tOut, tOK = l.clearance(t, dstFrom, l.x[dstFrom], l.y[dstFrom], g, route)
+	sx, sy := l.x[srcTo], l.y[srcTo]
+	if tOK && l.dN[i] == 0 {
+		sx, sy = l.frameOf(tOut)
+	}
+	sIn, sOut, sOK = l.clearance(f, srcTo, sx, sy, g, route)
+	if sOK && !tOK && l.dN[i] == 0 {
+		x, y := l.frameOf(sOut)
+		tIn, tOut, tOK = l.clearance(t, dstFrom, x, y, g, route)
+	}
+	return sIn, sOut, sOK, tIn, tOut, tOK
+}
+
+// clearance gives the pair of bends, if they are needed, that keep the
+// route from node end towards node toward, in an adjacent layer (the
+// edge's other end, or its dummy next to end), out of the other nodes of
+// end's layer. A layer's band is as wide as its widest node, so an end
+// narrower than the band leaves or enters it some way in, and the route
+// between there and the band's edge can pass another node of the layer:
+// a container above or below the end, say. Where it would, the edge
+// runs level from the end to the band's edge, half a grid step out and
+// out to the grid as a dummy's bends are, through a bend halfway there
+// and one at the edge, at the end's height. The run passes no other node
+// of the layer, which are stacked apart from it, and the route on from
+// the edge keeps to the room between the layers. The pair is a run as a
+// dummy's is, so a label taken from the middle pair of a route lies on
+// one. The route is taken to run to the point tx, ty in toward's layer,
+// in the frame: toward's centre, or a band edge where the route has a
+// bend. The points, the inner and the outer, are in the level's axes
+// from its origin.
+func (l *Layouter) clearance(end, toward int32, tx, ty, g float64, route gw.Route) (inner, outer gw.Point, ok bool) {
+	k := l.layer[end]
+	if k == l.layer[toward] {
+		return gw.Point{}, gw.Point{}, false
+	}
+	side := 1.0 // the side of the band that faces the other layer
+	if l.layer[toward] < k {
+		side = -1
+	}
+	edge := l.lx[k] + float64(side*(float64(l.lw[k]/2)+float64(g/2)))
+	if side > 0 {
+		edge = math.Ceil(edge/g) * g
+	} else {
+		edge = math.Floor(edge/g) * g
+	}
+	exit := l.x[end] + float64(side*float64(l.w[end]/2))
+	// The near edge of toward's band, where a curved or orthogonal route
+	// arrives at the furthest in, so that its run there is the shortest.
+	kt := l.layer[toward]
+	near := l.lx[kt] - float64(side*float64(l.lw[kt]/2))
+	if (edge-exit)*side <= 0 || !l.blocked(k, end, tx, ty, exit, edge, near, route) {
+		return gw.Point{}, gw.Point{}, false
+	}
+	x, y := l.swap(float64((exit+edge)/2), l.y[end])
+	inner = gw.Point{X: x, Y: y}
+	x, y = l.swap(edge, l.y[end])
+	return inner, gw.Point{X: x, Y: y}, true
+}
+
+// anyPinned reports whether the level being laid out has a placed
+// vertex, which keeps its own height in its layer's order.
+func (l *Layouter) anyPinned() bool {
+	for i := range l.realN {
+		if l.liveReal[i] && l.pin[i] {
+			return true
+		}
+	}
+	return false
+}
+
+// frameOf is a point of the level's axes in the frame.
+func (l *Layouter) frameOf(p gw.Point) (x, y float64) { return l.swap(p.X, p.Y) }
+
+// blocked reports whether the route from node end towards the point tx,
+// ty would meet a real node of end's layer k other than end, before the
+// band's edge. A straight route is the line from end's centre. A curved
+// or orthogonal one leaves end's side, exit, at its height, towards a
+// point no nearer than near, the near edge of the next band, and over
+// the band from exit to edge it rises or falls by no more than a part of
+// the way to ty: an orthogonal route not at all unless it turns in the
+// band, which it does halfway to near; a curved one, whose controls are
+// halfway along at either end's height, by at most 16u²/3 of it where u
+// is the part of the way along that the band takes, and all of it from
+// halfway on. The box from exit to the band's edge between end's height
+// and that bound holds the route. Only nodes between those heights can
+// meet it: where the layer's order runs down in y, the walk goes from
+// end towards ty and stops at the first node past them; otherwise it
+// takes the whole layer.
+func (l *Layouter) blocked(k, end int32, tx, ty, exit, edge, near float64, route gw.Route) bool {
+	x0, x1 := math.Min(exit, edge), math.Max(exit, edge)
+	reach := l.y[end] + float64(l.part(end, tx, exit, edge, near, route)*(ty-l.y[end]))
+	y0, y1 := math.Min(l.y[end], reach), math.Max(l.y[end], reach)
+	lo, hi, step := l.walk(k, end, ty)
+	// bound: the nodes of one layer
+	for p := lo; p != hi; p += step {
+		v := l.order[p]
+		hw, hh := float64(l.w[v]/2), float64(l.h[v]/2)
+		if step > 0 && lo != l.keys[k] && l.y[v]-hh > y1 || step < 0 && l.y[v]+hh < y0 {
+			return false
+		}
+		if v == end || int(v) >= l.realN {
+			continue
+		}
+		box := frameBox{x0: l.x[v] - hw, y0: l.y[v] - hh, x1: l.x[v] + hw, y1: l.y[v] + hh}
+		if route == gw.Straight && meets(l.x[end], l.y[end], tx, ty, box) ||
+			route != gw.Straight && box.x1 > x0 && box.x0 < x1 && box.y1 >= y0 && box.y0 <= y1 {
+			return true
+		}
+	}
+	return false
+}
+
+// part is how much of the way to its next point's height a route from
+// node end goes within its band, from exit to edge (blocked).
+func (l *Layouter) part(end int32, tx, exit, edge, near float64, route gw.Route) float64 {
+	part := 1.0
+	switch route {
+	case gw.Straight:
+		if run := math.Abs(tx - l.x[end]); run > 0 {
+			part = math.Min(1, math.Abs(edge-l.x[end])/run)
+		}
+	case gw.Curve:
+		if run := math.Abs(near - exit); run > 0 {
+			if u := math.Abs(edge-exit) / run; u <= 0.5 {
+				part = float64(16*u*u) / 3
+			}
+		}
+	case gw.Orthogonal:
+		if math.Abs(near-exit) >= 2*math.Abs(edge-exit) {
+			part = 0
+		}
+	}
+	return part
+}
+
+// walk is the order positions blocked visits in layer k, from lo
+// towards hi by step: from end towards ty where the order runs down in
+// y, or else the whole layer.
+func (l *Layouter) walk(k, end int32, ty float64) (lo, hi, step int32) {
+	lo, hi, step = l.keys[k], l.keys[k+1], 1
+	if p := l.keys[k] + l.pos[end]; l.sorted && p < hi && l.order[p] == end {
+		lo = p + 1
+		if ty < l.y[end] {
+			lo, hi, step = p-1, l.keys[k]-1, -1
+		}
+	}
+	return lo, hi, step
 }
 
 // level lays out the vertices directly in container c, or at the top

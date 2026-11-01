@@ -309,41 +309,56 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	o.str(`/>`)
 	mid := w.middle(kind.Route)
 	if f.down {
-		r.besideLabels(kind, e, note, mid, width, opts)
+		r.besideLabels(kind, e, note, mid, width, w.side(), opts)
 		o.str(`</g>`)
 		return
 	}
-	// The stereotype and then the label sit above the stroke, the
-	// annotation below it.
-	above := mid.Y - float64(width/2) - 4
+	r.levelLabels(kind, e, note, mid, width, w.side(), opts)
+	o.str(`</g>`)
+}
+
+// levelLabels writes an edge's texts for a left-to-right flow: the
+// stereotype and then the label above the stroke at the middle, the
+// annotation below it; on side -1, for a lane below the others, the
+// other way about, so that they are outside the lanes.
+func (r *Renderer) levelLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mid gw.Point, width, side float64, opts Options) {
+	above, below := mid.Y-float64(width/2)-4, mid.Y+float64(width/2)+opts.FontSize
+	near, step, far := above, -opts.FontSize, below
+	if side < 0 {
+		near, step, far = below, opts.FontSize, above
+	}
 	if kind.Stereotype != "" {
-		r.label("stereotype", kind.Stereotype, mid.X, above, 0, opts)
-		above -= opts.FontSize
+		r.label("stereotype", kind.Stereotype, mid.X, near, 0, opts)
+		near += step
 	}
 	if e.Label != "" {
-		r.label("label", e.Label, mid.X, above, 0, opts)
+		r.label("label", e.Label, mid.X, near, 0, opts)
 	}
 	if note.Text != "" {
-		r.label("annotation", note.Text, mid.X, mid.Y+float64(width/2)+opts.FontSize, 0, opts)
+		r.label("annotation", note.Text, mid.X, far, 0, opts)
 	}
-	o.str(`</g>`)
 }
 
 // besideLabels writes an edge's texts for a top-to-bottom flow, whose
 // edges mostly run down: the label to the right of the stroke at the
-// middle, the stereotype above the label, the annotation to the left.
-func (r *Renderer) besideLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mid gw.Point, width float64, opts Options) {
-	x, y := mid.X+float64(width/2)+4, mid.Y+opts.FontSize/3
+// middle, the stereotype above the label, the annotation to the left;
+// on side -1, for a lane left of the others, the other way about.
+func (r *Renderer) besideLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mid gw.Point, width, side float64, opts Options) {
+	x, other, y := mid.X+float64(width/2)+4, mid.X-float64(width/2)-4, mid.Y+opts.FontSize/3
+	anchor, otherAnchor := "start", "end"
+	if side < 0 {
+		x, other, anchor, otherAnchor = other, x, otherAnchor, anchor
+	}
 	above := y
 	if e.Label != "" {
-		r.labelAt("label", e.Label, x, y, 0, "start", opts)
+		r.labelAt("label", e.Label, x, y, 0, anchor, opts)
 		above -= opts.FontSize
 	}
 	if kind.Stereotype != "" {
-		r.labelAt("stereotype", kind.Stereotype, x, above, 0, "start", opts)
+		r.labelAt("stereotype", kind.Stereotype, x, above, 0, anchor, opts)
 	}
 	if note.Text != "" {
-		r.labelAt("annotation", note.Text, mid.X-float64(width/2)-4, y, 0, "end", opts)
+		r.labelAt("annotation", note.Text, other, y, 0, otherAnchor, opts)
 	}
 }
 

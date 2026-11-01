@@ -280,6 +280,25 @@ func along(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point, t 
 	return f.t(f.at(legRoute(route, len(bends) > 0, p, q), p, q, s-float64(k)))
 }
 
+// side is the side of its lane an edge's texts go on: away from the
+// lanes beside it, so that they cross none of them. 1 is the usual
+// side, above the stroke left to right and to its right top to bottom;
+// -1 is the other. A lone edge, and the middle one of an odd number,
+// keep the usual side.
+func (w *way) side() float64 {
+	off := 2*w.k - (w.n - 1) // the lane's offset from the middle, in half gaps
+	if w.f.down {
+		if off < 0 {
+			return -1
+		}
+		return 1
+	}
+	if off > 0 {
+		return -1
+	}
+	return 1
+}
+
 // middle is where an edge's label goes: the middle of its route, or
 // with bends the middle of the leg ending at bend len/2 rounded up to
 // odd, which for the pairs a layout gives is the run past the middle
@@ -298,7 +317,15 @@ func (w *way) middle(route gw.Route) gw.Point {
 	return middle(w.f, route, w.a, w.through, w.b)
 }
 
+// middle is the middle of a route for its label, as way.middle says. An
+// orthogonal edge without bends turns at its middle, and the edges that
+// leave one vertex for one layer share that turn, so its label goes on
+// the middle of its last leg, the one into its target, which is its own.
 func middle(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point) gw.Point {
+	if route == gw.Orthogonal && len(bends) == 0 {
+		p, q := f.t(a), f.t(b)
+		return f.t(gw.Point{X: float64((float64((p.X+q.X)/2) + q.X) / 2), Y: q.Y})
+	}
 	if len(bends) < 2 {
 		return along(f, route, a, bends, b, 0.5)
 	}
