@@ -159,7 +159,8 @@ commands.
 | `From`, `To` | the vertex kinds allowed at each end; empty for any |
 | `Route` | `Straight`, `Curve` or `Orthogonal` |
 | `Arrow` | draws an arrowhead at the end |
-| `Head` | `FilledHead` (the default), `OpenHead` or `HollowHead` |
+| `Head` | `FilledHead` (the default), `OpenHead`, `HollowHead`, `TypedHead` (hollow, two dots inside) or `BarHead` (hollow, a bar across its base) |
+| `Tail` | drawn where the edge leaves its source: `NoTail` (the default), `FilledDiamond`, `HollowDiamond` or `CircledPlus` |
 | `Dashed` | the line is dashed |
 | `Stereotype` | text drawn on every edge of the kind, such as `«include»` |
 | `Weighted` | the stroke width follows the edge's weight, 1 to 7 against the heaviest |
@@ -212,7 +213,9 @@ differences:
   `"actor"` or `"datastore"`.
 - **Sides:** `"left"`, `"right"`, `"top"` or `"bottom"`.
 - **Routes:** `"straight"`, `"curve"` or `"orthogonal"`.
-- **Heads:** `"filled"`, `"open"` or `"hollow"`.
+- **Heads:** `"filled"`, `"open"`, `"hollow"`, `"typed"` or `"bar"`.
+- **Tails:** `"none"`, `"filled-diamond"`, `"hollow-diamond"` or
+  `"circled-plus"`.
 - **Attribute kinds:** `"text"`, `"number"` or `"choice"`.
 
 A missing field takes the first value in each list.

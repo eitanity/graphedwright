@@ -265,3 +265,53 @@ func keywords(t testing.TB) (*gw.Document, svg.Options) {
 	must(t, d, gw.Command{Op: gw.SetParent, Vertex: long, To: sys})
 	return d, svg.Options{Title: "Keywords", Mode: svg.View}
 }
+
+// decorationSchema has an edge kind for each tail and each marked head,
+// on each route.
+func decorationSchema() gw.Schema {
+	return gw.Schema{
+		VertexKinds: []gw.VertexKind{{Name: "block", Shape: gw.Rect, Size: gw.Size{W: 100, H: 36}}},
+		EdgeKinds: []gw.EdgeKind{
+			{Name: "composition", Tail: gw.FilledDiamond},
+			{Name: "aggregation", Route: gw.Curve, Tail: gw.HollowDiamond, Arrow: true, Head: gw.OpenHead},
+			{Name: "containment", Route: gw.Orthogonal, Tail: gw.CircledPlus},
+			{Name: "typing", Arrow: true, Head: gw.TypedHead},
+			{Name: "redefinition", Route: gw.Curve, Arrow: true, Head: gw.BarHead},
+			{Name: "subsetting", Route: gw.Orthogonal, Arrow: true, Head: gw.TypedHead, Tail: gw.HollowDiamond},
+		},
+	}
+}
+
+// decorated: owners joined to their parts by each tail, and features
+// joined by the marked heads, laid out in the flow. Each tail leaves a
+// vertex of its own, since edges that leave one side of a vertex share
+// their start.
+func decorated(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
+	d, err := gw.New(decorationSchema(), gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Flow = flow
+	add := func(id string) gw.VertexIndex {
+		return must(t, d, gw.Command{Op: gw.AddVertex, Kind: 0, ID: gw.ID(id), Text: id}).Vertices[0]
+	}
+	owner, fleet, depot := add("vehicle"), add("fleet"), add("depot")
+	a, b, c := add("engine"), add("wheels"), add("cargo")
+	typed, x, y := add("mass"), add("Real"), add("Mass")
+	edge(t, d, 0, owner, a, gw.None, gw.None, "", 0)
+	edge(t, d, 1, fleet, b, gw.None, gw.None, "", 0)
+	edge(t, d, 2, depot, c, gw.None, gw.None, "", 0)
+	edge(t, d, 3, typed, x, gw.None, gw.None, "", 0)
+	edge(t, d, 4, typed, y, gw.None, gw.None, "", 0)
+	edge(t, d, 5, a, x, gw.None, gw.None, "", 0)
+	if _, err := layout.New(d.Caps()).Run(d, layout.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	return d, svg.Options{Title: "Decorations"}
+}
+
+// tails: decorations at an edge's start and the marked hollow heads,
+// left to right; tailsDown, top to bottom.
+func tails(t testing.TB) (*gw.Document, svg.Options) { return decorated(t, gw.LeftToRight) }
+
+func tailsDown(t testing.TB) (*gw.Document, svg.Options) { return decorated(t, gw.TopToBottom) }

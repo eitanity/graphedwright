@@ -30,8 +30,9 @@ func TestSchemaRefusals(t *testing.T) {
 		{"empty edge name", func(s *gw.Schema) { s.EdgeKinds[1].Name = "" }, "edge kind 1: empty name"},
 		{"duplicate edge name", func(s *gw.Schema) { s.EdgeKinds[1].Name = "to" }, `edge kind "to": duplicate name`},
 		{"edge kind range", func(s *gw.Schema) { s.EdgeKinds[0].To = []gw.KindIndex{7} }, `edge kind "to": vertex kind 7 out of range`},
-		{"route range", func(s *gw.Schema) { s.EdgeKinds[0].Route = 9 }, "route and head must be in range"},
-		{"head range", func(s *gw.Schema) { s.EdgeKinds[0].Head = 3 }, "route and head must be in range"},
+		{"route range", func(s *gw.Schema) { s.EdgeKinds[0].Route = 9 }, "route, head and tail must be in range"},
+		{"head range", func(s *gw.Schema) { s.EdgeKinds[0].Head = gw.BarHead + 1 }, "route, head and tail must be in range"},
+		{"tail range", func(s *gw.Schema) { s.EdgeKinds[0].Tail = gw.CircledPlus + 1 }, "route, head and tail must be in range"},
 		{"contains without container", func(s *gw.Schema) { s.VertexKinds[0].Contains = []gw.KindIndex{1} }, "holds kinds without being a container"},
 		{"contains range", func(s *gw.Schema) {
 			s.VertexKinds[0].Container = true

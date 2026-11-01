@@ -179,7 +179,13 @@ Each edge kind has a **route**, an arrowhead and a few styles.
   halfway along. An edge back against the flow leaves the near side of
   its vertex and arrives at the far side.
 - **Heads:** with `Arrow`, the head is `FilledHead`, `OpenHead` (two
-  strokes, as for «include») or `HollowHead` (as for generalisation).
+  strokes, as for «include»), `HollowHead` (as for generalisation),
+  `TypedHead` (hollow with two dots, as for typing) or `BarHead`
+  (hollow with a bar, as for redefinition).
+- **Tails:** `Tail` draws a decoration where the edge leaves its
+  source: `FilledDiamond` (composition), `HollowDiamond` (aggregation)
+  or `CircledPlus` (containment). Edges that leave the same side of a
+  vertex share their start, and so their tails.
 - **Styles:** `Dashed`, a `Stereotype` drawn on every edge of the kind
   (such as `«include»`), and `Weighted`, which makes the stroke width
   follow the edge's weight.

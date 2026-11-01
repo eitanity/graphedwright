@@ -201,7 +201,10 @@ restyle it with CSS or script it.
   `data-from`, `data-to` and its attributes. Inside are the `path`, and
   `text.label` and `text.stereotype`. A dashed kind has `.dashed`.
 - **Arrowheads** are markers with the class `.arrowhead` plus the edge
-  kind's class, and `.open` or `.hollow`.
+  kind's class, and `.open` or `.hollow`, with `.typed` or `.bar` for
+  the marked hollow heads. **Tails** are markers with the class `.tail`
+  plus the edge kind's class, and `.hollow` for a hollow diamond or
+  `.plus` for a circled plus.
 - **Annotations:** the class given to `annotate` is added as it is. It
   shares the drawing's own names, so one such as `label` or `port`
   takes the default stylesheet's rules for those.

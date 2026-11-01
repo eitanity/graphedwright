@@ -378,6 +378,46 @@ func lastFrom(a gw.Point, bends []gw.Point) gw.Point {
 // headLength is how far an arrowhead reaches back from an edge's end.
 const headLength = 9
 
+// tailLength is how far along the edge a tail reaches from the source.
+func tailLength(t gw.Tail) float64 {
+	if t == gw.CircledPlus {
+		return 10
+	}
+	return 12
+}
+
+// started is where an edge's stroke starts when its kind has a tail:
+// the tail's length on from the start along the first leg, as it is
+// drawn, so that the tail sits between the stroke and the source. A leg
+// shorter than the tail is left as it is.
+func (w *way) started(kind gw.EdgeKind) gw.Point {
+	if kind.Tail == gw.NoTail {
+		return w.a
+	}
+	f := w.f
+	next := w.b
+	if len(w.through) > 0 {
+		next = w.through[0]
+	}
+	a, b := f.t(w.a), f.t(next)
+	var dx, dy float64
+	switch legRoute(kind.Route, len(w.through) > 0, a, b) {
+	case gw.Straight:
+		dx, dy = b.X-a.X, b.Y-a.Y
+	case gw.Curve:
+		c1, _ := f.controls(a, b)
+		dx, dy = c1.X-a.X, c1.Y-a.Y
+	case gw.Orthogonal:
+		dx, dy = float64((a.X+b.X)/2)-a.X, 0
+	}
+	tl := tailLength(kind.Tail)
+	l := math.Sqrt(float64(dx*dx) + float64(dy*dy))
+	if l <= tl {
+		return w.a
+	}
+	return f.t(gw.Point{X: a.X + float64(dx/l*tl), Y: a.Y + float64(dy/l*tl)})
+}
+
 // shortened is where an edge's stroke ends when its kind has a closed
 // arrowhead: the head's length back from the end along the last leg, as
 // it is drawn, so that a thick stroke never shows past the head's tip.
@@ -476,11 +516,18 @@ func segmentDistance(p, a, b gw.Point) float64 {
 func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+	kind := d.Schema.EdgeKinds[d.Edges[i].Kind]
+	route := kind.Route
 	f := wy.f
+	// A tail lies between the source and the stroke's start, along the
+	// first leg as it leaves.
+	start := wy.started(kind)
+	if start != wy.a && segmentDistance(f.t(p), f.t(wy.a), f.t(start)) <= edgeTolerance {
+		return true
+	}
 	p = f.t(p)
 	for k := range len(wy.through) + 1 {
-		u, w := leg(wy.a, wy.through, wy.b, k)
+		u, w := leg(start, wy.through, wy.b, k)
 		u, w = f.t(u), f.t(w)
 		r := legRoute(route, len(wy.through) > 0, u, w)
 		n := edgeSamples

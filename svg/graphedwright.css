@@ -20,6 +20,11 @@
 .graphedwright .arrowhead path { fill: #718096; stroke: none; }
 .graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
 .graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .arrowhead circle { fill: #718096; stroke: none; }
+.graphedwright .tail path { fill: #718096; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .tail.hollow path { fill: #ffffff; }
+.graphedwright .tail.plus circle { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .tail.plus path { fill: none; }
 .graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
 .graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
 .graphedwright .vertex .keyword { fill: #4a5568; font-size: 11px; }

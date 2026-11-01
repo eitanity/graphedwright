@@ -192,11 +192,13 @@ func (opts Options) filled() Options {
 }
 
 // defs writes an arrowhead marker for every edge kind with an arrow,
-// named by the kind's index.
+// and a tail marker for every one with a tail, named by the kind's
+// index.
 func (r *Renderer) defs(d *gw.Document, prefix string) {
 	o := r.o
 	o.str(`<defs>`)
 	for i, k := range d.Schema.EdgeKinds {
+		r.tailMarker(i, k, prefix)
 		if !k.Arrow {
 			continue
 		}
@@ -214,9 +216,40 @@ func (r *Renderer) defs(d *gw.Document, prefix string) {
 			o.str(` open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10"/></marker>`)
 		case gw.HollowHead:
 			o.str(` hollow" viewBox="-1 -1 12 12" refX="1" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker>`)
+		case gw.TypedHead:
+			o.str(` hollow typed" viewBox="-1 -1 12 12" refX="1" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/><circle cx="3" cy="3.5" r="1.1"/><circle cx="3" cy="6.5" r="1.1"/></marker>`)
+		case gw.BarHead:
+			// The bar crosses the stroke just before the base.
+			o.str(` hollow bar" viewBox="-4 -1 15 12" refX="1" refY="5" markerWidth="15" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/><path d="M -3 0 L -3 10"/></marker>`)
 		}
 	}
 	o.str(`</defs>`)
+}
+
+// tailMarker writes the marker of edge kind i's tail, if it has one. It
+// is drawn at the stroke's start, which stops the tail's length short
+// of the source (way.started), and points back along the edge, so the
+// tail spans from there to the source's outline.
+func (r *Renderer) tailMarker(i int, k gw.EdgeKind, prefix string) {
+	if k.Tail == gw.NoTail {
+		return
+	}
+	o := r.o
+	o.str(`<marker id="`)
+	o.name(prefix)
+	o.str(`tail-`)
+	o.int(i)
+	o.str(`" class="tail `)
+	r.kindClass(k.Name)
+	switch k.Tail {
+	case gw.FilledDiamond:
+		o.str(`" viewBox="-1 -1 14 12" refX="0" refY="5" markerWidth="14" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 5 L 6 0 L 12 5 L 6 10 z"/></marker>`)
+	case gw.HollowDiamond:
+		o.str(` hollow" viewBox="-1 -1 14 12" refX="0" refY="5" markerWidth="14" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 5 L 6 0 L 12 5 L 6 10 z"/></marker>`)
+	case gw.CircledPlus:
+		o.str(` plus" viewBox="-1 -1 12 12" refX="0" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><circle cx="5" cy="5" r="5"/><path d="M 0 5 L 10 5 M 5 0 L 5 10"/></marker>`)
+	case gw.NoTail: // returned above
+	}
 }
 
 // maxWeight is the largest weight among live weighted edges and their
@@ -296,9 +329,16 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
 	f := w.f
-	r.path(f, kind, w.a, w.through, w.shortened(kind))
+	r.path(f, kind, w.started(kind), w.through, w.shortened(kind))
 	width := strokeWidth(d, opts, int(i), maxW)
 	o.numAttr("stroke-width", width)
+	if kind.Tail != gw.NoTail {
+		o.str(` marker-start="url(#`)
+		o.name(opts.IDPrefix)
+		o.str(`tail-`)
+		o.int(int(e.Kind))
+		o.str(`)"`)
+	}
 	if kind.Arrow {
 		o.str(` marker-end="url(#`)
 		o.name(opts.IDPrefix)

@@ -37,6 +37,20 @@ const (
 	FilledHead Head = iota // a filled triangle
 	OpenHead               // two strokes, the edge drawn to the tip
 	HollowHead             // an outlined triangle, as for generalisation
+	TypedHead              // an outlined triangle with two dots inside, as for typing
+	BarHead                // an outlined triangle with a bar across its base, as for redefinition
+)
+
+// Tail is the decoration at an edge's start, where it leaves its
+// source.
+type Tail uint8
+
+// The tails.
+const (
+	NoTail        Tail = iota
+	FilledDiamond      // as for composition
+	HollowDiamond      // as for aggregation
+	CircledPlus        // as for containment
 )
 
 // AttrKind says what an attribute's value may be.
@@ -91,14 +105,16 @@ const KeywordHeight = 32
 
 // EdgeKind is a palette entry for edges: the vertex kinds it may join at
 // each end (empty is any), how it is routed and drawn, and the
-// attributes it takes. Head says how an arrow ends; a stereotype, such
-// as «include», is drawn on every edge of the kind beside its label.
+// attributes it takes. Head says how an arrow ends, and Tail what is
+// drawn where the edge starts; a stereotype, such as «include», is
+// drawn on every edge of the kind beside its label.
 type EdgeKind struct {
 	Name       string
 	From, To   []KindIndex
 	Route      Route
 	Arrow      bool
 	Head       Head
+	Tail       Tail
 	Dashed     bool
 	Stereotype string
 	Attrs      []AttrSpec
@@ -209,8 +225,8 @@ func checkEdgeKind(s Schema, i int, k EdgeKind, caps Caps) error {
 			return schemaError(where, "duplicate name")
 		}
 	}
-	if k.Route > Orthogonal || k.Head > HollowHead {
-		return schemaError(where, "route and head must be in range")
+	if k.Route > Orthogonal || k.Head > BarHead || k.Tail > CircledPlus {
+		return schemaError(where, "route, head and tail must be in range")
 	}
 	for _, ends := range [2][]KindIndex{k.From, k.To} {
 		for _, kind := range ends {

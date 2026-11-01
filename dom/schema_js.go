@@ -77,6 +77,9 @@ func edgeKindFromJS(s gw.Schema, k js.Value) (gw.EdgeKind, error) {
 	if ek.Head, err = headOf(str(k, "head")); err != nil {
 		return ek, err
 	}
+	if ek.Tail, err = tailOf(str(k, "tail")); err != nil {
+		return ek, err
+	}
 	if ek.From, err = kindsOf(s, get(k, "from")); err != nil {
 		return ek, err
 	}
@@ -158,8 +161,26 @@ func headOf(name string) (gw.Head, error) {
 		return gw.OpenHead, nil
 	case "hollow":
 		return gw.HollowHead, nil
+	case "typed":
+		return gw.TypedHead, nil
+	case "bar":
+		return gw.BarHead, nil
 	}
-	return gw.FilledHead, errors.New("head " + strconv.Quote(name) + " is not filled, open or hollow")
+	return gw.FilledHead, errors.New("head " + strconv.Quote(name) + " is not filled, open, hollow, typed or bar")
+}
+
+func tailOf(name string) (gw.Tail, error) {
+	switch name {
+	case "", "none":
+		return gw.NoTail, nil
+	case "filled-diamond":
+		return gw.FilledDiamond, nil
+	case "hollow-diamond":
+		return gw.HollowDiamond, nil
+	case "circled-plus":
+		return gw.CircledPlus, nil
+	}
+	return gw.NoTail, errors.New("tail " + strconv.Quote(name) + " is not none, filled-diamond, hollow-diamond or circled-plus")
 }
 
 func sideOf(name string) (gw.Side, error) {
