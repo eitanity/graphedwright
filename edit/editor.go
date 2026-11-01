@@ -112,6 +112,7 @@ type Editor struct {
 
 	down     gw.Point // where the pointer went down, in document units
 	last     gw.Point // the last pointer position, in document units
+	panned   bool     // the move being handled panned the viewport
 	orig     []gw.Point
 	dragV    []gw.VertexIndex // what a drag moves: the selection and what its containers hold
 	dropTo   []gw.VertexIndex // per vertex, the container a drag drops it in

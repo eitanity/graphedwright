@@ -27,19 +27,28 @@ func (e *Editor) pointerDown(ev Event) error {
 // pointerMove follows the pointer: the hover, a pan, a drag or the
 // overlay's ghost and marquee.
 func (e *Editor) pointerMove(ev Event) error {
-	err := e.fire(gesture.Event{Kind: gesture.EvMove}, input{p: e.toDoc(ev.Point), ev: ev})
-	// A pan moved the viewport under the pointer, so the point in
-	// document units is read again against the new viewport.
-	e.last = e.toDoc(ev.Point)
+	p := e.toDoc(ev.Point)
+	e.panned = false
+	err := e.fire(gesture.Event{Kind: gesture.EvMove}, input{p: p, ev: ev})
+	// A pan moves the viewport with the pointer, so that the point of the
+	// drawing under it stays the one it was: last is unchanged. Read
+	// again, p would be in the viewport before the pan where the host maps
+	// the pointer itself, as the browser binding does, and the next move
+	// would come short by this one.
+	if !e.panned {
+		e.last = p
+	}
 	e.hover = svg.HitTest(e.d, e.last)
 	return err
 }
 
-// pan moves the viewport by the pointer's move to p.
+// pan moves the viewport by the pointer's move to p, which puts the
+// point last back under the pointer.
 func (e *Editor) pan(p gw.Point) {
 	e.d.View.X -= p.X - e.last.X
 	e.d.View.Y -= p.Y - e.last.Y
 	e.layout = true
+	e.panned = true
 }
 
 // moveDrag moves the dragged vertices by the pointer's move to p.

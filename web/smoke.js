@@ -1,7 +1,8 @@
 // The smoke test: load the build, create, load the diamond example,
 // export it, render it, annotate, undo and redo, edit a drawing whose
-// kinds are named as the binding's groups, and write every result into
-// #out as JSON for the driver to compare with the native command.
+// kinds are named as the binding's groups, pan one with the middle
+// button, and write every result into #out as JSON for the driver to
+// compare with the native command.
 "use strict";
 const toolchain = new URLSearchParams(location.search).get("toolchain") === "tinygo" ? "tinygo" : "go";
 function loadScript(src) {
@@ -64,6 +65,32 @@ async function main() {
   graphedwright.undo(hc);
   out.clashRestored = drawn().querySelector(":scope > g.vertices > #b") !== null;
   graphedwright.destroy(hc);
+  // A middle-button drag keeps the point of the drawing it grabbed under
+  // the pointer at every move, through the SVG's screen matrix.
+  const hp = graphedwright.create(clash, { schema: "basic" }).ok;
+  graphedwright.load(hp, text);
+  const under = (x, y) => {
+    const s = clash.querySelector("svg");
+    const q = s.createSVGPoint();
+    q.x = x;
+    q.y = y;
+    const p = q.matrixTransform(s.getScreenCTM().inverse());
+    return [p.x, p.y];
+  };
+  const r0 = clash.querySelector("svg").getBoundingClientRect();
+  const x0 = r0.x + r0.width / 2, y0 = r0.y + r0.height / 2;
+  const grabbed = under(x0, y0);
+  clash.querySelector("svg").dispatchEvent(new PointerEvent("pointerdown", { clientX: x0, clientY: y0, pointerId: 3, button: 1, bubbles: true }));
+  let slip = 0;
+  for (let k = 1; k <= 8; k++) {
+    const x = x0 + 12 * k, y = y0 + 5 * k;
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, pointerId: 3, buttons: 4, bubbles: true }));
+    const p = under(x, y);
+    slip = Math.max(slip, Math.abs(p[0] - grabbed[0]), Math.abs(p[1] - grabbed[1]));
+  }
+  window.dispatchEvent(new PointerEvent("pointerup", { clientX: x0 + 96, clientY: y0 + 40, pointerId: 3, button: 1, bubbles: true }));
+  out.panSlip = slip;
+  graphedwright.destroy(hp);
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

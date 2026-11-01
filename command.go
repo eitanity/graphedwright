@@ -140,6 +140,36 @@ func (d *Document) touchEdgesAt(v VertexIndex) {
 	}
 }
 
+// FirstOut is the first live edge out of vertex v, or None; NextOut is
+// the live edge out of the same vertex after edge e, or None. Together
+// they walk a vertex's out edges without allocating, in an order that
+// depends on the edits made, not on the edges' indices.
+func (d *Document) FirstOut(v VertexIndex) EdgeIndex {
+	if !d.vertexLive(v) {
+		return None
+	}
+	return d.liveOut(d.outHead[v])
+}
+
+// NextOut is the live edge after e out of e's source, or None.
+func (d *Document) NextOut(e EdgeIndex) EdgeIndex {
+	if e < 0 || int(e) >= len(d.Edges) {
+		return None
+	}
+	return d.liveOut(d.nextOut[e])
+}
+
+// liveOut is the first live edge of an out list from e on, or None.
+func (d *Document) liveOut(e int32) EdgeIndex {
+	// bound: the out list visits each edge of the vertex once
+	for ; e != None; e = d.nextOut[e] {
+		if d.Edges[e].Live {
+			return EdgeIndex(e)
+		}
+	}
+	return None
+}
+
 // EdgesAt appends the live edges at a vertex to dst, within its capacity.
 func (d *Document) EdgesAt(v VertexIndex, dst []EdgeIndex) []EdgeIndex {
 	if !d.vertexLive(v) {

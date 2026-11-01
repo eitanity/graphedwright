@@ -88,9 +88,10 @@ const (
 // labelRoom gives each layer the room the text in the gap before it
 // needs: the widest of the edges without dummies between it and the
 // layer before, whose label and kind's stereotype are drawn in that gap,
-// one above the other at the middle of the edge, or of an orthogonal
-// edge's last leg, past its turn halfway. A top-to-bottom flow puts them
-// beside their edges, so it needs none.
+// one above the other at the middle of the edge, or, for an orthogonal
+// edge whose source has others to the same layer, of its last leg, past
+// its turn halfway. A top-to-bottom flow puts them beside their edges,
+// so it needs none.
 func (l *Layouter) labelRoom(d *gw.Document) {
 	// bound: the layers
 	for k := 0; k <= l.layers; k++ {
@@ -98,6 +99,19 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	}
 	if l.down {
 		return
+	}
+	// The orthogonal edges between adjacent layers out of each node, whose
+	// texts go on their last legs when more than one leave it, in bary,
+	// which ordering has not yet used.
+	for i := range l.n {
+		l.bary[i] = 0
+	}
+	for s := range l.s {
+		e := l.segE[s]
+		a, b := l.layer[l.segF[s]], l.layer[l.segT[s]]
+		if l.dN[e] == 0 && (a-b == 1 || b-a == 1) && d.Schema.EdgeKinds[d.Edges[e].Kind].Route == gw.Orthogonal {
+			l.bary[l.eFrom[e]]++
+		}
 	}
 	for s := range l.s {
 		e := l.segE[s]
@@ -109,9 +123,9 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 		kind := d.Schema.EdgeKinds[d.Edges[e].Kind]
 		chars := max(utf8.RuneCountInString(d.Edges[e].Label), utf8.RuneCountInString(kind.Stereotype))
 		w := float64(float64(chars)*labelChar) + 2*labelPad
-		if kind.Route == gw.Orthogonal {
+		if kind.Route == gw.Orthogonal && l.bary[l.eFrom[e]] > 1 {
 			// Its text is drawn on its last leg, the half of the gap
-			// past its turn.
+			// past its turn, which it shares with the others.
 			w *= 2
 		}
 		l.lg[k] = math.Max(l.lg[k], w)

@@ -802,3 +802,39 @@ func TestNudgeUndoesInOneStep(t *testing.T) {
 		t.Error("a second step is left to undo")
 	}
 }
+
+// TestPanFollowsPointer: through a pan of several moves, the point of
+// the drawing under the pointer stays the one it grabbed, at every move,
+// whether the host maps each pointer position into document units
+// through the viewport as it then is, as the browser binding does, or
+// the editor maps client points itself after a Resize; by the middle
+// button and by Alt.
+func TestPanFollowsPointer(t *testing.T) {
+	for _, hostMaps := range []bool{true, false} {
+		for _, alt := range []bool{false, true} {
+			d, e := fixture(t, gw.Caps{})
+			if !hostMaps {
+				send(t, e, edit.Event{Kind: edit.Resize, Point: pt(800, 200)}) // one unit to a pixel
+			}
+			at := func(sx, sy float64) gw.Point {
+				if hostMaps {
+					return pt(d.View.X+sx, d.View.Y+sy)
+				}
+				return pt(sx, sy)
+			}
+			press := edit.Event{Kind: edit.PointerDown, Point: at(100, 100), Button: 1}
+			if alt {
+				press.Button, press.Modifiers = 0, edit.Alt
+			}
+			send(t, e, press)
+			for k := 1; k <= 6; k++ {
+				sx, sy := 100+float64(10*k), 100+float64(5*k)
+				send(t, e, edit.Event{Kind: edit.PointerMove, Point: at(sx, sy)})
+				if gx, gy := d.View.X+sx, d.View.Y+sy; gx != 100 || gy != 100 {
+					t.Errorf("host maps %v, alt %v: after move %d the pointer is over (%g, %g), not the (100, 100) it grabbed; view %+v", hostMaps, alt, k, gx, gy, d.View)
+				}
+			}
+			send(t, e, edit.Event{Kind: edit.PointerUp, Point: at(160, 130)})
+		}
+	}
+}

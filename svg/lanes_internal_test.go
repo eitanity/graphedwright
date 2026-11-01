@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"math/rand/v2"
+	"os"
 	"regexp"
 	"strconv"
 	"testing"
@@ -329,5 +330,57 @@ func TestRoutesClearOfContainers(t *testing.T) {
 			t.Fatal(err)
 		}
 		check("seed "+strconv.FormatUint(seed, 10), d)
+	}
+}
+
+// TestExampleLabelsClear: in the demo's examples as they are laid out,
+// no edge's label or stereotype crosses another edge, sampled finely
+// along its whole length, or another edge's texts: among them a wire
+// that turns alone, whose label stays at its turn rather than on a last
+// leg that runs beside a curve into the same vertex, under the curve's.
+func TestExampleLabelsClear(t *testing.T) {
+	for _, name := range []string{"shapes", "diamond", "dependencies", "use-case", "threat-model"} {
+		data, err := os.ReadFile("../web/examples/" + name + ".json") //nolint:gosec // the demo's examples, by fixed name
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var buf bytes.Buffer
+		if err := Render(d, Options{}, &buf); err != nil {
+			t.Fatal(err)
+		}
+		var boxes []gw.Viewport
+		var owners []string
+		for _, g := range edgeRE.FindAllStringSubmatch(buf.String(), -1) {
+			for _, m := range textRE.FindAllStringSubmatch(g[2], -1) {
+				x, _ := strconv.ParseFloat(m[2], 64)
+				y, _ := strconv.ParseFloat(m[3], 64)
+				box := textBox(x, y, m[4], m[5])
+				for j, b := range boxes {
+					if owners[j] != g[1] && box.X < b.X+b.W && b.X < box.X+box.W && box.Y < b.Y+b.H && b.Y < box.Y+box.H {
+						t.Errorf("%s: the %s %q of edge %s overlaps a text of edge %s", name, m[1], m[5], g[1], owners[j])
+					}
+				}
+				boxes = append(boxes, box)
+				owners = append(owners, g[1])
+				for i := range d.Edges {
+					if !d.Edges[i].Live || string(d.Edges[i].ID) == g[1] {
+						continue
+					}
+					var lane [1]gw.Point
+					w := wayOf(d, gw.EdgeIndex(i), &lane)
+					route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+					for k := 0; k <= 400; k++ {
+						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
+							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[5], g[1], d.Edges[i].ID, p)
+							break
+						}
+					}
+				}
+			}
+		}
 	}
 }

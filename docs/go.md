@@ -43,8 +43,9 @@ d.Redo()
   `Compact()`, which renumbers and returns the maps from old indices to
   new.
 - **`VertexByID`, `EdgeByID`, `EdgesAt`, `LiveVertices`, `LiveEdges`**
-  answer common questions, and **`Parallel(e)`** gives an edge's lane
-  among those between the same two vertices.
+  answer common questions, **`FirstOut(v)` and `NextOut(e)`** walk a
+  vertex's out edges without allocating, and **`Parallel(e)`** gives an
+  edge's lane among those between the same two vertices.
 - **`Unreachable(dst)`** lists the vertices no root kind reaches, for a
   schema with `Connected`.
 - **`Depth(v)` and `Within(v, c)`** answer questions about containers,

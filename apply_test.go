@@ -223,3 +223,40 @@ func TestParallel(t *testing.T) {
 		}
 	}
 }
+
+// TestOutWalk: FirstOut and NextOut walk exactly the live edges out of a
+// vertex, skipping a deleted one, and give None for a deleted vertex and
+// an edge index out of range.
+func TestOutWalk(t *testing.T) {
+	d := newDoc(t, gw.Caps{})
+	s := addVertex(t, d, kSource, "s")
+	out := make([]gw.EdgeIndex, 0, 3)
+	for _, name := range []string{"a", "b", "c"} {
+		v := addVertex(t, d, kNode, name)
+		out = append(out, addEdge(t, d, eTo, s, v, gw.None, 0))
+	}
+	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: out[1]})
+	seen := map[gw.EdgeIndex]bool{}
+	for e := d.FirstOut(s); e != gw.None; e = d.NextOut(e) {
+		if seen[e] || d.Edges[e].From != s || !d.Edges[e].Live {
+			t.Fatalf("walk gave %d twice, or not a live edge out of s", e)
+		}
+		seen[e] = true
+	}
+	if len(seen) != 2 || !seen[out[0]] || !seen[out[2]] {
+		t.Errorf("walk gave %v, want %d and %d", seen, out[0], out[2])
+	}
+	if e := d.FirstOut(out2v(d, out[0])); e != gw.None {
+		t.Errorf("a vertex with no out edges gave %d", e)
+	}
+	if d.NextOut(-1) != gw.None || d.NextOut(gw.EdgeIndex(len(d.Edges))) != gw.None { //nolint:gosec // the edge capacity
+		t.Error("an edge index out of range gave an edge")
+	}
+	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: s})
+	if e := d.FirstOut(s); e != gw.None {
+		t.Errorf("a deleted vertex gave %d", e)
+	}
+}
+
+// out2v is the target of an edge.
+func out2v(d *gw.Document, e gw.EdgeIndex) gw.VertexIndex { return d.Edges[e].To }

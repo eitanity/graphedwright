@@ -102,6 +102,8 @@ def check(out, native, example):
         raise SystemExit(f"after destroy: {out['afterDestroy']}")
     if out["clashLoad"].get("ok") is not True or out["clashAnnotate"].get("ok") is not True:
         raise SystemExit(f"clash load and annotate: {out['clashLoad']} {out['clashAnnotate']}")
+    if not out["panSlip"] < 0.01:
+        raise SystemExit(f"a middle-button drag let the drawing slip {out['panSlip']} units from under the pointer")
     if out["clashSelected"] != {"a": True, "selection": True} or not out["clashDeleted"] or not out["clashRestored"]:
         raise SystemExit(f"kinds and classes named as the binding's groups: selected {out['clashSelected']}, deleted {out['clashDeleted']}, restored {out['clashRestored']}")
 

@@ -209,6 +209,7 @@ type way struct {
 	a, b    gw.Point
 	through []gw.Point
 	k, n    int
+	ownLeg  bool // its label goes on its last leg: an orthogonal edge whose turn another shares
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -222,6 +223,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	w.a, w.b = ends(d, e, e.Bends)
 	k, n := d.Parallel(i)
 	if n < 2 {
+		w.ownLeg = sharesTurn(d, i, w)
 		return w
 	}
 	p, q := w.f.t(w.a), w.f.t(w.b)
@@ -314,18 +316,49 @@ func (w *way) middle(route gw.Route) gw.Point {
 		}
 		return w.f.t(p)
 	}
+	if w.ownLeg {
+		p, q := w.f.t(w.a), w.f.t(w.b)
+		return w.f.t(gw.Point{X: float64((turnAt(p, q) + q.X) / 2), Y: q.Y})
+	}
 	return middle(w.f, route, w.a, w.through, w.b)
 }
 
-// middle is the middle of a route for its label, as way.middle says. An
-// orthogonal edge without bends turns at its middle, and the edges that
-// leave one vertex for one layer share that turn, so its label goes on
-// the middle of its last leg, the one into its target, which is its own.
-func middle(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point) gw.Point {
-	if route == gw.Orthogonal && len(bends) == 0 {
-		p, q := f.t(a), f.t(b)
-		return f.t(gw.Point{X: float64((float64((p.X+q.X)/2) + q.X) / 2), Y: q.Y})
+// turnAt is where an orthogonal edge from p to q, in the frame, turns:
+// halfway along.
+func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }
+
+// sharesTurn reports whether orthogonal edge i, without bends or a lane,
+// turns where another such edge out of the same vertex does: edges that
+// leave one vertex for one layer share their first leg and their turn,
+// and a label at the turn would name none of them, so its label goes on
+// its last leg, the one into its target, which is its own. A lone edge
+// keeps its label at the turn, clear of any edge that its last leg runs
+// beside into the same target.
+func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
+	e := &d.Edges[i]
+	if d.Schema.EdgeKinds[e.Kind].Route != gw.Orthogonal || len(w.through) > 0 {
+		return false
 	}
+	turn := turnAt(w.f.t(w.a), w.f.t(w.b))
+	// bound: the out list visits each edge of the vertex once
+	for o := d.FirstOut(e.From); o != gw.None; o = d.NextOut(o) {
+		x := &d.Edges[o]
+		if o == i || d.Schema.EdgeKinds[x.Kind].Route != gw.Orthogonal || len(x.Bends) > 0 {
+			continue
+		}
+		if _, n := d.Parallel(o); n > 1 {
+			continue
+		}
+		a, b := ends(d, x, nil)
+		if math.Abs(turnAt(w.f.t(a), w.f.t(b))-turn) < 0.5 {
+			return true
+		}
+	}
+	return false
+}
+
+// middle is the middle of a route for its label, as way.middle says.
+func middle(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point) gw.Point {
 	if len(bends) < 2 {
 		return along(f, route, a, bends, b, 0.5)
 	}
