@@ -1,0 +1,67 @@
+# Runs make ci's checks, one step per target in the order make ci runs
+# them, so that a failure names its check. The first step fails if these
+# steps and the Makefile's ci target disagree. The Makefile pins every
+# tool's version but Go's (go.mod's toolchain line) and the actions'
+# (pinned here by commit, with the release as a comment).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The steps below are make ci's targets
+        run: |
+          want="$(sed -n 's/^ci: *//p' Makefile)"
+          got="$(sed -n 's/^      - run: make //p' .github/workflows/ci.yml | grep -vx tools | paste -sd' ')"
+          test "$want" = "$got" || { echo "make ci:  $want"; echo "workflow: $got"; exit 1; }
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            internal/lint/go.sum
+            internal/verify/go.sum
+
+      - name: TinyGo version from the Makefile
+        id: tinygo
+        run: echo "version=$(sed -n 's/^TINYGO_VERSION *:= *//p' Makefile)" >> "$GITHUB_OUTPUT"
+
+      - uses: acifani/setup-tinygo@dd8a7075d951a7595b2ef2123ed0ab1af0c13e56 # v3.0.0
+        with:
+          tinygo-version: ${{ steps.tinygo.outputs.version }}
+
+      - run: make tools
+      - run: make verify
+      - run: make build
+      - run: make tinygo-vet
+      - run: make fmt
+      - run: make vet
+      - run: make lint
+      - run: make custom-lint
+      - run: make escapes
+      - run: make nofma
+      - run: make race
+      - run: make alloc
+      - run: make fuzz
+      - run: make merilo
+      - run: make cover
+      - run: make vuln
+      - run: make wasm-test
+      - run: make size

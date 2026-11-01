@@ -4,7 +4,8 @@
 GOLANGCI_LINT_VERSION := v2.14.0
 GOIMPORTS_VERSION     := v0.52.0
 GOVULNCHECK_VERSION   := v1.9.0
-TINYGO_VERSION        := 0.42.0
+TINYGO_VERSION        := 0.44.0
+WAZERO_VERSION        := v1.12.0
 BIN                   := $(abspath bin)
 PKGS                  := ./...
 HOTPATH               := internal/lint/hotpath.txt
@@ -19,7 +20,7 @@ ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc fu
 
 # ---- toolchain ------------------------------------------------------------
 
-tools: $(BIN)/golangci-lint $(BIN)/goimports $(BIN)/govulncheck $(BIN)/graphedvet $(BIN)/norecursion $(BIN)/escapes
+tools: $(BIN)/golangci-lint $(BIN)/goimports $(BIN)/govulncheck $(BIN)/wazero $(BIN)/graphedvet $(BIN)/norecursion $(BIN)/escapes
 	@tinygo version 2>/dev/null | grep -q "tinygo version $(TINYGO_VERSION)" || { echo "tinygo $(TINYGO_VERSION) is required: https://tinygo.org/getting-started/install/"; exit 1; }
 
 $(BIN)/golangci-lint:
@@ -30,6 +31,9 @@ $(BIN)/goimports:
 
 $(BIN)/govulncheck:
 	GOBIN=$(BIN) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+
+$(BIN)/wazero:
+	GOBIN=$(BIN) go install github.com/tetratelabs/wazero/cmd/wazero@$(WAZERO_VERSION)
 
 $(BIN)/graphedvet $(BIN)/norecursion $(BIN)/escapes: $(wildcard internal/lint/*/*.go internal/lint/*/*/*.go)
 	cd internal/lint && go build -o $(BIN)/graphedvet ./cmd/graphedvet \
@@ -159,9 +163,9 @@ wasm-smoke: wasm
 
 # The core packages' tests as wasm under the wazero runtime, so that the
 # golden drawings and the editor's behaviour are the same there. wazero
-# is a tool, not a dependency: go install github.com/tetratelabs/wazero/cmd/wazero@latest
-wasm-test:
-	PATH="$$PATH:$$(go env GOPATH)/bin:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit
+# is a tool, not a dependency, installed into bin/ like the linters.
+wasm-test: $(BIN)/wazero
+	PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit
 
 # Every package's tests on the other Linux architectures under qemu-user,
 # the big-endian and 32-bit ones among them, so that a result that
