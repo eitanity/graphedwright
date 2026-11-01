@@ -179,8 +179,8 @@ if err := svg.Render(d, svg.Options{Title: "Dependencies", Style: svg.Stylesheet
 os.WriteFile("deps.svg", picture.Bytes(), 0o644)
 ```
 
-Every vertex and edge in the SVG is a `<g>` with its ID, classes from
-its kind's name, and its attributes as `data-*`, so a page can style or
+Every vertex and edge in the SVG is a `<g>` with its ID, a class from
+its kind's name (`kind-` and the name), and its attributes as `data-*`, so a page can style or
 script it. The [Go API guide](go.md#svg) lists the classes.
 
 ### 7. Save it and read it back

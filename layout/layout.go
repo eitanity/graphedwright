@@ -85,10 +85,11 @@ const (
 	labelPad  = 8
 )
 
-// labelRoom gives each layer the room the labels in the gap before it
-// need: the widest of the edges without dummies between it and the layer
-// before, whose labels are drawn in that gap, at the middle of the edge.
-// A top-to-bottom flow puts labels beside their edges, so it needs none.
+// labelRoom gives each layer the room the text in the gap before it
+// needs: the widest of the edges without dummies between it and the
+// layer before, whose label and kind's stereotype are drawn in that gap,
+// one above the other at the middle of the edge. A top-to-bottom flow
+// puts them beside their edges, so it needs none.
 func (l *Layouter) labelRoom(d *gw.Document) {
 	// bound: the layers
 	for k := 0; k <= l.layers; k++ {
@@ -104,7 +105,8 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 			continue
 		}
 		k := max(a, b)
-		w := float64(float64(utf8.RuneCountInString(d.Edges[e].Label))*labelChar) + 2*labelPad
+		chars := max(utf8.RuneCountInString(d.Edges[e].Label), utf8.RuneCountInString(d.Schema.EdgeKinds[d.Edges[e].Kind].Stereotype))
+		w := float64(float64(chars)*labelChar) + 2*labelPad
 		l.lg[k] = math.Max(l.lg[k], w)
 	}
 }

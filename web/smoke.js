@@ -1,6 +1,7 @@
 // The smoke test: load the build, create, load the diamond example,
-// export it, render it, annotate, undo and redo, and write every result
-// into #out as JSON for the driver to compare with the native command.
+// export it, render it, annotate, undo and redo, edit a drawing whose
+// kinds are named as the binding's groups, and write every result into
+// #out as JSON for the driver to compare with the native command.
 "use strict";
 const toolchain = new URLSearchParams(location.search).get("toolchain") === "tinygo" ? "tinygo" : "go";
 function loadScript(src) {
@@ -43,6 +44,26 @@ async function main() {
   out.tinyExport = graphedwright.export(h2);
   graphedwright.undo(g);
   out.destroyed = graphedwright.destroy(h2);
+  // Kinds, and annotation classes, named as the binding's own groups:
+  // selecting a vertex redraws the overlay group, not an element that
+  // carries its name, and a delete and its undo leave each vertex in the
+  // vertices group.
+  graphedwright.registerSchema("clash", { vertexKinds: [{ name: "overlay", shape: "round", w: 100, h: 36 }, { name: "box", shape: "round", w: 100, h: 36 }], edgeKinds: [{ name: "vertices", arrow: true }] });
+  const clash = document.getElementById("clash");
+  const hc = graphedwright.create(clash, { schema: "clash" }).ok;
+  out.clashLoad = graphedwright.load(hc, { schema: "clash", vertices: [{ id: "a", kind: "overlay", label: "a" }, { id: "b", kind: "box", label: "b" }, { id: "c", kind: "box", label: "c" }], edges: [{ id: "ab", kind: "vertices", from: "a", to: "b" }, { id: "ac", kind: "vertices", from: "a", to: "c" }] });
+  out.clashAnnotate = graphedwright.annotate(hc, { a: { text: "1", class: "overlay" }, ac: { text: "2", class: "vertices" } });
+  const drawn = () => clash.querySelector("svg"); // a redraw replaces it
+  const box = drawn().querySelector("#b").getBoundingClientRect();
+  const at = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, pointerId: 1, button: 0, bubbles: true };
+  drawn().dispatchEvent(new PointerEvent("pointerdown", at));
+  drawn().dispatchEvent(new PointerEvent("pointerup", at));
+  out.clashSelected = { a: drawn().querySelector(":scope > g.vertices > #a") !== null, selection: drawn().querySelector(":scope > g.overlay .selection") !== null };
+  clash.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+  out.clashDeleted = drawn().querySelector("#b") === null;
+  graphedwright.undo(hc);
+  out.clashRestored = drawn().querySelector(":scope > g.vertices > #b") !== null;
+  graphedwright.destroy(hc);
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

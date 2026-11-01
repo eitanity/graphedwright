@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/layout"
@@ -458,6 +459,40 @@ func TestLabelRoom(t *testing.T) {
 		}
 		if gap < want || gap >= want+8 {
 			t.Errorf("%s: the gap is %g, want %g out to the grid", flow, gap, want)
+		}
+	}
+}
+
+// TestStereotypeRoom: an edge's kind's stereotype is drawn above its
+// label at the middle of the edge, so the gap is as wide as the wider of
+// the two and its room either side, with or without a label.
+func TestStereotypeRoom(t *testing.T) {
+	const stereotype = "«a stereotype»" // wider than the short label, narrower than the long one
+	s := gw.Schema{
+		VertexKinds: []gw.VertexKind{{Name: "case", Shape: gw.Circle, Size: gw.Size{W: 150, H: 48}}},
+		EdgeKinds:   []gw.EdgeKind{{Name: "include", Arrow: true, Stereotype: stereotype}},
+	}
+	for _, label := range []string{"", "short", "a label of thirty-two characters"} {
+		d, err := gw.New(s, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if _, err := d.Apply(gw.Command{Op: gw.AddVertex}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: 0, To: 1, FromPort: gw.None, ToPort: gw.None, Text: label}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		a, b := d.Vertices[0], d.Vertices[1]
+		gap := b.Pos.X - a.Pos.X - (a.Size.W+b.Size.W)/2
+		want := float64(max(utf8.RuneCountInString(stereotype), utf8.RuneCountInString(label))*7 + 16)
+		if gap < want || gap >= want+8 {
+			t.Errorf("label %q: the gap is %g, want %g out to the grid", label, gap, want)
 		}
 	}
 }

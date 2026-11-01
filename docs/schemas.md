@@ -139,7 +139,7 @@ commands.
 
 | Field | Meaning |
 |---|---|
-| `Name` | the palette entry, the SVG class (with spaces as `_`), and the name in documents |
+| `Name` | the palette entry, the name in documents, and the SVG class after `kind-`, with spaces as `_` (`kind-use_case`) |
 | `Shape` | `Rect`, `RoundRect`, `Pill`, `Diamond`, `Circle` (an ellipse filling the size), `Actor` (a stick figure, label below) or `DataStore` (a line above and a line below) |
 | `Size` | a new vertex's width and height; a vertex can be resized |
 | `Ports` | named places on the sides where edges attach: `{Name, Side, Max}`, with `Side` one of `Left`, `Right`, `Top`, `Bottom`, and `Max` the edges it takes, 0 for any. A side's ports are spaced evenly along it |
@@ -154,7 +154,7 @@ commands.
 
 | Field | Meaning |
 |---|---|
-| `Name` | the palette entry, the SVG class and the name in documents |
+| `Name` | the palette entry, the name in documents, and the SVG class after `kind-` |
 | `From`, `To` | the vertex kinds allowed at each end; empty for any |
 | `Route` | `Straight`, `Curve` or `Orthogonal` |
 | `Arrow` | draws an arrowhead at the end |

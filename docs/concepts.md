@@ -141,8 +141,9 @@ The layout (`layout.Layouter`) is layered:
    down and up (8 times by default) and keeping the best order seen.
 4. **Coordinates:** layers are a pitch apart (160 units, or 96 top to
    bottom), or further where a wide node needs it, or, left to right,
-   the label of an edge drawn in the gap between them. Within a layer,
-   vertices are centred on their neighbours and kept a gap (24) apart.
+   the label or stereotype of an edge drawn in the gap between them.
+   Within a layer, vertices are centred on their neighbours and kept a
+   gap (24) apart.
    Everything lands on a grid (8).
 5. **Routes:** each long edge is routed through its placeholders as
    bends (below).

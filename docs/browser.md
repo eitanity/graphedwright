@@ -186,16 +186,24 @@ restyle it with CSS or script it.
   to `create`. Without one, a document can hold an ID the page uses, and
   `document.getElementById` then finds whichever comes first. `svg(g)`
   writes neither prefix.
-- **Shapes:** each is a `g.vertex` with its kind's name as a class
-  (spaces as `_`, so `use case` is `use_case`), its ID as `id`, and its
-  attributes as `data-*`. Inside are `.shape`, `text.label`,
+- **Kinds:** a vertex's or an edge's kind is a class, its name after
+  `kind-`, with anything but letters, digits, `-` and `_` as `_`: the
+  kind `use case` is `.kind-use_case`. The prefix keeps a kind's class
+  apart from the drawing's own, so a kind may be named `port`, `label`
+  or `overlay` and is styled as itself alone. The name as written is
+  also in `data-kind`.
+- **Shapes:** each is a `g.vertex` with its kind's class, its ID as
+  `id`, and its attributes as `data-*`. Inside are `.shape`, `text.label`,
   `.annotation`, and `.port` circles. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,
   `data-from`, `data-to` and its attributes. Inside are the `path`, and
   `text.label` and `text.stereotype`. A dashed kind has `.dashed`.
 - **Arrowheads** are markers with the class `.arrowhead` plus the edge
-  kind's name, and `.open` or `.hollow`.
+  kind's class, and `.open` or `.hollow`.
+- **Annotations:** the class given to `annotate` is added as it is. It
+  shares the drawing's own names, so one such as `label` or `port`
+  takes the default stylesheet's rules for those.
 - **The overlay** holds `.selection` (a selected shape's dashed outline,
   or a halo over a selected edge), `.ghost` (the edge being drawn),
   `.marquee`, and `.target .ring` (where an edge can start or end).

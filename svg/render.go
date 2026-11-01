@@ -20,6 +20,19 @@ const (
 	Edit
 )
 
+// KindClassPrefix goes before a kind's name in the class of each of its
+// elements and arrowheads. None of the renderer's own classes starts
+// with it, so a kind of any name, "port" or "overlay" among them, is
+// styled and found as that kind alone.
+const KindClassPrefix = "kind-"
+
+// kindClass writes the class of a kind's elements: the prefix, then the
+// name with anything but letters, digits, '-' and '_' as '_'.
+func (r *Renderer) kindClass(name string) {
+	r.o.str(KindClassPrefix)
+	r.o.name(name)
+}
+
 // Annotation is a figure drawn on an element for one render: under a
 // vertex's label, or at an edge's midpoint. Class joins the element's
 // classes. On an edge, a Weight above zero sets the stroke width in
@@ -192,7 +205,7 @@ func (r *Renderer) defs(d *gw.Document, prefix string) {
 		o.str(`arrow-`)
 		o.int(i)
 		o.str(`" class="arrowhead `)
-		o.name(k.Name)
+		r.kindClass(k.Name)
 		switch k.Head {
 		case gw.FilledHead:
 			o.str(`" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker>`)
@@ -260,7 +273,7 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	kind := d.Schema.EdgeKinds[e.Kind]
 	note := noteOf(opts.EdgeNotes, int(i))
 	o.str(`<g class="edge `)
-	o.name(kind.Name)
+	r.kindClass(kind.Name)
 	if kind.Dashed {
 		o.str(" dashed")
 	}
@@ -392,7 +405,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	kind := d.Schema.VertexKinds[v.Kind]
 	note := noteOf(opts.VertexNotes, int(i))
 	o.str(`<g class="vertex `)
-	o.name(kind.Name)
+	r.kindClass(kind.Name)
 	if kind.Container {
 		o.str(" container")
 	}

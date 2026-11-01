@@ -488,14 +488,16 @@ func (h *handle) renderAll() {
 	h.buildPalette()
 }
 
-// renderOverlay replaces the overlay group alone.
+// renderOverlay replaces the overlay group alone. The groups are found
+// as children of the SVG root: an annotation's class is the host's and
+// may be a group's name, and an element carrying it would come first.
 func (h *handle) renderOverlay() {
 	h.ed.Overlay(&h.opts)
 	h.buf.Reset()
 	if err := h.r.RenderOverlay(h.d, h.opts, &h.buf); err != nil {
 		return
 	}
-	if g := h.svgEl.Call("querySelector", "g.overlay"); g.Truthy() {
+	if g := h.svgEl.Call("querySelector", ":scope > g.overlay"); g.Truthy() {
 		g.Set("outerHTML", h.buf.String())
 	}
 }
@@ -508,9 +510,9 @@ func (h *handle) patchElements(ch gw.Change) {
 		if err := h.r.RenderVertex(h.d, h.opts, v, &h.buf); err != nil {
 			continue
 		}
-		group := "g.vertices"
+		group := ":scope > g.vertices"
 		if h.d.Schema.VertexKinds[h.d.Vertices[v].Kind].Container {
-			group = "g.containers"
+			group = ":scope > g.containers"
 		}
 		h.patchOne(string(h.d.Vertices[v].ID), h.d.Vertices[v].Live, group)
 	}
@@ -519,13 +521,13 @@ func (h *handle) patchElements(ch gw.Change) {
 		if err := h.r.RenderEdge(h.d, h.opts, e, &h.buf); err != nil {
 			continue
 		}
-		h.patchOne(string(h.d.Edges[e].ID), h.d.Edges[e].Live, "g.edges")
+		h.patchOne(string(h.d.Edges[e].ID), h.d.Edges[e].Live, ":scope > g.edges")
 	}
 }
 
 // patchOne puts the rendered fragment in h.buf in place of the element
 // with the id, removes the element when the fragment is a tombstone's,
-// or appends it to the group when it is new.
+// or appends it to the group, a child of the SVG root, when it is new.
 func (h *handle) patchOne(id string, live bool, group string) {
 	// CSS.escape makes any id a valid selector; one built by hand from
 	// document text could throw, and a throw ends the program.

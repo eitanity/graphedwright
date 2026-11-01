@@ -83,7 +83,7 @@ def check(out, native, example):
         raise SystemExit("export differs from the example:\n" + json.dumps(exported, indent=1))
     if out["svg"]["ok"] != native:
         raise SystemExit("the browser's drawing differs from the native one:\n" + out["svg"]["ok"][:400])
-    if "2.1/period" not in out["svgAnnotated"]["ok"] or 'class="edge curve" id="e2"' not in out["svgAnnotated"]["ok"]:
+    if "2.1/period" not in out["svgAnnotated"]["ok"] or 'class="edge kind-curve" id="e2"' not in out["svgAnnotated"]["ok"]:
         raise SystemExit("annotation missing")
     if out["domVertices"] != 5 or out["domEdges"] != 5:
         raise SystemExit(f"DOM holds {out['domVertices']} vertices and {out['domEdges']} edges")
@@ -100,6 +100,10 @@ def check(out, native, example):
         raise SystemExit("the registered schema's document: " + json.dumps(tiny))
     if "no such handle" not in out["afterDestroy"].get("error", ""):
         raise SystemExit(f"after destroy: {out['afterDestroy']}")
+    if out["clashLoad"].get("ok") is not True or out["clashAnnotate"].get("ok") is not True:
+        raise SystemExit(f"clash load and annotate: {out['clashLoad']} {out['clashAnnotate']}")
+    if out["clashSelected"] != {"a": True, "selection": True} or not out["clashDeleted"] or not out["clashRestored"]:
+        raise SystemExit(f"kinds and classes named as the binding's groups: selected {out['clashSelected']}, deleted {out['clashDeleted']}, restored {out['clashRestored']}")
 
 
 if __name__ == "__main__":

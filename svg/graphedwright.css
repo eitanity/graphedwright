@@ -17,7 +17,6 @@
 .graphedwright .edge path { fill: none; stroke: #718096; }
 .graphedwright .edge .label { fill: #2d3748; }
 .graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
-.graphedwright .edge.hold path { stroke-dasharray: 6 3; }
 .graphedwright .arrowhead path { fill: #718096; stroke: none; }
 .graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
 .graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }

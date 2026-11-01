@@ -211,5 +211,5 @@ size: wasm
 
 # Rewrites the frozen SVGs after an intended change; review the diff.
 golden:
-	go test -run TestGolden -update $(PKGS)
+	go test -run TestGolden ./svg -update
 

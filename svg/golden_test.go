@@ -131,14 +131,14 @@ func TestStructure(t *testing.T) {
 	}
 	s := buf.String()
 	for _, want := range []string{
-		`viewBox="`, `data-mode="edit"`, `<marker id="arrow-0" class="arrowhead to"`, `<marker id="arrow-1" class="arrowhead outcome"`,
-		`<g class="edge wire" id="e2" data-kind="wire" data-from="a label far too long to fit in the box it is drawn in" data-to="decide?">`,
+		`viewBox="`, `data-mode="edit"`, `<marker id="arrow-0" class="arrowhead kind-to"`, `<marker id="arrow-1" class="arrowhead kind-outcome"`,
+		`<g class="edge kind-wire" id="e2" data-kind="wire" data-from="a label far too long to fit in the box it is drawn in" data-to="decide?">`,
 		`<path d="M `, ` H `, ` C `, `marker-end="url(#arrow-1)"`, `wire &lt;&amp;&gt;`,
-		`<g class="vertex node" id="a label far too long to fit in the box it is drawn in" data-kind="node" transform="translate(240 60)" data-p="0.5" data-mode="x=&quot;1&quot; &lt;b&gt;&amp;" data-weird_key_="v">`,
+		`<g class="vertex kind-node" id="a label far too long to fit in the box it is drawn in" data-kind="node" transform="translate(240 60)" data-p="0.5" data-mode="x=&quot;1&quot; &lt;b&gt;&amp;" data-weird_key_="v">`,
 		`<rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/>`, `…</text><title>a label far too long`,
 		`<circle class="port" data-port="in" cx="-60" cy="0" r="4"/>`, `<circle class="port" data-port="out" cx="60" cy="-6" r="4"/>`,
 		`<polygon class="shape" points="0 -24 40 0 0 24 -40 0"/>`, `<ellipse class="shape" cx="0" cy="0" rx="20" ry="20"/>`,
-		`class="vertex round_thing"`, `class="vertex leaf unplaced"`, `<g class="overlay"><rect class="selection"`, `<path d="M 108 60 L 171 60" stroke-width="1.5" marker-end="url(#arrow-0)"/>`,
+		`class="vertex kind-round_thing"`, `class="vertex kind-leaf unplaced"`, `<g class="overlay"><rect class="selection"`, `<path d="M 108 60 L 171 60" stroke-width="1.5" marker-end="url(#arrow-0)"/>`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in\n%s", want, s)
@@ -172,10 +172,10 @@ func TestNotation(t *testing.T) {
 		`<rect class="shape box" x="-20" y="-38" width="40" height="76"/><circle class="figure head" cx="0" cy="-29.2" r="8.8"/>`,
 		`<text class="label" x="0" y="34" text-anchor="middle">user</text>`,
 		`<rect class="shape store" x="-55" y="-18" width="110" height="36"/><path class="figure" d="M -55 -18 H 55 M -55 18 H 55"/>`,
-		`<g class="vertex zone dashed"`, `<g class="edge include dashed"`,
-		`class="arrowhead include open" viewBox="0 0 10 10" refX="10"`, `class="arrowhead generalisation hollow"`, `class="arrowhead flow" viewBox`,
+		`<g class="vertex kind-zone dashed"`, `<g class="edge kind-include dashed"`,
+		`class="arrowhead kind-include open" viewBox="0 0 10 10" refX="10"`, `class="arrowhead kind-generalisation hollow"`, `class="arrowhead kind-flow" viewBox`,
 		`<text class="stereotype"`,
-		`<g class="containers"><g class="vertex system container unplaced" id="shop" data-kind="system" transform="translate(290 130)"><rect class="shape" x="-96" y="-108" width="192" height="216"/><text class="label" x="-88" y="-94" text-anchor="start">shop</text></g></g><g class="edges">`,
+		`<g class="containers"><g class="vertex kind-system container unplaced" id="shop" data-kind="system" transform="translate(290 130)"><rect class="shape" x="-96" y="-108" width="192" height="216"/><text class="label" x="-88" y="-94" text-anchor="start">shop</text></g></g><g class="edges">`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in\n%s", want, s)
@@ -183,8 +183,66 @@ func TestNotation(t *testing.T) {
 	}
 	// place order (280,80) 140×44 to pay (300,200): the line leaves the
 	// first ellipse and enters the second on their outlines.
-	if !strings.Contains(s, `<g class="edge include dashed" id="e2" data-kind="include" data-from="place order" data-to="pay"><path d="M 283.66 101.97 L 296.34 178.03"`) {
+	if !strings.Contains(s, `<g class="edge kind-include dashed" id="e2" data-kind="include" data-from="place order" data-to="pay"><path d="M 283.66 101.97 L 296.34 178.03"`) {
 		t.Errorf("include not clipped at both ellipses:\n%s", s)
+	}
+}
+
+// TestKindClasses: kinds named as the renderer's own classes and groups
+// are written with the kind prefix, so no element of theirs carries a
+// class the renderer gives its own elements, and the stylesheet's rules
+// and the binding's lookups for those find only the renderer's.
+func TestKindClasses(t *testing.T) {
+	own := []string{"port", "overlay", "label", "dashed", "container", "vertices", "edges", "selection"}
+	vks := make([]gw.VertexKind, 0, len(own))
+	for _, n := range own {
+		vks = append(vks, gw.VertexKind{Name: n, Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 36}})
+	}
+	s := gw.Schema{VertexKinds: vks, EdgeKinds: []gw.EdgeKind{{Name: "label", Arrow: true}, {Name: "dashed", Arrow: true, Head: gw.OpenHead}}}
+	d, err := gw.New(s, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range own {
+		must(t, d, gw.Command{Op: gw.AddVertex, Kind: gw.KindIndex(i), Text: own[i], Pos: gw.Point{X: float64(i * 160)}})
+	}
+	must(t, d, gw.Command{Op: gw.AddEdge, Kind: 0, From: 0, To: 1, FromPort: gw.None, ToPort: gw.None, Text: "x"})
+	must(t, d, gw.Command{Op: gw.AddEdge, Kind: 1, From: 1, To: 2, FromPort: gw.None, ToPort: gw.None})
+	var buf bytes.Buffer
+	opts := svg.Options{Mode: svg.Edit, SelectedV: []gw.VertexIndex{0}}
+	if err := svg.Render(d, opts, &buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, n := range own {
+		if !strings.Contains(out, `<g class="vertex kind-`+n+` unplaced" id=`) {
+			t.Errorf("vertex of kind %q not classed as its kind alone in\n%s", n, out)
+		}
+	}
+	for _, want := range []string{`<g class="edge kind-label" id="e1"`, `<g class="edge kind-dashed" id="e2"`, `class="arrowhead kind-label" `, `class="arrowhead kind-dashed open" `} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in\n%s", want, out)
+		}
+	}
+	// Every class attribute that holds one of the renderer's own names
+	// is on one of the renderer's own elements.
+	allowed := map[string]bool{`<g class="overlay"`: true, `<g class="vertices"`: true, `<g class="edges"`: true, `<text class="label"`: true, `<rect class="selection"`: true}
+	for rest := out; ; {
+		i := strings.Index(rest, ` class="`)
+		if i < 0 {
+			break
+		}
+		tag := rest[strings.LastIndex(rest[:i], "<"):i]
+		end := strings.IndexByte(rest[i+8:], '"')
+		value := rest[i+8 : i+8+end]
+		for _, tok := range strings.Fields(value) {
+			for _, n := range own {
+				if tok == n && !allowed[tag+` class="`+value+`"`] {
+					t.Errorf("%s class=%q carries the renderer's class %q", tag, value, n)
+				}
+			}
+		}
+		rest = rest[i+8+end:]
 	}
 }
 
@@ -225,14 +283,14 @@ func TestRenderOne(t *testing.T) {
 	if err := r.RenderVertex(d, opts, 1, &one); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(whole.String(), one.String()) || !strings.HasPrefix(one.String(), `<g class="vertex node" id="a"`) {
+	if !strings.Contains(whole.String(), one.String()) || !strings.HasPrefix(one.String(), `<g class="vertex kind-node" id="a"`) {
 		t.Errorf("vertex alone:\n%s", one.String())
 	}
 	one.Reset()
 	if err := r.RenderEdge(d, opts, 1, &one); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(whole.String(), one.String()) || !strings.HasPrefix(one.String(), `<g class="edge outcome" id="e2"`) {
+	if !strings.Contains(whole.String(), one.String()) || !strings.HasPrefix(one.String(), `<g class="edge kind-outcome" id="e2"`) {
 		t.Errorf("edge alone:\n%s", one.String())
 	}
 }
