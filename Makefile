@@ -12,11 +12,11 @@ HOTPATH               := internal/lint/hotpath.txt
 WASM_SIZE_LIMIT_GO    := 4194304
 WASM_SIZE_LIMIT_TINY  := 614400
 
-.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
+.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc budget test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
 
 all: ci
 
-ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc fuzz merilo cover vuln wasm-test size
+ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc budget fuzz merilo cover vuln wasm-test size
 
 # ---- toolchain ------------------------------------------------------------
 
@@ -114,6 +114,10 @@ race:
 
 alloc:
 	go test -count=1 -run 'Alloc|Churn' $(PKGS)
+
+# The time budgets, natively: under wasm-test they are logged only.
+budget:
+	go test -count=1 -run 'RenderBudget|LayoutBudget' -v ./svg ./layout
 
 # Every fuzz target natively, then on 386, where an int has 32 bits as
 # in TinyGo's wasm. Go guides fuzzing by coverage only on amd64 and

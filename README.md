@@ -118,7 +118,8 @@ push:
 - the escape and allocation checks on the render and event paths;
 - the race detector, the fuzzers, the WebAssembly tests under wazero
   and the vulnerability scan;
-- the TinyGo size budget.
+- the time budgets for layout and render, natively, and the TinyGo size
+  budget.
 
 `make wasm-smoke` runs the browser smoke test under both toolchains in
 headless Firefox through geckodriver. TinyGo is pinned in the Makefile,

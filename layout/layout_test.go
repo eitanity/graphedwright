@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -393,7 +394,7 @@ func TestLayerBudget(t *testing.T) {
 }
 
 // TestLayoutBudget: 2 000 vertices and 5 000 edges lay out in under
-// 200 ms, skipped under the race detector.
+// 200 ms natively, skipped under the race detector.
 func TestLayoutBudget(t *testing.T) {
 	if os.Getenv("GRAPHEDWRIGHT_RACE") == "1" {
 		t.Skip("timing under the race detector")
@@ -409,6 +410,11 @@ func TestLayoutBudget(t *testing.T) {
 	})
 	per := time.Duration(res.NsPerOp())
 	t.Logf("layout of %d vertices and %d edges: %v", d.LiveVertices(), d.LiveEdges(), per)
+	// The budget holds natively on the CI runner (make budget); under a
+	// wasm runtime the time depends on the runtime and is only logged.
+	if runtime.GOARCH == "wasm" {
+		return
+	}
 	if per > 200*time.Millisecond {
 		t.Errorf("layout took %v, over the 200 ms budget", per)
 	}

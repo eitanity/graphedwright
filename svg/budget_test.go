@@ -3,6 +3,7 @@ package svg_test
 import (
 	"io"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -28,8 +29,8 @@ func TestAllocRender(t *testing.T) {
 }
 
 // TestRenderBudget: a 2 000-vertex, 5 000-edge document renders in
-// under 50 ms. The check is skipped under the race detector, whose
-// instrumentation is not what the budget is about.
+// under 50 ms natively. The check is skipped under the race detector,
+// whose instrumentation is not what the budget is about.
 func TestRenderBudget(t *testing.T) {
 	if os.Getenv("GRAPHEDWRIGHT_RACE") == "1" {
 		t.Skip("timing under the race detector")
@@ -48,6 +49,11 @@ func TestRenderBudget(t *testing.T) {
 	})
 	per := time.Duration(res.NsPerOp())
 	t.Logf("render of %d vertices and %d edges: %v", d.LiveVertices(), d.LiveEdges(), per)
+	// The budget holds natively on the CI runner (make budget); under a
+	// wasm runtime the time depends on the runtime and is only logged.
+	if runtime.GOARCH == "wasm" {
+		return
+	}
 	if per > 50*time.Millisecond {
 		t.Errorf("render took %v, over the 50 ms budget", per)
 	}
