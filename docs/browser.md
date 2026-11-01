@@ -194,7 +194,8 @@ restyle it with CSS or script it.
   also in `data-kind`.
 - **Shapes:** each is a `g.vertex` with its kind's class, its ID as
   `id`, and its attributes as `data-*`. Inside are `.shape`, `text.label`,
-  `.annotation`, and `.port` circles. Extra classes are `.container`,
+  `text.keyword` for a kind with a keyword, `.annotation`, and `.port`
+  circles. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,
   `data-from`, `data-to` and its attributes. Inside are the `path`, and

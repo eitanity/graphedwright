@@ -65,7 +65,11 @@ type AttrSpec struct {
 // incoming edge) or a leaf (no outgoing edge). Max bounds how many a
 // document holds; 0 is unbounded. A dashed kind's outline is drawn
 // dashed. A container kind holds other vertices (see Container); Contains
-// names the kinds it may hold, empty for any.
+// names the kinds it may hold, empty for any. A keyword, such as «block»,
+// is drawn on every vertex of the kind above its label, before a
+// container's title, or above an actor's head; a kind with one, but for
+// a container or an actor, is at least KeywordHeight high, room for
+// both lines.
 type VertexKind struct {
 	Name      string
 	Shape     Shape
@@ -78,7 +82,12 @@ type VertexKind struct {
 	Dashed    bool
 	Container bool
 	Contains  []KindIndex
+	Keyword   string
 }
+
+// KeywordHeight is the least height of a vertex kind with a keyword,
+// but for a container or an actor: two lines of text.
+const KeywordHeight = 32
 
 // EdgeKind is a palette entry for edges: the vertex kinds it may join at
 // each end (empty is any), how it is routed and drawn, and the
@@ -141,6 +150,12 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 	}
 	if err := checkPorts(where, k.Ports, caps); err != nil {
 		return err
+	}
+	if err := checkText("keyword", k.Keyword); err != nil {
+		return schemaError(where, err.Error())
+	}
+	if k.Keyword != "" && !k.Container && k.Shape != Actor && k.Size.H < KeywordHeight {
+		return schemaError(where, "has a keyword and is under "+itoa(KeywordHeight)+" high, the room for it and the label")
 	}
 	if len(k.Contains) > 0 && !k.Container {
 		return schemaError(where, "holds kinds without being a container")

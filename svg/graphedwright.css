@@ -22,6 +22,7 @@
 .graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
 .graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
 .graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .vertex .keyword { fill: #4a5568; font-size: 11px; }
 .graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
 
 /* A selected vertex is outlined; a selected edge has a halo as wide as

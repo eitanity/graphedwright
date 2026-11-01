@@ -50,7 +50,7 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy()}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword")}
 	var err error
 	if vk.Shape, err = shapeOf(str(k, "shape")); err != nil {
 		return vk, err

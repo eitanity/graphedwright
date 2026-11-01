@@ -237,3 +237,31 @@ func bent(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
 	}
 	return d, svg.Options{Title: "Bends"}
 }
+
+// keywords: vertex kinds with a keyword line above the label: a box,
+// one whose label is cut, an actor, and a container, whose keyword
+// comes before its title; beside a kind without one.
+func keywords(t testing.TB) (*gw.Document, svg.Options) {
+	d, err := gw.New(gw.Schema{
+		VertexKinds: []gw.VertexKind{
+			{Name: "block", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part def»"},
+			{Name: "actor", Shape: gw.Actor, Size: gw.Size{W: 40, H: 76}, Keyword: "«actor»"},
+			{Name: "system", Size: gw.Size{W: 100, H: 60}, Container: true, Keyword: "«system»"},
+			{Name: "plain", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 40}},
+		},
+		EdgeKinds: []gw.EdgeKind{{Name: "flow", Arrow: true}},
+	}, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := vertex(t, d, 1, "driver", 60, 100)
+	car := vertex(t, d, 0, "vehicle", 240, 60)
+	long := vertex(t, d, 0, "an engine with a long name", 240, 160)
+	plain := vertex(t, d, 3, "plain", 440, 60)
+	edge(t, d, 0, user, car, gw.None, gw.None, "", 0)
+	edge(t, d, 0, car, plain, gw.None, gw.None, "", 0)
+	sys := must(t, d, gw.Command{Op: gw.AddVertex, Kind: 2, ID: "vehicle system", Text: "vehicle system"}).Vertices[0]
+	must(t, d, gw.Command{Op: gw.SetParent, Vertex: car, To: sys})
+	must(t, d, gw.Command{Op: gw.SetParent, Vertex: long, To: sys})
+	return d, svg.Options{Title: "Keywords", Mode: svg.View}
+}

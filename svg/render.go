@@ -455,9 +455,21 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 		labelY, labelW = float64(v.Size.H/2)-4, 0
 	}
 	if kind.Container {
-		// A container's label is its title, in the room at its top.
-		r.labelAt("label", v.Label, float64(-v.Size.W/2)+8, float64(-v.Size.H/2)+gw.ContainerTitle-6, v.Size.W-16, "start", opts)
+		r.title(v, kind.Keyword, opts)
 	} else {
+		if kw := kind.Keyword; kw != "" {
+			// The keyword is the line above the label, the two centred
+			// in the shape; an actor's, whose label is at its foot, is
+			// above its head.
+			half := float64(opts.FontSize/2) + 1
+			kwY := labelY - half
+			if kind.Shape == gw.Actor {
+				kwY = float64(-v.Size.H/2) - 4
+			} else {
+				labelY += half
+			}
+			r.label("keyword", kw, 0, kwY, labelW, opts)
+		}
 		r.label("label", v.Label, 0, labelY, labelW, opts)
 	}
 	if note.Text != "" {
@@ -465,6 +477,20 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	}
 	r.ports(v)
 	o.str(`</g>`)
+}
+
+// title draws a container's label, its title, in the room at its top,
+// after its kind's keyword if it has one.
+func (r *Renderer) title(v *gw.Vertex, keyword string, opts Options) {
+	x, y, w := float64(-v.Size.W/2)+8, float64(-v.Size.H/2)+gw.ContainerTitle-6, v.Size.W-16
+	if keyword != "" {
+		r.labelAt("keyword", keyword, x, y, w, "start", opts)
+		// A keyword is drawn smaller than a label, at about nine
+		// tenths of its width a character, and half a character apart.
+		kw := math.Min(w, float64(float64(runeCount(keyword))*float64(opts.CharWidth*0.9))+float64(opts.CharWidth/2))
+		x, w = x+kw, w-kw
+	}
+	r.labelAt("label", v.Label, x, y, w, "start", opts)
 }
 
 // shapeClass is the class of a vertex's own shape, as against the

@@ -51,6 +51,11 @@ func TestSchemaRefusals(t *testing.T) {
 		{"control in vertex name", func(s *gw.Schema) { s.VertexKinds[0].Name = "a\nb" }, `name "a\nb" holds the control character U+000a`},
 		{"control in edge name", func(s *gw.Schema) { s.EdgeKinds[0].Name = "t\x00" }, "control character U+0000"},
 		{"control in stereotype", func(s *gw.Schema) { s.EdgeKinds[0].Stereotype = "\x01" }, "stereotype holds the control character U+0001"},
+		{"control in keyword", func(s *gw.Schema) { s.VertexKinds[1].Keyword = "\x01" }, "keyword holds the control character U+0001"},
+		{"keyword too low", func(s *gw.Schema) {
+			s.VertexKinds[1].Keyword = "«block»"
+			s.VertexKinds[1].Size.H = 24
+		}, "has a keyword and is under 32 high"},
 		{"control in port", func(s *gw.Schema) { s.VertexKinds[1].Ports[0].Name = "i\tn" }, `port "i\tn" holds the control character`},
 		{"control in attr key", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Key = "k\x7f" }, `attribute key "k\x7f" may hold only`},
 		{"upper attr key", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Key = "Note" }, `attribute key "Note" may hold only`},
