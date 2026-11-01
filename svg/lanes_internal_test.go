@@ -251,19 +251,17 @@ func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
 	return gw.None, gw.Point{}
 }
 
-// TestRoutesClearOfContainers: laid out, no drawn route of an edge whose
-// ends are in the same container, or both in none, passes through a
-// vertex or container that is not one of its ends: the state machine
-// above in either flow, and random graphs whose vertices are spread over
-// containers, by every route.
+// TestRoutesClearOfContainers: laid out, no drawn route passes through
+// a vertex or container that is neither one of its ends nor holds one,
+// whether its ends are in one container or in different ones: the state
+// machine above in either flow, and random graphs whose vertices are
+// spread over containers, by every route, edges between the same two
+// vertices among them.
 func TestRoutesClearOfContainers(t *testing.T) {
 	check := func(name string, d *gw.Document) {
 		t.Helper()
 		for i := range d.Edges {
-			// An edge from one container to another is routed through
-			// runs inside each, which can still pass the others that a
-			// container holds; it is not checked here.
-			if e := &d.Edges[i]; !e.Live || d.Vertices[e.From].Parent != d.Vertices[e.To].Parent {
+			if !d.Edges[i].Live {
 				continue
 			}
 			if v, p := routeClear(d, gw.EdgeIndex(i)); v != gw.None { //nolint:gosec // bounded
@@ -271,6 +269,23 @@ func TestRoutesClearOfContainers(t *testing.T) {
 				t.Errorf("%s: edge %s from %s to %s passes through %s at %v; bends %v", name, e.ID, d.Vertices[e.From].ID, d.Vertices[e.To].ID, d.Vertices[v].ID, p, e.Bends)
 			}
 		}
+	}
+	// An edge from a vertex in one group to one in another, below a
+	// member beside its source; and a long straight edge past a group
+	// beside its source.
+	for _, name := range []string{"boundaries", "long-straight"} {
+		data, err := os.ReadFile("testdata/routes/" + name + ".json") //nolint:gosec // fixed test data
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		check(name, d)
 	}
 	for _, flow := range []string{"left-to-right", "top-to-bottom"} {
 		d, err := doc.Decode([]byte(throughContainer), doc.Options{Schemas: doc.Builtin(), NoLayout: true})

@@ -1,0 +1,65 @@
+{
+ "schema": "basic",
+ "vertices": [
+  {
+   "id": "a",
+   "kind": "group",
+   "label": "zone a"
+  },
+  {
+   "id": "b",
+   "kind": "group",
+   "label": "zone b"
+  },
+  {
+   "id": "a1",
+   "kind": "box",
+   "label": "a1",
+   "parent": "a"
+  },
+  {
+   "id": "a2",
+   "kind": "box",
+   "label": "a2",
+   "parent": "a"
+  },
+  {
+   "id": "a3",
+   "kind": "box",
+   "label": "a3",
+   "parent": "a"
+  },
+  {
+   "id": "b1",
+   "kind": "box",
+   "label": "b1",
+   "parent": "b"
+  },
+  {
+   "id": "b2",
+   "kind": "box",
+   "label": "b2",
+   "parent": "b"
+  },
+  {
+   "id": "b3",
+   "kind": "box",
+   "label": "b3",
+   "parent": "b"
+  },
+  {
+   "id": "b4",
+   "kind": "box",
+   "label": "b4",
+   "parent": "b"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "kind": "line",
+   "from": "a1",
+   "to": "b4"
+  }
+ ]
+}

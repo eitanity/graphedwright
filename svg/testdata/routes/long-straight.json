@@ -1,0 +1,116 @@
+{
+ "schema": "basic",
+ "flow": "top-to-bottom",
+ "vertices": [
+  {
+   "id": "v1",
+   "kind": "box",
+   "label": "v1"
+  },
+  {
+   "id": "v2",
+   "kind": "box",
+   "parent": "v13",
+   "label": "v2"
+  },
+  {
+   "id": "v3",
+   "kind": "circle",
+   "parent": "v12",
+   "label": "v3"
+  },
+  {
+   "id": "v4",
+   "kind": "box",
+   "parent": "v13",
+   "label": "v4"
+  },
+  {
+   "id": "v5",
+   "kind": "box",
+   "label": "v5"
+  },
+  {
+   "id": "v6",
+   "kind": "circle",
+   "label": "v6"
+  },
+  {
+   "id": "v7",
+   "kind": "box",
+   "parent": "v12",
+   "label": "v7"
+  },
+  {
+   "id": "v8",
+   "kind": "box",
+   "parent": "v14",
+   "label": "v8"
+  },
+  {
+   "id": "v9",
+   "kind": "box",
+   "parent": "v14",
+   "label": "v9"
+  },
+  {
+   "id": "v10",
+   "kind": "box",
+   "parent": "v12",
+   "label": "v10"
+  },
+  {
+   "id": "v11",
+   "kind": "circle",
+   "parent": "v13",
+   "label": "v11"
+  },
+  {
+   "id": "v12",
+   "kind": "group",
+   "label": "v12"
+  },
+  {
+   "id": "v13",
+   "kind": "group",
+   "label": "v13"
+  },
+  {
+   "id": "v14",
+   "kind": "group",
+   "label": "v14"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "kind": "curve",
+   "from": "v2",
+   "to": "v5"
+  },
+  {
+   "id": "e2",
+   "kind": "wire",
+   "from": "v6",
+   "to": "v8"
+  },
+  {
+   "id": "e3",
+   "kind": "curve",
+   "from": "v3",
+   "to": "v9"
+  },
+  {
+   "id": "e4",
+   "kind": "line",
+   "from": "v5",
+   "to": "v10"
+  },
+  {
+   "id": "e5",
+   "kind": "line",
+   "from": "v1",
+   "to": "v7"
+  }
+ ]
+}

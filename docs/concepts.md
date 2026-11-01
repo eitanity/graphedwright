@@ -148,6 +148,9 @@ The layout (`layout.Layouter`) is layered:
 5. **Routes:** each long edge is routed through its placeholders as
    bends, and an edge that would cross a vertex beside one of its ends
    is routed around it (below).
+6. **Detours:** in a document with containers, an edge whose route
+   would still pass through a vertex or container that holds neither
+   of its ends is given a detour round them (below).
 
 Every pass is a loop with a stated bound, nothing recurses, and the
 working arrays are allocated once, in `layout.New`. The same input gives
@@ -200,6 +203,17 @@ the edge would pass another node of that layer on its way, such as a
 container above or below the end, it runs level from the end to the
 layer's edge instead, at the end's height, which no other node of the
 layer shares, and turns only in the room between layers.
+
+An edge into or out of a container can still meet what the container
+holds, or what stands beside it. Once everything is placed, such an
+edge is given a **detour**: a route of level and upright legs, a gap
+(16) clear of every vertex and container that holds neither end, which
+crosses the sides of the containers holding its ends but does not run
+along them. It turns as little as it can and keeps to the way the edge
+runs, turning back only where its ends overlap along the flow. Edges
+between the same two vertices are given detours together, each a gap
+further out, so that they stay apart. Documents without containers are
+left as their layers route them.
 
 Bends are derived from the positions, not edited. A route holds for
 where the edge's two ends were when it was routed. Move or resize an

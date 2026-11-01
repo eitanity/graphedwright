@@ -403,7 +403,8 @@ func BenchmarkLayout(b *testing.B) {
 	}
 }
 
-// TestAllocLayout: a layouter runs without allocating.
+// TestAllocLayout: a layouter runs without allocating, with containers
+// too.
 func TestAllocLayout(t *testing.T) {
 	d := randomDAG(t, 4, 30, 50, gw.Caps{})
 	l := layout.New(d.Caps())
@@ -413,6 +414,16 @@ func TestAllocLayout(t *testing.T) {
 		}
 	}); n > 0 {
 		t.Errorf("%g allocations per run", n)
+	}
+	// With containers, whose edges can be given detours.
+	nd := nested(t, 7, 30, 50, 5)
+	nl := layout.New(nd.Caps())
+	if n := testing.AllocsPerRun(10, func() {
+		if _, err := nl.Run(nd, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+	}); n > 0 {
+		t.Errorf("nested: %g allocations per run", n)
 	}
 }
 

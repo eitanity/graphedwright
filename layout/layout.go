@@ -181,9 +181,10 @@ type Layouter struct {
 	rOff     []int32          // where in its route an edge's dummies' bends start, after room for its inside runs
 	rLen     []int32          // and how many there are
 	runs     [insidePts]gw.Point
-	n        int // nodes in the layered graph
-	s        int // segments
-	realN    int // the document's vertex slots, live or not
+	dt       *detour // the working arrays of the detours round what a route would cross
+	n        int     // nodes in the layered graph
+	s        int     // segments
+	realN    int     // the document's vertex slots, live or not
 	layers   int
 	x0       float64 // the x of layer zero
 	down     bool    // the flow is top to bottom: the frame's axes are swapped
@@ -213,6 +214,7 @@ func New(caps gw.Caps) *Layouter {
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
 		route: make([][]gw.Point, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
+		dt: newDetour(caps.Vertices),
 	}
 }
 
@@ -268,6 +270,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 	// would find its end resized and lose its route.
 	d.Fit()
 	l.placeBends(d)
+	l.detours(d)
 	return Result{Layers: l.layers, Crossings: crossings, Reversed: l.rev}, nil
 }
 

@@ -13,9 +13,11 @@ import (
 // end's band one more where its route would cross a node beside that
 // end. They run strictly between its ends in the edge's own direction:
 // against the flow for one reversed to break a cycle, and for one
-// between adjacent layers the way its ends lie. Every leg between two
-// bends misses every vertex but the ends and the containers that hold
-// them.
+// between adjacent layers the way its ends lie. An edge whose ends
+// overlap along the flow, as an end deep in a container can with the
+// other end in the next layer, cannot run forward from one to the
+// other, and its detour may turn back. Every leg between two bends
+// misses every vertex but the ends and the containers that hold them.
 func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 	t.Helper()
 	for i := range d.Edges {
@@ -38,6 +40,9 @@ func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 			dir = 1
 		}
 		for k, p := range e.Bends {
+			if alongside(d, from, to) {
+				break
+			}
 			if dir*lay(d, p) <= dir*lay(d, from.Pos) || dir*lay(d, p) >= dir*lay(d, to.Pos) || (k > 0 && dir*lay(d, p) < dir*lay(d, e.Bends[k-1])) {
 				t.Errorf("%s: edge %s from %v to %v: bend %d at %v out of order", name, e.ID, from.Pos, to.Pos, k, p)
 			}
@@ -330,4 +335,14 @@ func TestContainerEdgeKeepsRoute(t *testing.T) {
 		t.Errorf("the edge from the container back to a has no route; reversed %v", res.Reversed)
 	}
 	checkBends(t, "container cycle", d, res)
+}
+
+// alongside reports whether two vertices' boxes overlap along the flow.
+func alongside(d *gw.Document, a, b *gw.Vertex) bool {
+	ha, hb := a.Size.W/2, b.Size.W/2
+	if d.Flow == gw.TopToBottom {
+		ha, hb = a.Size.H/2, b.Size.H/2
+	}
+	pa, pb := lay(d, a.Pos), lay(d, b.Pos)
+	return pa-ha < pb+hb && pb-hb < pa+ha
 }
