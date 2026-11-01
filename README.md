@@ -116,14 +116,13 @@ push:
 - formatting, vet, the linters and the project's own analyzers
   (`internal/lint`, a separate module);
 - the escape and allocation checks on the render and event paths;
-- the race detector, the fuzzers, the WebAssembly tests under wazero
-  and the vulnerability scan;
-- the time budgets for layout and render, natively, and the TinyGo size
-  budget.
+- the race detector, the WebAssembly tests under wazero and the
+  vulnerability scan;
+- the TinyGo size budget.
 
-`make wasm-smoke` runs the browser smoke test under both toolchains in
-headless Firefox through geckodriver. TinyGo is pinned in the Makefile,
-and `make tools` says where to get it.
+`make fuzz` runs the fuzzers, and `make wasm-smoke` the browser smoke
+test under both toolchains in headless Firefox through geckodriver.
+TinyGo is pinned in the Makefile, and `make tools` says where to get it.
 
 ## Licence
 

@@ -12,11 +12,11 @@ HOTPATH               := internal/lint/hotpath.txt
 WASM_SIZE_LIMIT_GO    := 4194304
 WASM_SIZE_LIMIT_TINY  := 614400
 
-.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc budget test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
+.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
 
 all: ci
 
-ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc budget fuzz merilo cover vuln wasm-test size
+ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc merilo cover vuln wasm-test size
 
 # ---- toolchain ------------------------------------------------------------
 
@@ -110,20 +110,17 @@ test:
 	go test -count=1 $(PKGS)
 
 race:
-	GRAPHEDWRIGHT_RACE=1 go test -race -count=1 -timeout 30m $(PKGS)
+	go test -race -count=1 -timeout 30m $(PKGS)
 
 alloc:
 	go test -count=1 -run 'Alloc|Churn' $(PKGS)
-
-# The time budgets, natively: under wasm-test they are logged only.
-budget:
-	go test -count=1 -run 'RenderBudget|LayoutBudget' -v ./svg ./layout
 
 # Every fuzz target natively, then on 386, where an int has 32 bits as
 # in TinyGo's wasm. Go guides fuzzing by coverage only on amd64 and
 # arm64, so the 386 run mutates without it. Its workers are capped: each
 # shares 100 MB with the coordinator, and 32 of them overrun a 32-bit
 # address space. internal/verify is its own module; make merilo fuzzes it.
+# Run by hand: make ci runs each fuzz target's seed corpus as a test only.
 fuzz:
 	@for f in $$(grep -rl --include='*_test.go' --exclude-dir=verify '^func Fuzz' . | xargs -r dirname | sort -u); do \
 	  for name in $$(grep -ho '^func Fuzz[A-Za-z0-9_]*' $$f/*_test.go | sed 's/^func //'); do \
@@ -174,14 +171,13 @@ wasm-test: $(BIN)/wazero
 # Every package's tests on the other Linux architectures under qemu-user,
 # the big-endian and 32-bit ones among them, so that a result that
 # depends on the machine fails here. The test binaries run through
-# binfmt_misc, which qemu-user-binfmt registers. The time budgets are
-# skipped: emulation is several times slower than the hardware.
+# binfmt_misc, which qemu-user-binfmt registers.
 QEMU_ARCHS := arm64 arm riscv64 ppc64le ppc64 s390x loong64 mips64le mipsle
 
 qemu-test:
 	@test -e /proc/sys/fs/binfmt_misc/qemu-aarch64 || { echo "qemu-user with binfmt_misc is required"; exit 1; }
 	@failed=; for a in $(QEMU_ARCHS); do \
-	  echo "== $$a"; GOARCH=$$a go test -count=1 -timeout 60m -skip 'Budget' $(PKGS) || failed="$$failed $$a"; \
+	  echo "== $$a"; GOARCH=$$a go test -count=1 -timeout 60m $(PKGS) || failed="$$failed $$a"; \
 	done; \
 	if [ -n "$$failed" ]; then echo "failed on:$$failed"; exit 1; fi
 

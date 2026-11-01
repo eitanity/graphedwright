@@ -10,5 +10,5 @@ replace code.eitanity.com/graphedwright => ../..
 
 require (
 	code.eitanity.com/graphedwright v0.0.0-00010101000000-000000000000
-	code.eitanity.com/merilo v0.1.0
+	code.eitanity.com/merilo v0.1.1
 )

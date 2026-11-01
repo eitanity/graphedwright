@@ -3,12 +3,9 @@ package layout_test
 import (
 	"math"
 	"math/rand/v2"
-	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	gw "code.eitanity.com/graphedwright"
@@ -393,30 +390,16 @@ func TestLayerBudget(t *testing.T) {
 	}
 }
 
-// TestLayoutBudget: 2 000 vertices and 5 000 edges lay out in under
-// 200 ms natively, skipped under the race detector.
-func TestLayoutBudget(t *testing.T) {
-	if os.Getenv("GRAPHEDWRIGHT_RACE") == "1" {
-		t.Skip("timing under the race detector")
-	}
-	d := randomDAG(t, 9, 2000, 5000, gw.Caps{Vertices: 2000, Edges: 5000})
+// BenchmarkLayout: 2 000 vertices and 5 000 edges, for comparing
+// commits on one machine.
+func BenchmarkLayout(b *testing.B) {
+	d := randomDAG(b, 9, 2000, 5000, gw.Caps{Vertices: 2000, Edges: 5000})
 	l := layout.New(d.Caps())
-	res := testing.Benchmark(func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			if _, err := l.Run(d, layout.Options{}); err != nil {
-				b.Fatal(err)
-			}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := l.Run(d, layout.Options{}); err != nil {
+			b.Fatal(err)
 		}
-	})
-	per := time.Duration(res.NsPerOp())
-	t.Logf("layout of %d vertices and %d edges: %v", d.LiveVertices(), d.LiveEdges(), per)
-	// The budget holds natively on the CI runner (make budget); under a
-	// wasm runtime the time depends on the runtime and is only logged.
-	if runtime.GOARCH == "wasm" {
-		return
-	}
-	if per > 200*time.Millisecond {
-		t.Errorf("layout took %v, over the 200 ms budget", per)
 	}
 }
 

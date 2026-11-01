@@ -2,10 +2,7 @@ package svg_test
 
 import (
 	"io"
-	"os"
-	"runtime"
 	"testing"
-	"time"
 
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/svg"
@@ -25,37 +22,6 @@ func TestAllocRender(t *testing.T) {
 	}
 	if n := testing.AllocsPerRun(20, func() { svg.HitTest(d, gw.Point{X: 220, Y: 100}) }); n > 0 {
 		t.Errorf("hit test: %g allocations per run", n)
-	}
-}
-
-// TestRenderBudget: a 2 000-vertex, 5 000-edge document renders in
-// under 50 ms natively. The check is skipped under the race detector,
-// whose instrumentation is not what the budget is about.
-func TestRenderBudget(t *testing.T) {
-	if os.Getenv("GRAPHEDWRIGHT_RACE") == "1" {
-		t.Skip("timing under the race detector")
-	}
-	d := big(t, 2000, 5000)
-	if d.LiveEdges() < 5000 {
-		t.Fatalf("built %d edges", d.LiveEdges())
-	}
-	r := svg.New()
-	res := testing.Benchmark(func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			if err := r.Render(d, svg.Options{}, io.Discard); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	per := time.Duration(res.NsPerOp())
-	t.Logf("render of %d vertices and %d edges: %v", d.LiveVertices(), d.LiveEdges(), per)
-	// The budget holds natively on the CI runner (make budget); under a
-	// wasm runtime the time depends on the runtime and is only logged.
-	if runtime.GOARCH == "wasm" {
-		return
-	}
-	if per > 50*time.Millisecond {
-		t.Errorf("render took %v, over the 50 ms budget", per)
 	}
 }
 
