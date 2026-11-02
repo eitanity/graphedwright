@@ -315,3 +315,41 @@ func decorated(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
 func tails(t testing.TB) (*gw.Document, svg.Options) { return decorated(t, gw.LeftToRight) }
 
 func tailsDown(t testing.TB) (*gw.Document, svg.Options) { return decorated(t, gw.TopToBottom) }
+
+// compartmentSchema has a part kind that shows three of its attributes
+// as compartments, and a plain kind beside it.
+func compartmentSchema() gw.Schema {
+	return gw.Schema{
+		VertexKinds: []gw.VertexKind{
+			{
+				Name: "part", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part def»",
+				Attrs:        []gw.AttrSpec{{Key: "attributes"}, {Key: "ports"}, {Key: "doc"}},
+				Compartments: []string{"attributes", "ports", "doc"}, MaxWidth: 200,
+			},
+			{Name: "state", Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 36}, Attrs: []gw.AttrSpec{{Key: "do"}}, Compartments: []string{"do"}},
+			{Name: "plain", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 40}},
+		},
+		EdgeKinds: []gw.EdgeKind{{Name: "flow", Arrow: true}},
+	}
+}
+
+// compartments draws a part with three lines in one compartment, an
+// empty one left out, and a line too long for its widest; a part with
+// none, drawn as a plain box; a state with one line; and a plain kind.
+func compartments(t testing.TB) (*gw.Document, svg.Options) {
+	d, err := gw.New(compartmentSchema(), gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vehicle := vertex(t, d, 0, "vehicle", 120, 110)
+	must(t, d, gw.Command{Op: gw.SetAttr, Vertex: vehicle, Key: "attributes", Value: "mass : Real\nwheels : Integer = 4\ncolour : String"})
+	must(t, d, gw.Command{Op: gw.SetAttr, Vertex: vehicle, Key: "doc", Value: "A vehicle is anything with wheels that carries people or goods on a road."})
+	empty := vertex(t, d, 0, "engine", 360, 60)
+	idle := vertex(t, d, 1, "idle", 360, 160)
+	must(t, d, gw.Command{Op: gw.SetAttr, Vertex: idle, Key: "do", Value: "wait"})
+	plain := vertex(t, d, 2, "plain", 560, 60)
+	edge(t, d, 0, vehicle, empty, gw.None, gw.None, "", 0)
+	edge(t, d, 0, vehicle, idle, gw.None, gw.None, "", 0)
+	edge(t, d, 0, empty, plain, gw.None, gw.None, "", 0)
+	return d, svg.Options{Title: "Compartments", Mode: svg.View}
+}

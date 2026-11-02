@@ -150,6 +150,8 @@ commands.
 | `Container` | the kind holds other vertices ([Concepts](concepts.md#containers)) |
 | `Contains` | the kinds a container may hold; empty for any |
 | `Keyword` | text drawn on every vertex of the kind above its label, such as `«block»`, before a container's title, or above an actor's head; a kind with one, but for a container or an actor, is at least `KeywordHeight` (32) high |
+| `Compartments` | keys of the kind's attributes drawn as compartments below the label, in order, each one with a value; only for a `Rect` or `RoundRect` that is not a container ([Concepts](concepts.md#schemas)) |
+| `MaxWidth` | how wide compartments may make a vertex; 0 for the kind's width. A longer line is cut with an ellipsis |
 
 ### `EdgeKind`
 

@@ -89,11 +89,11 @@ func (d *Document) Apply(c Command) (Change, error) {
 	if structural(c.Op) {
 		d.reorder()
 	}
-	if moves(c.Op) {
+	if d.refits(c.Op) {
 		d.fit()
 		d.rebend()
 	}
-	return d.change(structural(c.Op)), nil
+	return d.change(structural(c.Op) || d.resized), nil
 }
 
 // resetChange starts a new change report, which names each element
@@ -101,6 +101,7 @@ func (d *Document) Apply(c Command) (Change, error) {
 func (d *Document) resetChange() {
 	d.changeV = d.changeV[:0]
 	d.changeE = d.changeE[:0]
+	d.resized = false
 	d.stamp++
 	if d.stamp == 0 {
 		clear(d.vstamp)
@@ -306,7 +307,7 @@ func (d *Document) addVertex(c Command) error {
 	}
 	if v.Size == (Size{}) {
 		v.Size = kind.Size
-	} else if kind.Container {
+	} else if kind.Container || len(kind.Compartments) > 0 {
 		v.Min = v.Size
 	}
 	v.Ports = d.portSlab[n*d.caps.PortsPerVertex : n*d.caps.PortsPerVertex+len(kind.Ports)]
@@ -550,17 +551,22 @@ func (d *Document) resize(c Command) error {
 		return refusal(sizeRule)
 	}
 	v := &d.Vertices[c.Vertex]
+	if d.holdsCompartments(c.Vertex) {
+		// Never smaller than its compartments, so that the redo is
+		// the size it was.
+		c.Size = d.fitted(c.Vertex, c.Size)
+	}
 	d.seq++
 	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Size: v.Size}, min: v.Min})
 	d.setSize(c.Vertex, c.Size, c.Size)
 	return nil
 }
 
-// setSize gives a vertex a size and, when it is a container, its own
-// size, and names it and its edges as changed.
+// setSize gives a vertex a size and, when it is a container or holds
+// compartments, its own size, and names it and its edges as changed.
 func (d *Document) setSize(v VertexIndex, size, own Size) {
 	d.Vertices[v].Size = size
-	if d.isContainer(v) {
+	if d.isContainer(v) || d.holdsCompartments(v) {
 		d.Vertices[v].Min = own
 	}
 	d.touchVertex(v)

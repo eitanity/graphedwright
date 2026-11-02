@@ -23,6 +23,14 @@ func TestAllocRender(t *testing.T) {
 	if n := testing.AllocsPerRun(20, func() { svg.HitTest(d, gw.Point{X: 220, Y: 100}) }); n > 0 {
 		t.Errorf("hit test: %g allocations per run", n)
 	}
+	d, opts = compartments(t)
+	if n := testing.AllocsPerRun(20, func() {
+		if err := r.Render(d, opts, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+	}); n > 0 {
+		t.Errorf("render with compartments: %g allocations per run", n)
+	}
 }
 
 func BenchmarkRender(b *testing.B) {

@@ -66,6 +66,16 @@ The rules a schema can set:
   document holds (`Max`), and a port the most edges it takes.
 - **Attributes:** each attribute is free text, a number, or one of a
   list of choices. It can be required, which needs a default.
+- **Compartments:** a rectangle or rounded rectangle kind can show
+  attributes as compartments below its label, as a class shows its
+  fields and methods. Each with a value is ruled off from what is above
+  it, one line of text for each line of the value; an empty one is left
+  out. The vertex grows to hold them, as wide as its widest line up to
+  the kind's `MaxWidth`, beyond which a line is cut, and is never
+  smaller than its own size. Its size follows from the document, so a
+  layout places it at the size it is drawn; setting a compartment's
+  attribute that changes the size marks the layout stale, and undo
+  restores it.
 - **No cycles:** `Acyclic` refuses an edge that would close a cycle,
   naming it: `edge would make a cycle: log → app → cli → log`.
 - **Reachability:** `Connected` asks that every vertex be reachable from

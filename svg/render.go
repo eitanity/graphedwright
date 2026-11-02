@@ -494,9 +494,12 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 		// figure, as wide as it needs.
 		labelY, labelW = float64(v.Size.H/2)-4, 0
 	}
-	if kind.Container {
+	switch {
+	case kind.Container:
 		r.title(v, kind.Keyword, opts)
-	} else {
+	case d.ShowsCompartments(i):
+		r.compartments(v, &kind, labelW, opts)
+	default:
 		if kw := kind.Keyword; kw != "" {
 			// The keyword is the line above the label, the two centred
 			// in the shape; an actor's, whose label is at its foot, is
@@ -517,6 +520,47 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	}
 	r.ports(v)
 	o.str(`</g>`)
+}
+
+// compartments draws the label at the top of a vertex, under its
+// keyword if it has one, and below it each compartment with a value:
+// a rule across the vertex, then a line of text for each line of the
+// value, cut at the vertex's width as a label is. The sizes are the
+// document's, by which the vertex was sized to hold them.
+func (r *Renderer) compartments(v *gw.Vertex, kind *gw.VertexKind, labelW float64, opts Options) {
+	o := r.o
+	top, room := float64(-v.Size.H/2), gw.TitleRoom(kind)
+	if kind.Keyword != "" {
+		r.label("keyword", kind.Keyword, 0, top+gw.CompartmentTitle-8, labelW, opts)
+	}
+	r.label("label", v.Label, 0, top+room-8, labelW, opts)
+	fixed := opts
+	fixed.CharWidth = gw.CharWidth
+	left, w, y := float64(-v.Size.W/2), v.Size.W, top+room
+	for _, key := range kind.Compartments {
+		val := gw.AttrValue(v.Attrs, key)
+		if val == "" {
+			continue
+		}
+		o.str(`<g class="compartment" data-key="`)
+		o.attr(key)
+		o.str(`"><line`)
+		o.numAttr("x1", left)
+		o.numAttr("y1", y)
+		o.numAttr("x2", left+w)
+		o.numAttr("y2", y)
+		o.str(`/>`)
+		y += gw.CompartmentPad
+		// bound: the value's lines, at most its length
+		for more := true; more; {
+			var line string
+			line, val, more = gw.NextLine(val)
+			y += gw.CompartmentLine
+			r.labelAt("entry", line, left+gw.CompartmentInset, y-3, w-2*gw.CompartmentInset, "start", fixed)
+		}
+		y += gw.CompartmentPad
+		o.str(`</g>`)
+	}
 }
 
 // title draws a container's label, its title, in the room at its top,

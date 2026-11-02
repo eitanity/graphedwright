@@ -195,7 +195,8 @@ restyle it with CSS or script it.
 - **Shapes:** each is a `g.vertex` with its kind's class, its ID as
   `id`, and its attributes as `data-*`. Inside are `.shape`, `text.label`,
   `text.keyword` for a kind with a keyword, `.annotation`, and `.port`
-  circles. Extra classes are `.container`,
+  circles. Each compartment is a `g.compartment` with its attribute's
+  key as `data-key`, holding a `line` and a `text.entry` for each line. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,
   `data-from`, `data-to` and its attributes. Inside are the `path`, and

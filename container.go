@@ -112,7 +112,8 @@ func (d *Document) shift(c VertexIndex, dx, dy float64) {
 	}
 }
 
-// Fit sizes every container that holds a live vertex to what it holds,
+// Fit sizes every vertex with compartments to them and every container
+// that holds a live vertex to what it holds,
 // for a layout engine after it has placed the vertices; the change is
 // not reported. Every command that moves a vertex fits the containers
 // itself.
@@ -126,7 +127,7 @@ func (d *Document) Fit() {
 // what it holds, deepest first so that a nested container is sized
 // before the one it is in, and names each that changed.
 func (d *Document) fit() {
-	if !d.hasContainers() {
+	if !d.hasContainers() && !d.hasCompartments() {
 		return
 	}
 	deepest := 0
@@ -149,9 +150,12 @@ func (d *Document) fit() {
 }
 
 // fitOne sizes a container to the box gathered from what it holds, or
-// to its own size when it holds nothing, and adds the vertex's own box
-// to its container's.
+// to its own size when it holds nothing, and a vertex to its
+// compartments, and adds the vertex's own box to its container's.
 func (d *Document) fitOne(i VertexIndex) {
+	if d.holdsCompartments(i) {
+		d.fitCompartments(i)
+	}
 	v := &d.Vertices[i]
 	if b := d.box[4*i : 4*i+4]; d.isContainer(i) {
 		var pos Point
@@ -188,8 +192,8 @@ func (d *Document) fitOne(i VertexIndex) {
 	}
 }
 
-// ownSize is the size of a container that holds nothing: its own, or
-// its kind's when it has none.
+// ownSize is the size of a container that holds nothing, or of a vertex
+// whose compartments are empty: its own, or its kind's when it has none.
 func (d *Document) ownSize(c VertexIndex) Size {
 	if m := d.Vertices[c].Min; m != (Size{}) {
 		return m

@@ -132,10 +132,11 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 	e.num(v.Pos.X)
 	e.field("y")
 	e.num(v.Pos.Y)
-	// A container's size is its own, which its fit grows from; the
-	// size it is drawn at follows from what it holds.
+	// A container's size is its own, which its fit grows from, and so
+	// is a vertex's with compartments; the size it is drawn at follows
+	// from what it holds.
 	size, kind := v.Size, d.Schema.VertexKinds[v.Kind]
-	if kind.Container {
+	if kind.Container || len(kind.Compartments) > 0 {
 		size = v.Min
 	}
 	if size != kind.Size && size != (gw.Size{}) {

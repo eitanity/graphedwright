@@ -89,7 +89,7 @@ type Vertex struct {
 	Label  string
 	Pos    Point
 	Size   Size   // from the kind, overridable
-	Min    Size   // a container's own size: what it is when it holds nothing, and least when it holds something; zero for its kind's size and no least
+	Min    Size   // a container's own size, what it is when it holds nothing and least when it holds something, or the least of a vertex with compartments; zero for its kind's size
 	Ports  []Port // from the kind
 	Attrs  []Attr
 	Placed bool        // false until a layout or a drag gives it a position
@@ -186,6 +186,7 @@ type Document struct {
 	// last named it, per slot.
 	vstamp, estamp []uint32
 	stamp          uint32
+	resized        bool // the change grew or shrank a vertex to its compartments
 
 	// Scratch for fitting the containers: each vertex's depth and the
 	// box around what each holds, x0 y0 x1 y1.

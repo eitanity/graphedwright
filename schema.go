@@ -83,20 +83,25 @@ type AttrSpec struct {
 // is drawn on every vertex of the kind above its label, before a
 // container's title, or above an actor's head; a kind with one, but for
 // a container or an actor, is at least KeywordHeight high, room for
-// both lines.
+// both lines. Compartments names attributes the kind declares, each
+// drawn with its value below the label of a rectangle or rounded
+// rectangle, ruled off from what is above it; the vertex grows to hold
+// them, as wide as MaxWidth at most, or its kind's width when that is 0.
 type VertexKind struct {
-	Name      string
-	Shape     Shape
-	Size      Size
-	Ports     []Port
-	Attrs     []AttrSpec
-	Root      bool
-	Leaf      bool
-	Max       int
-	Dashed    bool
-	Container bool
-	Contains  []KindIndex
-	Keyword   string
+	Name         string
+	Shape        Shape
+	Size         Size
+	Ports        []Port
+	Attrs        []AttrSpec
+	Root         bool
+	Leaf         bool
+	Max          int
+	Dashed       bool
+	Container    bool
+	Contains     []KindIndex
+	Keyword      string
+	Compartments []string
+	MaxWidth     float64
 }
 
 // KeywordHeight is the least height of a vertex kind with a keyword,
@@ -173,6 +178,9 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 	if k.Keyword != "" && !k.Container && k.Shape != Actor && k.Size.H < KeywordHeight {
 		return schemaError(where, "has a keyword and is under "+itoa(KeywordHeight)+" high, the room for it and the label")
 	}
+	if err := checkCompartments(k); err != nil {
+		return schemaError(where, err.Error())
+	}
 	if len(k.Contains) > 0 && !k.Container {
 		return schemaError(where, "holds kinds without being a container")
 	}
@@ -185,6 +193,32 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 		return schemaError(where, "max, shape and size must be in range")
 	}
 	return checkAttrSpecs(where, k.Attrs, caps)
+}
+
+// checkCompartments refuses compartments on a shape that cannot hold
+// them, a key the kind does not declare or names twice, and a width
+// that is not a finite non-negative number.
+func checkCompartments(k VertexKind) error {
+	if !(k.MaxWidth >= 0) || math.IsInf(k.MaxWidth, 1) {
+		return refusal("max width must be finite and non-negative")
+	}
+	if len(k.Compartments) == 0 {
+		return nil
+	}
+	if k.Container || (k.Shape != Rect && k.Shape != RoundRect) {
+		return refusal("has compartments and is not a rectangle or rounded rectangle")
+	}
+	for j, key := range k.Compartments {
+		if _, ok := spec(k.Attrs, key); !ok {
+			return refusal("compartment " + strconv.Quote(key) + " is not an attribute of the kind")
+		}
+		for _, other := range k.Compartments[:j] {
+			if other == key {
+				return refusal("compartment " + strconv.Quote(key) + " is named twice")
+			}
+		}
+	}
+	return nil
 }
 
 // checkPorts validates a kind's ports: within the capacity, each named,

@@ -1,6 +1,7 @@
 package graphedwright_test
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -57,6 +58,19 @@ func TestSchemaRefusals(t *testing.T) {
 			s.VertexKinds[1].Keyword = "«block»"
 			s.VertexKinds[1].Size.H = 24
 		}, "has a keyword and is under 32 high"},
+		{"compartment undeclared", func(s *gw.Schema) { s.VertexKinds[1].Compartments = []string{"note", "body"} }, `compartment "body" is not an attribute of the kind`},
+		{"compartment twice", func(s *gw.Schema) { s.VertexKinds[1].Compartments = []string{"note", "note"} }, `compartment "note" is named twice`},
+		{"compartments on a pill", func(s *gw.Schema) {
+			s.VertexKinds[0].Attrs = []gw.AttrSpec{{Key: "note"}}
+			s.VertexKinds[0].Compartments = []string{"note"}
+		}, "has compartments and is not a rectangle or rounded rectangle"},
+		{"compartments on a container", func(s *gw.Schema) {
+			s.VertexKinds[1].Container = true
+			s.VertexKinds[1].Compartments = []string{"note"}
+		}, "has compartments and is not a rectangle or rounded rectangle"},
+		{"max width negative", func(s *gw.Schema) { s.VertexKinds[1].MaxWidth = -1 }, "max width must be finite and non-negative"},
+		{"max width NaN", func(s *gw.Schema) { s.VertexKinds[1].MaxWidth = math.NaN() }, "max width must be finite and non-negative"},
+		{"max width infinite", func(s *gw.Schema) { s.VertexKinds[1].MaxWidth = math.Inf(1) }, "max width must be finite and non-negative"},
 		{"control in port", func(s *gw.Schema) { s.VertexKinds[1].Ports[0].Name = "i\tn" }, `port "i\tn" holds the control character`},
 		{"control in attr key", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Key = "k\x7f" }, `attribute key "k\x7f" may hold only`},
 		{"upper attr key", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Key = "Note" }, `attribute key "Note" may hold only`},

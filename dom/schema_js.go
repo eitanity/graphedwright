@@ -11,15 +11,16 @@ import (
 // schemaFromJS reads a schema described as an object:
 //
 //	{ name, acyclic, vertexKinds: [{name, shape, w, h, root, leaf, max, dashed,
-//	  container, contains: [kindName], ports: [{name, side, max}],
-//	  attrs: [{key, kind, choices, required, default}]}],
+//	  container, contains: [kindName], keyword, compartments: [key], maxWidth,
+//	  ports: [{name, side, max}], attrs: [{key, kind, choices, required, default}]}],
 //	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
-//	  dashed, stereotype, weighted, attrs}] }
+//	  tail, dashed, stereotype, weighted, attrs}] }
 //
 // Shapes are "rect", "round", "pill", "diamond", "circle", "actor",
 // "datastore"; sides "left", "right", "top", "bottom"; routes
-// "straight", "curve", "orthogonal"; heads "filled", "open", "hollow";
-// attribute kinds "text", "number", "choice". The kinds an edge joins
+// "straight", "curve", "orthogonal"; heads "filled", "open", "hollow",
+// "typed", "bar"; tails "none", "filled-diamond", "hollow-diamond",
+// "circled-plus"; attribute kinds "text", "number", "choice". The kinds an edge joins
 // and a container holds are named, and resolved here, once every vertex
 // kind is read.
 func schemaFromJS(v js.Value) (gw.Schema, error) {
@@ -50,7 +51,11 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword")}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth")}
+	compartments := get(k, "compartments")
+	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
+		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())
+	}
 	var err error
 	if vk.Shape, err = shapeOf(str(k, "shape")); err != nil {
 		return vk, err

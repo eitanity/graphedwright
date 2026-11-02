@@ -215,7 +215,7 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 	case SetParent:
 		d.putIn(en.vertex, en.prev.To)
 	}
-	return structural(en.cmd.Op), moves(en.cmd.Op)
+	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
 
 // settle redoes what follows from the entries just undone or redone:
@@ -229,7 +229,7 @@ func (d *Document) settle(st, mv bool) Change {
 		d.fit()
 		d.rebend()
 	}
-	return d.change(st)
+	return d.change(st || d.resized)
 }
 
 // Redo applies the last undone command again, or the whole group it was
@@ -286,7 +286,7 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 	case SetParent:
 		d.putIn(en.vertex, en.cmd.To)
 	}
-	return structural(en.cmd.Op), moves(en.cmd.Op)
+	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
 
 // setLabel writes a label on a vertex, or on an edge when v is None.

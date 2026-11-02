@@ -33,6 +33,9 @@ func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 	case kind.Container:
 		top := x.Pos.Y - float64(x.Size.H/2)
 		return gw.Viewport{X: x.Pos.X - float64(x.Size.W/2) + 4, Y: top + gw.ContainerTitle/2 - labelHeight/2 + 1, W: math.Max(x.Size.W-8, minLabelWidth), H: labelHeight}
+	case d.ShowsCompartments(v):
+		top := x.Pos.Y - float64(x.Size.H/2)
+		return centred(x.Pos.X, top+gw.TitleRoom(&kind)-8-defaultFontSize/3, math.Max(x.Size.W, minLabelWidth))
 	case kind.Shape == gw.Actor:
 		w := math.Max(textW+16, minLabelWidth)
 		return centred(x.Pos.X, x.Pos.Y+float64(x.Size.H/2)-4-defaultFontSize/3, w)

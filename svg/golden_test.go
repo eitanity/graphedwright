@@ -23,7 +23,7 @@ func TestGolden(t *testing.T) {
 	for _, ex := range []struct {
 		name  string
 		build func(testing.TB) (*gw.Document, svg.Options)
-	}{{"diamond", diamond}, {"shapes", shapes}, {"notation", notation}, {"bends", bends}, {"tree", tree}, {"keywords", keywords}, {"tails", tails}, {"tails-down", tailsDown}} {
+	}{{"diamond", diamond}, {"shapes", shapes}, {"notation", notation}, {"bends", bends}, {"tree", tree}, {"keywords", keywords}, {"tails", tails}, {"tails-down", tailsDown}, {"compartments", compartments}} {
 		d, opts := ex.build(t)
 		var got bytes.Buffer
 		if err := svg.Render(d, opts, &got); err != nil {
