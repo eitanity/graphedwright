@@ -12,9 +12,10 @@ import (
 //
 //	{ name, acyclic, vertexKinds: [{name, shape, w, h, root, leaf, max, dashed,
 //	  container, contains: [kindName], keyword, compartments: [key], maxWidth,
-//	  ports: [{name, side, max}], attrs: [{key, kind, choices, required, default}]}],
+//	  labelFormat, ports: [{name, side, max}],
+//	  attrs: [{key, kind, choices, required, default}]}],
 //	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
-//	  tail, dashed, stereotype, weighted, attrs}] }
+//	  tail, dashed, stereotype, weighted, labelFormat, attrs}] }
 //
 // Shapes are "rect", "round", "pill", "diamond", "circle", "actor",
 // "datastore"; sides "left", "right", "top", "bottom"; routes
@@ -51,7 +52,7 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth")}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat")}
 	compartments := get(k, "compartments")
 	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
 		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())
@@ -74,7 +75,7 @@ func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
 }
 
 func edgeKindFromJS(s gw.Schema, k js.Value) (gw.EdgeKind, error) {
-	ek := gw.EdgeKind{Name: str(k, "name"), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype")}
+	ek := gw.EdgeKind{Name: str(k, "name"), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype"), LabelFormat: str(k, "labelFormat")}
 	var err error
 	if ek.Route, err = routeOf(str(k, "route")); err != nil {
 		return ek, err

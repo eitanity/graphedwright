@@ -87,6 +87,8 @@ type AttrSpec struct {
 // drawn with its value below the label of a rectangle or rounded
 // rectangle, ruled off from what is above it; the vertex grows to hold
 // them, as wide as MaxWidth at most, or its kind's width when that is 0.
+// A label format builds the label drawn from the label as set and the
+// attributes (see NextLabelPart).
 type VertexKind struct {
 	Name         string
 	Shape        Shape
@@ -102,6 +104,7 @@ type VertexKind struct {
 	Keyword      string
 	Compartments []string
 	MaxWidth     float64
+	LabelFormat  string
 }
 
 // KeywordHeight is the least height of a vertex kind with a keyword,
@@ -112,18 +115,20 @@ const KeywordHeight = 32
 // each end (empty is any), how it is routed and drawn, and the
 // attributes it takes. Head says how an arrow ends, and Tail what is
 // drawn where the edge starts; a stereotype, such as «include», is
-// drawn on every edge of the kind beside its label.
+// drawn on every edge of the kind beside its label. A label format
+// builds the label drawn, as a vertex kind's does.
 type EdgeKind struct {
-	Name       string
-	From, To   []KindIndex
-	Route      Route
-	Arrow      bool
-	Head       Head
-	Tail       Tail
-	Dashed     bool
-	Stereotype string
-	Attrs      []AttrSpec
-	Weighted   bool
+	Name        string
+	From, To    []KindIndex
+	Route       Route
+	Arrow       bool
+	Head        Head
+	Tail        Tail
+	Dashed      bool
+	Stereotype  string
+	Attrs       []AttrSpec
+	Weighted    bool
+	LabelFormat string
 }
 
 // Schema says what a document may contain. The editor's palette is the
@@ -179,6 +184,9 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 		return schemaError(where, "has a keyword and is under "+itoa(KeywordHeight)+" high, the room for it and the label")
 	}
 	if err := checkCompartments(k); err != nil {
+		return schemaError(where, err.Error())
+	}
+	if err := checkLabelFormat(k.LabelFormat, k.Attrs); err != nil {
 		return schemaError(where, err.Error())
 	}
 	if len(k.Contains) > 0 && !k.Container {
@@ -252,6 +260,9 @@ func checkEdgeKind(s Schema, i int, k EdgeKind, caps Caps) error {
 		return schemaError(where, err.Error())
 	}
 	if err := checkText("stereotype", k.Stereotype); err != nil {
+		return schemaError(where, err.Error())
+	}
+	if err := checkLabelFormat(k.LabelFormat, k.Attrs); err != nil {
 		return schemaError(where, err.Error())
 	}
 	for j := range i {

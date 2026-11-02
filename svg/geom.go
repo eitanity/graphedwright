@@ -577,7 +577,7 @@ func bounds(d *gw.Document) gw.Viewport {
 		}
 		half := v.Size.W / 2
 		if d.Schema.VertexKinds[v.Kind].Shape == gw.Actor {
-			half = math.Max(half, float64(runeCount(v.Label))*defaultCharWidth/2)
+			half = math.Max(half, float64(d.VertexLabelRunes(gw.VertexIndex(i)))*defaultCharWidth/2) //nolint:gosec // bounded by the capacity
 		}
 		x0 = math.Min(x0, v.Pos.X-half)
 		y0 = math.Min(y0, v.Pos.Y-float64(v.Size.H/2))

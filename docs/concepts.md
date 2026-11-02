@@ -76,6 +76,17 @@ The rules a schema can set:
   layout places it at the size it is drawn; setting a compartment's
   attribute that changes the size marks the layout stale, and undo
   restores it.
+- **Label formats:** a vertex or edge kind can build the label it draws
+  from the label as set and the attributes. Text outside braces is
+  drawn as it is; `{key}` is the label, for `label`, or the attribute's
+  value; `{before|key}` and `{before|key|after}` add the text either
+  side only when the value is set. So `{label}{ : |type}{ [|mult|]}`
+  draws `wheels : Wheel [4]`, or `wheels` alone, and
+  `{trigger}{ [|guard|]}{ / |effect}` draws `start [ready] / run()`.
+  Editing a label in place edits the label as set; the layout makes
+  room for the label as drawn. A schema refuses a format whose braces
+  are unpaired or nested, with more than two bars in a placeholder, or
+  naming a key the kind does not declare.
 - **No cycles:** `Acyclic` refuses an edge that would close a cycle,
   naming it: `edge would make a cycle: log → app → cli → log`.
 - **Reachability:** `Connected` asks that every vertex be reachable from

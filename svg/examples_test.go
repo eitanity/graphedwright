@@ -353,3 +353,41 @@ func compartments(t testing.TB) (*gw.Document, svg.Options) {
 	edge(t, d, 0, empty, plain, gw.None, gw.None, "", 0)
 	return d, svg.Options{Title: "Compartments", Mode: svg.View}
 }
+
+// formats draws usages as name : Type [m], with each part set and not,
+// one too long for its box and cut, and transitions as
+// trigger [guard] / effect.
+func formats(t testing.TB) (*gw.Document, svg.Options) {
+	d, err := gw.New(gw.Schema{
+		VertexKinds: []gw.VertexKind{{
+			Name: "usage", Shape: gw.Rect, Size: gw.Size{W: 150, H: 36},
+			Attrs: []gw.AttrSpec{{Key: "type"}, {Key: "mult"}}, LabelFormat: "{label}{ : |type}{ [|mult|]}",
+		}},
+		EdgeKinds: []gw.EdgeKind{{
+			Name: "transition", Route: gw.Curve, Arrow: true,
+			Attrs: []gw.AttrSpec{{Key: "trigger"}, {Key: "guard"}, {Key: "effect"}}, LabelFormat: "{trigger}{ [|guard|]}{ / |effect}",
+		}},
+	}, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := func(v gw.VertexIndex, e gw.EdgeIndex, key, value string) {
+		must(t, d, gw.Command{Op: gw.SetAttr, Vertex: v, Edge: e, Key: key, Value: value})
+	}
+	wheels := vertex(t, d, 0, "wheels", 100, 60)
+	set(wheels, gw.None, "type", "Wheel")
+	set(wheels, gw.None, "mult", "4")
+	engine := vertex(t, d, 0, "engine", 100, 160)
+	set(engine, gw.None, "type", "Engine")
+	frame := vertex(t, d, 0, "frame", 440, 60)
+	long := vertex(t, d, 0, "suspension", 440, 160)
+	set(long, gw.None, "type", "IndependentSuspension")
+	set(long, gw.None, "mult", "0..2")
+	mount := edge(t, d, 0, wheels, frame, gw.None, gw.None, "ignored", 0)
+	set(gw.None, mount, "trigger", "mount")
+	set(gw.None, mount, "guard", "aligned")
+	set(gw.None, mount, "effect", "bolt()")
+	stop := edge(t, d, 0, engine, long, gw.None, gw.None, "", 0)
+	set(gw.None, stop, "guard", "idle")
+	return d, svg.Options{Title: "Label formats", Mode: svg.View}
+}

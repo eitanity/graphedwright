@@ -496,3 +496,46 @@ func TestStereotypeRoom(t *testing.T) {
 		}
 	}
 }
+
+// TestFormattedLabelRoom: the gap is as wide as the label its kind's
+// format draws, which grows with the attributes it names.
+func TestFormattedLabelRoom(t *testing.T) {
+	s := gw.Schema{
+		VertexKinds: []gw.VertexKind{{Name: "state", Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 36}}},
+		EdgeKinds:   []gw.EdgeKind{{Name: "transition", Arrow: true, Attrs: []gw.AttrSpec{{Key: "guard"}, {Key: "effect"}}, LabelFormat: "{label}{ [|guard|]}{ / |effect}"}},
+	}
+	for _, tc := range []struct {
+		guard, effect, drawn string
+	}{
+		{"speed > 0", "", "go [speed > 0]"},
+		{"speed > 0", "start the engine", "go [speed > 0] / start the engine"},
+	} {
+		d, err := gw.New(s, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if _, err := d.Apply(gw.Command{Op: gw.AddVertex}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, c := range []gw.Command{
+			{Op: gw.AddEdge, From: 0, To: 1, FromPort: gw.None, ToPort: gw.None, Text: "go"},
+			{Op: gw.SetAttr, Vertex: gw.None, Edge: 0, Key: "guard", Value: tc.guard},
+			{Op: gw.SetAttr, Vertex: gw.None, Edge: 0, Key: "effect", Value: tc.effect},
+		} {
+			if _, err := d.Apply(c); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		a, b := d.Vertices[0], d.Vertices[1]
+		gap := b.Pos.X - a.Pos.X - (a.Size.W+b.Size.W)/2
+		want := float64(utf8.RuneCountInString(tc.drawn)*7 + 16)
+		if gap < want || gap >= want+8 {
+			t.Errorf("%q: the gap is %g, want %g out to the grid", tc.drawn, gap, want)
+		}
+	}
+}

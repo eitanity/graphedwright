@@ -28,7 +28,7 @@ const minLabelWidth = 80
 func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 	x := &d.Vertices[v]
 	kind := d.Schema.VertexKinds[x.Kind]
-	textW := float64(float64(runeCount(x.Label)) * defaultCharWidth)
+	textW := float64(float64(d.VertexLabelRunes(v)) * defaultCharWidth)
 	switch {
 	case kind.Container:
 		top := x.Pos.Y - float64(x.Size.H/2)
@@ -61,7 +61,8 @@ func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	f := wy.f
 	mid := wy.middle(kind.Route)
 	side := wy.side()
-	w := math.Max(float64(float64(runeCount(e.Label))*defaultCharWidth)+16, minLabelWidth)
+	// Wide enough for the label as drawn and as typed in.
+	w := math.Max(float64(float64(max(d.EdgeLabelRunes(i), runeCount(e.Label)))*defaultCharWidth)+16, minLabelWidth)
 	if f.down {
 		if side < 0 {
 			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}, side
@@ -89,13 +90,14 @@ func centred(x, y, w float64) gw.Viewport {
 // inLabel reports whether p is in the box of an edge's label, when it
 // has one.
 func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
-	if d.Edges[i].Label == "" {
+	drawn := d.EdgeLabelRunes(i)
+	if drawn == 0 {
 		return false
 	}
 	b, side := edgeLabelBox(d, i)
 	// The box for typing in is wider than the text; the text's own
 	// width is what is drawn and hit.
-	w := float64(float64(runeCount(d.Edges[i].Label))*defaultCharWidth) + 8
+	w := float64(float64(drawn)*defaultCharWidth) + 8
 	switch {
 	case d.Flow != gw.TopToBottom:
 		b.X, b.W = b.X+float64(b.W/2)-float64(w/2), w

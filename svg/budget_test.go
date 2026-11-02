@@ -23,13 +23,15 @@ func TestAllocRender(t *testing.T) {
 	if n := testing.AllocsPerRun(20, func() { svg.HitTest(d, gw.Point{X: 220, Y: 100}) }); n > 0 {
 		t.Errorf("hit test: %g allocations per run", n)
 	}
-	d, opts = compartments(t)
-	if n := testing.AllocsPerRun(20, func() {
-		if err := r.Render(d, opts, io.Discard); err != nil {
-			t.Fatal(err)
+	for name, example := range map[string]func(testing.TB) (*gw.Document, svg.Options){"compartments": compartments, "label formats": formats} {
+		d, opts := example(t)
+		if n := testing.AllocsPerRun(20, func() {
+			if err := r.Render(d, opts, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+		}); n > 0 {
+			t.Errorf("render with %s: %g allocations per run", name, n)
 		}
-	}); n > 0 {
-		t.Errorf("render with compartments: %g allocations per run", n)
 	}
 }
 

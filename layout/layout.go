@@ -121,7 +121,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 		}
 		k := max(a, b)
 		kind := d.Schema.EdgeKinds[d.Edges[e].Kind]
-		chars := max(utf8.RuneCountInString(d.Edges[e].Label), utf8.RuneCountInString(kind.Stereotype))
+		chars := max(d.EdgeLabelRunes(gw.EdgeIndex(e)), utf8.RuneCountInString(kind.Stereotype))
 		w := float64(float64(chars)*labelChar) + 2*labelPad
 		if kind.Route == gw.Orthogonal && l.bary[l.eFrom[e]] > 1 {
 			// Its text is drawn on its last leg, the half of the gap

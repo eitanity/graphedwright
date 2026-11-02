@@ -371,8 +371,8 @@ func (r *Renderer) levelLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mi
 		r.label("stereotype", kind.Stereotype, mid.X, near, 0, opts)
 		near += step
 	}
-	if e.Label != "" {
-		r.label("label", e.Label, mid.X, near, 0, opts)
+	if gw.LabelRunes(kind.LabelFormat, e.Label, e.Attrs) > 0 {
+		r.formatted("label", kind.LabelFormat, e.Label, e.Attrs, mid.X, near, 0, "middle", opts)
 	}
 	if note.Text != "" {
 		r.label("annotation", note.Text, mid.X, far, 0, opts)
@@ -390,8 +390,8 @@ func (r *Renderer) besideLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, m
 		x, other, anchor, otherAnchor = other, x, otherAnchor, anchor
 	}
 	above := y
-	if e.Label != "" {
-		r.labelAt("label", e.Label, x, y, 0, anchor, opts)
+	if gw.LabelRunes(kind.LabelFormat, e.Label, e.Attrs) > 0 {
+		r.formatted("label", kind.LabelFormat, e.Label, e.Attrs, x, y, 0, anchor, opts)
 		above -= opts.FontSize
 	}
 	if kind.Stereotype != "" {
@@ -496,7 +496,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	}
 	switch {
 	case kind.Container:
-		r.title(v, kind.Keyword, opts)
+		r.title(v, &kind, opts)
 	case d.ShowsCompartments(i):
 		r.compartments(v, &kind, labelW, opts)
 	default:
@@ -513,7 +513,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 			}
 			r.label("keyword", kw, 0, kwY, labelW, opts)
 		}
-		r.label("label", v.Label, 0, labelY, labelW, opts)
+		r.formatted("label", kind.LabelFormat, v.Label, v.Attrs, 0, labelY, labelW, "middle", opts)
 	}
 	if note.Text != "" {
 		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size.W-8, opts)
@@ -533,7 +533,7 @@ func (r *Renderer) compartments(v *gw.Vertex, kind *gw.VertexKind, labelW float6
 	if kind.Keyword != "" {
 		r.label("keyword", kind.Keyword, 0, top+gw.CompartmentTitle-8, labelW, opts)
 	}
-	r.label("label", v.Label, 0, top+room-8, labelW, opts)
+	r.formatted("label", kind.LabelFormat, v.Label, v.Attrs, 0, top+room-8, labelW, "middle", opts)
 	fixed := opts
 	fixed.CharWidth = gw.CharWidth
 	left, w, y := float64(-v.Size.W/2), v.Size.W, top+room
@@ -565,7 +565,8 @@ func (r *Renderer) compartments(v *gw.Vertex, kind *gw.VertexKind, labelW float6
 
 // title draws a container's label, its title, in the room at its top,
 // after its kind's keyword if it has one.
-func (r *Renderer) title(v *gw.Vertex, keyword string, opts Options) {
+func (r *Renderer) title(v *gw.Vertex, kind *gw.VertexKind, opts Options) {
+	keyword := kind.Keyword
 	x, y, w := float64(-v.Size.W/2)+8, float64(-v.Size.H/2)+gw.ContainerTitle-6, v.Size.W-16
 	if keyword != "" {
 		r.labelAt("keyword", keyword, x, y, w, "start", opts)
@@ -574,7 +575,7 @@ func (r *Renderer) title(v *gw.Vertex, keyword string, opts Options) {
 		kw := math.Min(w, float64(float64(runeCount(keyword))*float64(opts.CharWidth*0.9))+float64(opts.CharWidth/2))
 		x, w = x+kw, w-kw
 	}
-	r.labelAt("label", v.Label, x, y, w, "start", opts)
+	r.formatted("label", kind.LabelFormat, v.Label, v.Attrs, x, y, w, "start", opts)
 }
 
 // shapeClass is the class of a vertex's own shape, as against the
@@ -702,6 +703,13 @@ func (r *Renderer) label(class, text string, x, y, width float64, opts Options) 
 
 // labelAt is label anchored at the start, middle or end of the text.
 func (r *Renderer) labelAt(class, text string, x, y, width float64, anchor string, opts Options) {
+	r.formatted(class, "", text, nil, x, y, width, anchor, opts)
+}
+
+// formatted is labelAt for the label a kind's format draws from the
+// label as set and the attributes, written part by part, with nothing
+// built.
+func (r *Renderer) formatted(class, format, text string, attrs []gw.Attr, x, y, width float64, anchor string, opts Options) {
 	o := r.o
 	o.str(`<text class="`)
 	o.str(class)
@@ -713,25 +721,35 @@ func (r *Renderer) labelAt(class, text string, x, y, width float64, anchor strin
 	o.str(`">`)
 	// The fit is converted only below the text's length, so that it is
 	// within an int on every target.
-	fit := len(text)
+	runes := gw.LabelRunes(format, text, attrs)
+	fit := runes
 	if n := width / opts.CharWidth; width > 0 && n < float64(fit) {
 		fit = int(n)
 	}
-	runes := runeCount(text)
 	if runes <= fit {
-		o.text(text)
+		r.parts(format, text, attrs, runes)
 		o.str(`</text>`)
 		return
 	}
-	keep := fit - 1
-	if keep < 0 {
-		keep = 0
-	}
-	r.textRunes(text, keep)
+	r.parts(format, text, attrs, max(fit-1, 0))
 	o.str("…</text>")
 	o.str(`<title>`)
-	o.text(text)
+	r.parts(format, text, attrs, runes)
 	o.str(`</title>`)
+}
+
+// parts writes the first n characters of the label a format draws.
+func (r *Renderer) parts(format, label string, attrs []gw.Attr, n int) {
+	// bound: the format's parts, at most its length
+	for more := true; more; {
+		var before, value, after string
+		before, value, after, format = gw.NextLabelPart(format, label, attrs)
+		for _, s := range [3]string{before, value, after} {
+			r.textRunes(s, n)
+			n -= min(runeCount(s), n)
+		}
+		more = format != ""
+	}
 }
 
 // runeCount counts the characters of a string.
