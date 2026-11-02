@@ -17,7 +17,7 @@ Build with either toolchain:
 GOOS=js GOARCH=wasm go build -trimpath -o graphedwright.wasm ./cmd/graphedwright-wasm
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
-# TinyGo: under 600 KB
+# TinyGo: under 700 KiB
 tinygo build -o graphedwright.wasm -target wasm -opt=z -no-debug ./cmd/graphedwright-wasm
 cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" .
 ```

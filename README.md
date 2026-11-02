@@ -33,7 +33,7 @@ imports only merilo's `fsm`, which itself imports nothing.
 - **JSON documents** that are read strictly: every size is checked
   against fixed capacities, and the reader is fuzzed.
 - **Small and predictable:** capacities are fixed up front and nothing
-  allocates while editing. The TinyGo build is under 600 KB.
+  allocates while editing. The TinyGo build is under 700 KiB.
 
 ## Quick start
 

@@ -233,7 +233,7 @@ cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
 Serve `graphedwright.wasm`, `wasm_exec.js`, the stylesheet
 ([`svg/graphedwright.css`](../svg/graphedwright.css)) and your page from
-any web server. TinyGo builds a much smaller file (under 600 KB): use
+any web server. TinyGo builds a much smaller file (under 700 KiB): use
 `tinygo build -o graphedwright.wasm -target wasm -opt=z -no-debug
 ./cmd/graphedwright-wasm` together with TinyGo's own `wasm_exec.js`.
 
