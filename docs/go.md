@@ -99,13 +99,15 @@ patching a page in place.
 
 | Option | Meaning |
 |---|---|
-| `Mode` | `svg.View` or `svg.Edit`; the overlay is drawn in edit mode |
+| `Mode` | `svg.View` or `svg.Edit`; the overlay's selection and feedback are drawn in edit mode |
 | `Title`, `Desc` | the SVG's `<title>` and `<desc>` |
 | `Style` | a stylesheet to embed, such as `svg.Stylesheet`; empty for none |
 | `VertexNotes`, `EdgeNotes` | annotations by index: `{Text, Class, Weight}`, a figure under a vertex's label or at an edge's middle |
 | `CharWidth`, `FontSize` | the label metrics used to cut long labels, 7 and 12 by default |
 | `DefaultWeight` | the stroke width of an unweighted edge, 1.5 by default |
 | `SelectedV`, `SelectedE`, `Ghost`, `Marquee`, `Target` | the overlay's contents; an `edit.Editor` fills these with `Overlay(&opts)` |
+| `Hover`, `HasHover` | a vertex whose cut texts the overlay draws in full, in either mode; the editor sets the one under the pointer when idle |
+| `NoFullText` | writes a cut text without its full text after it, which the stylesheet shows on hover; its title still holds it |
 | `IDPrefix` | goes before the renderer's own IDs, the title's and the arrowheads', for more than one drawing in a page |
 | `DocIDPrefix` | goes before each vertex's and edge's `id`, so that a document cannot take an ID the page uses |
 
@@ -186,8 +188,9 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
 - **View:** `Zoom(factor)` zooms about the view's centre and `Fit()`
   shows the whole drawing, for a front end's buttons; Ctrl with `=`,
   `-` and `0` do the same from the keyboard.
-  `Overlay(&opts)` fills the renderer's options to draw the selection
-  and the feedback.
+  `Overlay(&opts)` fills the renderer's options to draw the selection,
+  the feedback, and the cut texts of the vertex under the pointer
+  (`Expanded()`); `SetExpand(false)` turns that last off.
 - **Properties:** `Properties()` describes the one selected element for
   a panel, and `SetLabel` and `SetAttr` change it as commands.
 - **Mode:** `SetMode(edit.View)` turns editing off; edits are then

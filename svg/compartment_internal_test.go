@@ -13,7 +13,7 @@ import (
 var (
 	partRE  = regexp.MustCompile(`<g class="vertex [^"]*" id="([^"]+)"[^>]*>(.*?)</g></g>`)
 	ruleRE  = regexp.MustCompile(`<line x1="([-0-9.]+)" y1="([-0-9.]+)" x2="([-0-9.]+)" y2="([-0-9.]+)"/>`)
-	entryRE = regexp.MustCompile(`<text class="(entry|label)" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle)">([^<]*)</text>`)
+	entryRE = regexp.MustCompile(`<text class="(entry|label)(?: cut)?" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle)">([^<]*)</text>`)
 )
 
 // TestCompartmentsInside: laid out in either flow, each compartment's

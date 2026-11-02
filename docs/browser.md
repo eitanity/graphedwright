@@ -103,6 +103,8 @@ throws. The first argument of every call after `create` is the handle
 | `caps` | capacities: `vertices`, `edges`, `portsPerVertex`, `attrsPerElement`, `labelBytes`, `undoDepth`, `undoLayouts`, `bendsPerEdge`; any left out take their defaults ([Concepts](concepts.md#capacities)) |
 | `grid` | the snap and nudge step, 8 by default; kept when a document is loaded |
 | `patch` | `false` redraws everything on every change instead of only what changed |
+| `expand` | `false` stops the overlay drawing in full the cut texts of the shape under the pointer |
+| `fullText` | `false` writes a cut text without its full text after it, in the page and in `svg(g)`, so the stylesheet cannot show it on hover; its tooltip still holds it |
 | `idPrefix` | goes before each vertex's and edge's `id` in the page, so that a document cannot take an ID the page uses; letters, digits, `-` and `_` |
 
 A number option that is `NaN` or infinite counts as absent and takes its
@@ -200,6 +202,14 @@ restyle it with CSS or script it.
   circles, with a `text.port-label` naming each of a vertex's own. Each compartment is a `g.compartment` with its attribute's
   key as `data-key`, holding a `line` and a `text.entry` for each line. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
+- **Cut texts:** a label, keyword, title, compartment line or
+  annotation too long for its room is cut with an ellipsis and has
+  `.cut` as well. The full text follows it with `.full` and
+  `display="none"`, and then a `<title>` holding it. The default
+  stylesheet shows the full text in the cut one's place while the
+  pointer is over the vertex, so a saved or embedded drawing shows it
+  too, with no script. A vertex drawn later can cover it. `fullText:
+  false` at `create` leaves the full text and `.cut` out.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,
   `data-from`, `data-to` and its attributes. Inside are the `path`, and
   `text.label` and `text.stereotype`. A dashed kind has `.dashed`.
@@ -214,6 +224,10 @@ restyle it with CSS or script it.
 - **The overlay** holds `.selection` (a selected shape's dashed outline,
   or a halo over a selected edge), `.ghost` (the edge being drawn),
   `.marquee`, and `.target .ring` (where an edge can start or end).
+  In either mode, it also holds a `g.expanded` for each cut text of
+  the vertex under the pointer: the text in full, with its own class,
+  over a `rect.backing`, above everything else in the drawing, unless
+  `create` was given `expand: false`.
 - **Around the drawing:** the binding makes `.graphedwright-host`,
   `.graphedwright-palette` with `.graphedwright-item` buttons
   (`.graphedwright-vertex` and `.graphedwright-edge`, the chosen one

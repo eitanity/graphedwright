@@ -33,6 +33,14 @@
 .graphedwright .vertex .compartment .entry { fill: #2d3748; font-size: 11px; }
 .graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
 
+/* A text cut to fit is followed by itself in full, not displayed; on
+   hover the full text takes the cut one's place, with a halo to read
+   over what it overruns. A vertex drawn later can still cover it; the
+   browser binding draws it in the overlay as well, over everything. */
+.graphedwright .vertex:hover .cut { display: none; }
+.graphedwright .vertex:hover .full { display: inline; }
+.graphedwright .vertex .full { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
 /* A selected vertex is outlined; a selected edge has a halo as wide as
    the stroke-width the renderer writes on it, which a width here would
    override. */
@@ -41,6 +49,11 @@
 .graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
 .graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
 .graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .expanded { pointer-events: none; }
+.graphedwright .overlay .expanded .backing { fill: #ffffff; stroke: none; }
+.graphedwright .overlay .expanded text { fill: #1a202c; }
+.graphedwright .overlay .expanded .keyword, .graphedwright .overlay .expanded .entry { fill: #2d3748; font-size: 11px; }
+.graphedwright .overlay .expanded .annotation { fill: #4a5568; font-size: 10px; }
 .graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
 
 .graphedwright[data-mode="edit"] .vertex { cursor: move; }

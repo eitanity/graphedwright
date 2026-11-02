@@ -1,7 +1,7 @@
 // Command graphedwright draws a document as SVG or checks it against a
 // schema the command knows.
 //
-//	graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css] > graph.svg
+//	graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css] [--no-full-text] > graph.svg
 //	graphedwright check -f document.json [--schema basic]
 //
 // Exit codes: 0 ok, 1 refused with a reason on stderr, 2 bad arguments.
@@ -22,7 +22,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-const usage = "usage: graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css]\n       graphedwright check -f document.json [--schema name]\n"
+const usage = "usage: graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css] [--no-full-text]\n       graphedwright check -f document.json [--schema name]\n"
 
 // run is main without the exit, for the tests.
 func run(args []string, stdout, stderr io.Writer) int {
@@ -91,6 +91,7 @@ func render(args []string, stdout, stderr io.Writer) int {
 	relayout := fs.Bool("layout", false, "lay every vertex out afresh")
 	flow := fs.String("flow", "", "with -layout, the way the layers run: left-to-right or top-to-bottom")
 	css := fs.Bool("css", false, "embed the default stylesheet")
+	noFull := fs.Bool("no-full-text", false, "write a cut text without its full text for the stylesheet to show on hover")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -108,7 +109,7 @@ func render(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	opts := svg.Options{}
+	opts := svg.Options{NoFullText: *noFull}
 	if *css {
 		opts.Style = svg.Stylesheet
 	}

@@ -838,3 +838,45 @@ func TestPanFollowsPointer(t *testing.T) {
 		}
 	}
 }
+
+// TestExpanded: the vertex under the pointer is the one whose cut texts
+// the overlay draws in full, idle in either mode, whether the pointer is
+// on its box, its outline or a port; none over the background or an
+// edge, or while a drag is under way.
+func TestExpanded(t *testing.T) {
+	_, e := fixture(t, gw.Caps{})
+	for _, mode := range []edit.Mode{edit.Edit, edit.View} {
+		e.SetMode(mode)
+		for _, c := range []struct {
+			x    float64
+			want gw.VertexIndex
+		}{{60, 0}, {108, 0}, {220, 1}, {160, 1}, {500, gw.None}, {130, gw.None}} {
+			send(t, e, move(c.x, 100))
+			v, ok := e.Expanded()
+			if ok != (c.want != gw.None) || ok && v != c.want {
+				t.Errorf("mode %d at x %v: expanded %d %v, want %d", mode, c.x, v, ok, c.want)
+			}
+			var opts svg.Options
+			e.Overlay(&opts)
+			if opts.HasHover != ok || ok && opts.Hover != v {
+				t.Errorf("mode %d at x %v: overlay hover %d %v", mode, c.x, opts.Hover, opts.HasHover)
+			}
+		}
+	}
+	e.SetExpand(false)
+	send(t, e, move(220, 100))
+	var opts svg.Options
+	if e.Overlay(&opts); opts.HasHover {
+		t.Error("turned off: a vertex expanded")
+	}
+	e.SetExpand(true)
+	send(t, e, move(221, 100))
+	if v, ok := e.Expanded(); !ok || v != 1 {
+		t.Errorf("turned on again: expanded %d %v", v, ok)
+	}
+	e.SetMode(edit.Edit)
+	send(t, e, down(220, 100, 0), move(230, 110))
+	if _, ok := e.Expanded(); ok {
+		t.Error("dragging: a vertex expanded")
+	}
+}

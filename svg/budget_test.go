@@ -23,7 +23,7 @@ func TestAllocRender(t *testing.T) {
 	if n := testing.AllocsPerRun(20, func() { svg.HitTest(d, gw.Point{X: 220, Y: 100}) }); n > 0 {
 		t.Errorf("hit test: %g allocations per run", n)
 	}
-	for name, example := range map[string]func(testing.TB) (*gw.Document, svg.Options){"compartments": compartments, "label formats": formats, "own ports": ownPorts} {
+	for name, example := range map[string]func(testing.TB) (*gw.Document, svg.Options){"compartments": compartments, "label formats": formats, "own ports": ownPorts, "cut texts": cutTexts, "a hovered vertex": cutTextsHover} {
 		d, opts := example(t)
 		if n := testing.AllocsPerRun(20, func() {
 			if err := r.Render(d, opts, io.Discard); err != nil {

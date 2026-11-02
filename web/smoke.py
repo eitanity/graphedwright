@@ -104,6 +104,11 @@ def check(out, native, example):
         raise SystemExit(f"clash load and annotate: {out['clashLoad']} {out['clashAnnotate']}")
     if not out["panSlip"] < 0.01:
         raise SystemExit(f"a middle-button drag let the drawing slip {out['panSlip']} units from under the pointer")
+    for mode in ("view", "edit"):
+        if out["hover"][mode] != {"long": ["a label far too long to fit"], "short": [], "background": []}:
+            raise SystemExit(f"hover in {mode} mode drew {out['hover'][mode]}")
+    if out["fullText"] is not True or out["hoverOff"] != [] or out["fullTextOff"] is not False:
+        raise SystemExit(f"switches: full text {out['fullText']}, hover off {out['hoverOff']}, full text off {out['fullTextOff']}")
     if out["clashSelected"] != {"a": True, "selection": True} or not out["clashDeleted"] or not out["clashRestored"]:
         raise SystemExit(f"kinds and classes named as the binding's groups: selected {out['clashSelected']}, deleted {out['clashDeleted']}, restored {out['clashRestored']}")
 

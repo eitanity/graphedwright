@@ -434,3 +434,43 @@ func ownPorts(t testing.TB) (*gw.Document, svg.Options) {
 	edge(t, d, 0, sys, axle, 1, gw.None, "", 0)
 	return d, svg.Options{Title: "Ports of their own", Mode: svg.View}
 }
+
+// cutTexts draws a text cut to fit of each kind: a part whose keyword,
+// label and compartment line are cut, a container whose title is, a
+// vertex whose annotation is, and one with nothing cut.
+func cutTexts(t testing.TB) (*gw.Document, svg.Options) {
+	d, err := gw.New(gw.Schema{
+		VertexKinds: []gw.VertexKind{
+			{
+				Name: "part", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part definition of a kind»",
+				Attrs: []gw.AttrSpec{{Key: "doc"}}, Compartments: []string{"doc"}, MaxWidth: 160,
+			},
+			{Name: "system", Size: gw.Size{W: 100, H: 60}, Container: true, Keyword: "«system»"},
+			{Name: "plain", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 40}},
+		},
+		EdgeKinds: []gw.EdgeKind{{Name: "flow", Arrow: true}},
+	}, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part := vertex(t, d, 0, "a part with a name too long for it", 120, 70)
+	must(t, d, gw.Command{Op: gw.SetAttr, Vertex: part, Key: "doc", Value: "short\nA line of documentation too long to fit."})
+	inner := vertex(t, d, 2, "inside", 400, 90)
+	sys := must(t, d, gw.Command{Op: gw.AddVertex, Kind: 1, ID: "sys", Text: "a system whose title is too long"}).Vertices[0]
+	must(t, d, gw.Command{Op: gw.SetParent, Vertex: inner, To: sys})
+	noted := vertex(t, d, 2, "noted", 120, 220)
+	plain := vertex(t, d, 2, "plain", 400, 220)
+	edge(t, d, 0, part, inner, gw.None, gw.None, "", 0)
+	edge(t, d, 0, noted, plain, gw.None, gw.None, "", 0)
+	notes := make([]svg.Annotation, d.LiveVertices()+1)
+	notes[noted] = svg.Annotation{Text: "an annotation far too long to fit"}
+	return d, svg.Options{Title: "Cut texts", Mode: svg.View, VertexNotes: notes}
+}
+
+// cutTextsHover is cutTexts with the part hovered, its cut texts drawn
+// in full in the overlay.
+func cutTextsHover(t testing.TB) (*gw.Document, svg.Options) {
+	d, opts := cutTexts(t)
+	opts.Hover, opts.HasHover = 0, true
+	return d, opts
+}

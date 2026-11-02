@@ -13,7 +13,7 @@ go install ./cmd/graphedwright
 ## render
 
 ```sh
-graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css] > graph.svg
+graphedwright render -f document.json [--layout [--flow top-to-bottom]] [--css] [--no-full-text] > graph.svg
 ```
 
 Writes the drawing to standard output. A document without positions is
@@ -25,6 +25,7 @@ laid out as it is read.
 | `--layout` | lay every vertex out afresh, placed or not |
 | `--flow` | with `--layout`, the way the layers run: `left-to-right` or `top-to-bottom` |
 | `--css` | embed the default stylesheet, so the SVG looks right on its own |
+| `--no-full-text` | write a cut text without its full text after it, which the stylesheet shows on hover; its tooltip still holds it |
 
 The pictures in these docs are made this way, from the demo's examples:
 

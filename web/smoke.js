@@ -91,6 +91,32 @@ async function main() {
   window.dispatchEvent(new PointerEvent("pointerup", { clientX: x0 + 96, clientY: y0 + 40, pointerId: 3, button: 1, bubbles: true }));
   out.panSlip = slip;
   graphedwright.destroy(hp);
+  // A pointer over a vertex whose label is cut draws it in full in the
+  // overlay, in view and in edit mode; over one with nothing cut, or
+  // over the background, nothing.
+  graphedwright.registerSchema("cuts", { vertexKinds: [{ name: "box", shape: "rect", w: 80, h: 30 }], edgeKinds: [{ name: "link", arrow: true }] });
+  const hh = graphedwright.create(clash, { schema: "cuts", mode: "view" }).ok;
+  graphedwright.load(hh, { schema: "cuts", vertices: [{ id: "long", kind: "box", label: "a label far too long to fit", x: 60, y: 40, placed: true }, { id: "short", kind: "box", label: "ok", x: 260, y: 40, placed: true }], edges: [] });
+  const hoverAt = (sel) => {
+    const s = clash.querySelector("svg"), r = sel ? s.querySelector(sel).getBoundingClientRect() : s.getBoundingClientRect();
+    const x = sel ? r.x + r.width / 2 : r.x + 2, y = sel ? r.y + r.height / 2 : r.y + r.height - 2;
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, pointerId: 4, bubbles: true }));
+    return Array.from(clash.querySelectorAll("svg > g.overlay .expanded text"), (t) => t.textContent);
+  };
+  const cuts = { schema: "cuts", vertices: [{ id: "long", kind: "box", label: "a label far too long to fit", x: 60, y: 40, placed: true }, { id: "short", kind: "box", label: "ok", x: 260, y: 40, placed: true }], edges: [] };
+  out.hover = {};
+  for (const mode of ["view", "edit"]) {
+    graphedwright.setMode(hh, mode);
+    out.hover[mode] = { long: hoverAt("#long"), short: hoverAt("#short"), background: hoverAt(null) };
+  }
+  out.fullText = graphedwright.svg(hh).ok.includes(' full"');
+  graphedwright.destroy(hh);
+  // Either turned off at create: no overlay expansion, no full texts.
+  const ho = graphedwright.create(clash, { schema: "cuts", mode: "view", expand: false, fullText: false }).ok;
+  graphedwright.load(ho, cuts);
+  out.hoverOff = hoverAt("#long");
+  out.fullTextOff = graphedwright.svg(ho).ok.includes(' full"') || clash.querySelector("svg .full") !== null;
+  graphedwright.destroy(ho);
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

@@ -106,9 +106,10 @@ type Editor struct {
 	elemW float64 // the element's size in client units, for the viewport
 	elemH float64
 
-	selV  []gw.VertexIndex
-	selE  []gw.EdgeIndex
-	hover svg.Hit
+	selV     []gw.VertexIndex
+	selE     []gw.EdgeIndex
+	hover    svg.Hit
+	noExpand bool // the overlay draws no hovered vertex's cut texts
 
 	down     gw.Point // where the pointer went down, in document units
 	last     gw.Point // the last pointer position, in document units
@@ -169,6 +170,10 @@ func (e *Editor) Mode() Mode {
 	}
 	return Edit
 }
+
+// SetExpand turns on or off the drawing of the hovered vertex's cut
+// texts in full in the overlay; it is on when the editor is made.
+func (e *Editor) SetExpand(on bool) { e.noExpand = !on }
 
 // SetMode switches between viewing and editing, cancelling whatever
 // was in progress.
@@ -239,6 +244,21 @@ func (e *Editor) Target() (gw.VertexIndex, bool) {
 	}
 }
 
+// Expanded is the vertex whose cut texts the overlay draws in full:
+// the one under the pointer, when idle, in either mode, unless turned
+// off by SetExpand.
+func (e *Editor) Expanded() (gw.VertexIndex, bool) {
+	h := e.hover
+	switch h.Kind {
+	case svg.VertexHit, svg.PortHit, svg.OutlineHit:
+		return h.Vertex, !e.noExpand && e.g.State() == Idle
+	case svg.Background, svg.EdgeHit:
+		return gw.None, false
+	default:
+		return gw.None, false
+	}
+}
+
 // Marquee is the rectangle the overlay draws while selecting, or while
 // resizing the box the vertex will have.
 func (e *Editor) Marquee() (gw.Viewport, bool) {
@@ -280,6 +300,7 @@ func (e *Editor) Overlay(opts *svg.Options) {
 	opts.Marquee, opts.HasMarquee = e.Marquee()
 	opts.Target, opts.HasTarget = e.Target()
 	opts.Handle, opts.HasHandle = e.ResizeHandle()
+	opts.Hover, opts.HasHover = e.Expanded()
 	if e.g.View() {
 		opts.Mode = svg.View
 	} else {

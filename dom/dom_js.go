@@ -38,6 +38,7 @@ type handle struct {
 	palette   js.Value
 	edgeItems []js.Value // the palette's edge kind buttons, by kind
 	grid      float64    // the grid create was given, for each editor load makes
+	noExpand  bool       // create turned off the overlay's expansion of cut texts, for each editor load makes
 	input     js.Value
 	d         *gw.Document
 	ed        *edit.Editor
@@ -157,11 +158,16 @@ func create(_ js.Value, args []js.Value) any {
 	if str(opts, "mode") == "view" {
 		mode = edit.View
 	}
-	if get(opts, "patch").Type() == js.TypeBoolean && !get(opts, "patch").Bool() {
+	if off(opts, "patch") {
 		h.patch = false
 	}
 	h.grid = float(opts, "grid")
+	// A hovered vertex's cut texts are drawn in full in the overlay, and
+	// each cut text is written in full after it for the stylesheet,
+	// unless the host turns either off.
+	h.noExpand, h.opts.NoFullText = off(opts, "expand"), off(opts, "fullText")
 	h.ed = edit.New(d, mode, h.grid)
+	h.ed.SetExpand(!h.noExpand)
 	h.notesV = make([]svg.Annotation, d.Caps().Vertices)
 	h.notesE = make([]svg.Annotation, d.Caps().Edges)
 	h.mount()
@@ -237,6 +243,7 @@ func load(h *handle, args []js.Value) js.Value {
 	}
 	h.d, h.schema = d, name
 	h.ed = edit.New(d, h.ed.Mode(), h.grid)
+	h.ed.SetExpand(!h.noExpand)
 	h.lay = layout.New(d.Caps())
 	clear(h.notesV)
 	clear(h.notesE)
@@ -559,6 +566,12 @@ func get(v js.Value, key string) js.Value {
 }
 
 // str reads a string property, "" when absent.
+// off reports whether a boolean option is given as false.
+func off(v js.Value, key string) bool {
+	o := get(v, key)
+	return o.Type() == js.TypeBoolean && !o.Bool()
+}
+
 func str(v js.Value, key string) string {
 	p := get(v, key)
 	if p.Type() != js.TypeString {

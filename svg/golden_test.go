@@ -23,7 +23,7 @@ func TestGolden(t *testing.T) {
 	for _, ex := range []struct {
 		name  string
 		build func(testing.TB) (*gw.Document, svg.Options)
-	}{{"diamond", diamond}, {"shapes", shapes}, {"notation", notation}, {"bends", bends}, {"tree", tree}, {"keywords", keywords}, {"tails", tails}, {"tails-down", tailsDown}, {"compartments", compartments}, {"formats", formats}, {"own-ports", ownPorts}} {
+	}{{"diamond", diamond}, {"shapes", shapes}, {"notation", notation}, {"bends", bends}, {"tree", tree}, {"keywords", keywords}, {"tails", tails}, {"tails-down", tailsDown}, {"compartments", compartments}, {"formats", formats}, {"own-ports", ownPorts}, {"cut-texts", cutTexts}, {"cut-texts-hover", cutTextsHover}} {
 		d, opts := ex.build(t)
 		var got bytes.Buffer
 		if err := svg.Render(d, opts, &got); err != nil {
@@ -135,7 +135,7 @@ func TestStructure(t *testing.T) {
 		`<g class="edge kind-wire" id="e2" data-kind="wire" data-from="a label far too long to fit in the box it is drawn in" data-to="decide?">`,
 		`<path d="M `, ` H `, ` C `, `marker-end="url(#arrow-1)"`, `wire &lt;&amp;&gt;`,
 		`<g class="vertex kind-node" id="a label far too long to fit in the box it is drawn in" data-kind="node" transform="translate(240 60)" data-p="0.5" data-mode="x=&quot;1&quot; &lt;b&gt;&amp;" data-weird_key_="v">`,
-		`<rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/>`, `…</text><title>a label far too long`,
+		`<rect class="shape" x="-60" y="-18" width="120" height="36" rx="6"/>`, `<text class="label cut" x="0" y="4" text-anchor="middle">a label far too…</text><text class="label full" display="none" x="0" y="4" text-anchor="middle">a label far too long to fit in the box it is drawn in</text><title>a label far too long`,
 		`<circle class="port" data-port="in" cx="-60" cy="0" r="4"/>`, `<circle class="port" data-port="out" cx="60" cy="-6" r="4"/>`,
 		`<polygon class="shape" points="0 -24 40 0 0 24 -40 0"/>`, `<ellipse class="shape" cx="0" cy="0" rx="20" ry="20"/>`,
 		`class="vertex kind-round_thing"`, `class="vertex kind-leaf unplaced"`, `<g class="overlay"><rect class="selection"`, `<path d="M 108 60 L 171 60" stroke-width="1.5" marker-end="url(#arrow-0)"/>`,
@@ -193,7 +193,7 @@ func TestNotation(t *testing.T) {
 // class the renderer gives its own elements, and the stylesheet's rules
 // and the binding's lookups for those find only the renderer's.
 func TestKindClasses(t *testing.T) {
-	own := []string{"port", "overlay", "label", "dashed", "container", "vertices", "edges", "selection"}
+	own := []string{"port", "overlay", "label", "dashed", "container", "vertices", "edges", "selection", "cut", "full", "expanded", "backing"}
 	vks := make([]gw.VertexKind, 0, len(own))
 	for _, n := range own {
 		vks = append(vks, gw.VertexKind{Name: n, Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 36}})

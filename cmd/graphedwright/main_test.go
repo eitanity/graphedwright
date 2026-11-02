@@ -55,6 +55,25 @@ func TestExitCodes(t *testing.T) {
 	}
 }
 
+// TestFullText: a cut label is written in full after it for the
+// stylesheet by default, and with --no-full-text only as its title.
+func TestFullText(t *testing.T) {
+	path := write(t, "long.json", `{"schema":"basic","vertices":[{"id":"a","kind":"box","label":"a label far too long to fit in any box"}],"edges":[]}`)
+	for _, tc := range []struct {
+		args []string
+		full bool
+	}{{[]string{"render", "-f", path}, true}, {[]string{"render", "-f", path, "--no-full-text"}, false}} {
+		var stdout, stderr bytes.Buffer
+		if code := run(tc.args, &stdout, &stderr); code != 0 {
+			t.Fatalf("%v: code %d: %s", tc.args, code, stderr.String())
+		}
+		s := stdout.String()
+		if strings.Contains(s, ` full"`) != tc.full || strings.Contains(s, `cut"`) != tc.full || !strings.Contains(s, "…</text>") || !strings.Contains(s, "<title>a label far too long") {
+			t.Errorf("%v: full text %v wanted, got\n%s", tc.args, tc.full, s)
+		}
+	}
+}
+
 // TestBoundedRead: a file far past the reader's limit is refused after
 // reading one byte more than the limit, not the whole file.
 func TestBoundedRead(t *testing.T) {

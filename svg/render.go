@@ -68,6 +68,11 @@ type Options struct {
 	HasTarget     bool
 	Handle        gw.VertexIndex // a vertex the overlay draws the resize handle of, in edit mode
 	HasHandle     bool
+	Hover         gw.VertexIndex // a vertex the overlay draws the cut texts of in full, in either mode
+	HasHover      bool
+	// NoFullText writes a cut text without its full text after it, for
+	// the stylesheet to show on hover; its title still holds it.
+	NoFullText bool
 	// IDPrefix goes before the IDs the renderer makes, the title's and
 	// the arrowheads', so that two drawings in one page do not share
 	// them; DocIDPrefix goes before each vertex's and edge's ID, so that
@@ -81,6 +86,11 @@ type Options struct {
 // documents, one at a time, without allocating.
 type Renderer struct {
 	o *out
+	// expand is set while the overlay writes the hovered vertex's cut
+	// texts in full, at its centre: its texts are walked as the
+	// vertex draws them, and only those cut are written.
+	expand bool
+	centre gw.Point
 }
 
 // Render writes the whole document.
@@ -452,8 +462,7 @@ func noteOf(notes []Annotation, i int) Annotation {
 }
 
 // vertex writes one vertex: its group translated to its centre, the
-// shape, the label with the full text as its title, the annotation,
-// and the ports.
+// shape, its texts and the ports.
 func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	o := r.o
 	v := &d.Vertices[i]
@@ -485,6 +494,18 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	r.dataAttrs(v.Attrs)
 	o.byte('>')
 	r.shape(shapeClass, kind.Shape, v.Size)
+	r.texts(d, opts, i)
+	r.ports(d, i)
+	o.str(`</g>`)
+}
+
+// texts writes a vertex's texts, each cut at the room it has with the
+// full text as its title: the keyword and label, the container's
+// title or the compartments, and the annotation.
+func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
+	v := &d.Vertices[i]
+	kind := d.Schema.VertexKinds[v.Kind]
+	note := noteOf(opts.VertexNotes, int(i))
 	labelY, labelW := 4.0, v.Size.W-8
 	if note.Text != "" {
 		labelY = -2
@@ -518,8 +539,6 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	if note.Text != "" {
 		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size.W-8, opts)
 	}
-	r.ports(d, i)
-	o.str(`</g>`)
 }
 
 // compartments draws the label at the top of a vertex, under its
@@ -542,14 +561,16 @@ func (r *Renderer) compartments(v *gw.Vertex, kind *gw.VertexKind, labelW float6
 		if val == "" {
 			continue
 		}
-		o.str(`<g class="compartment" data-key="`)
-		o.attr(key)
-		o.str(`"><line`)
-		o.numAttr("x1", left)
-		o.numAttr("y1", y)
-		o.numAttr("x2", left+w)
-		o.numAttr("y2", y)
-		o.str(`/>`)
+		if !r.expand {
+			o.str(`<g class="compartment" data-key="`)
+			o.attr(key)
+			o.str(`"><line`)
+			o.numAttr("x1", left)
+			o.numAttr("y1", y)
+			o.numAttr("x2", left+w)
+			o.numAttr("y2", y)
+			o.str(`/>`)
+		}
 		y += gw.CompartmentPad
 		// bound: the value's lines, at most its length
 		for more := true; more; {
@@ -559,7 +580,9 @@ func (r *Renderer) compartments(v *gw.Vertex, kind *gw.VertexKind, labelW float6
 			r.labelAt("entry", line, left+gw.CompartmentInset, y-3, w-2*gw.CompartmentInset, "start", fixed)
 		}
 		y += gw.CompartmentPad
-		o.str(`</g>`)
+		if !r.expand {
+			o.str(`</g>`)
+		}
 	}
 }
 
@@ -695,8 +718,9 @@ func (r *Renderer) figure(shape gw.Shape, s gw.Size) {
 
 // label writes a centred text element. A label wider than width (when
 // width is positive) is cut with an ellipsis at the estimated character
-// width, and the full text goes into a title child, which is also the
-// tooltip.
+// width, and marked cut; the full text follows it, marked full and not
+// displayed, for the stylesheet to show in its place on hover, and then
+// goes into a title child, which is also the tooltip.
 func (r *Renderer) label(class, text string, x, y, width float64, opts Options) {
 	r.labelAt(class, text, x, y, width, "middle", opts)
 }
@@ -711,14 +735,6 @@ func (r *Renderer) labelAt(class, text string, x, y, width float64, anchor strin
 // built.
 func (r *Renderer) formatted(class, format, text string, attrs []gw.Attr, x, y, width float64, anchor string, opts Options) {
 	o := r.o
-	o.str(`<text class="`)
-	o.str(class)
-	o.byte('"')
-	o.numAttr("x", x)
-	o.numAttr("y", y)
-	o.str(` text-anchor="`)
-	o.str(anchor)
-	o.str(`">`)
 	// The fit is converted only below the text's length, so that it is
 	// within an int on every target.
 	runes := gw.LabelRunes(format, text, attrs)
@@ -726,16 +742,83 @@ func (r *Renderer) formatted(class, format, text string, attrs []gw.Attr, x, y, 
 	if n := width / opts.CharWidth; width > 0 && n < float64(fit) {
 		fit = int(n)
 	}
+	if r.expand {
+		if runes > fit {
+			r.expanded(class, format, text, attrs, x, y, runes, anchor, opts)
+		}
+		return
+	}
 	if runes <= fit {
+		r.textOpen(class, "", x, y, anchor)
 		r.parts(format, text, attrs, runes)
 		o.str(`</text>`)
 		return
 	}
+	if opts.NoFullText {
+		r.textOpen(class, "", x, y, anchor)
+	} else {
+		r.textOpen(class, cutMark, x, y, anchor)
+	}
 	r.parts(format, text, attrs, max(fit-1, 0))
 	o.str("…</text>")
+	if !opts.NoFullText {
+		r.textOpen(class, fullMark, x, y, anchor)
+		r.parts(format, text, attrs, runes)
+		o.str(`</text>`)
+	}
 	o.str(`<title>`)
 	r.parts(format, text, attrs, runes)
 	o.str(`</title>`)
+}
+
+// The marks of a cut text and of the full text written after it.
+const (
+	cutMark  = "cut"
+	fullMark = "full"
+)
+
+// textOpen opens a text element of the class and the mark, if any, at
+// the point and anchor; a full text is not displayed unless the
+// stylesheet displays it, so that without one only the cut text shows.
+func (r *Renderer) textOpen(class, mark string, x, y float64, anchor string) {
+	o := r.o
+	o.str(`<text class="`)
+	o.str(class)
+	if mark != "" {
+		o.byte(' ')
+		o.str(mark)
+	}
+	o.byte('"')
+	if mark == fullMark {
+		o.str(` display="none"`)
+	}
+	o.numAttr("x", x)
+	o.numAttr("y", y)
+	o.str(` text-anchor="`)
+	o.str(anchor)
+	o.str(`">`)
+}
+
+// expanded writes a cut text in full for the overlay, at its place in
+// the hovered vertex, over a box as wide as its estimated width, the
+// width it was cut by.
+func (r *Renderer) expanded(class, format, text string, attrs []gw.Attr, x, y float64, runes int, anchor string, opts Options) {
+	o := r.o
+	w := float64(float64(runes)*opts.CharWidth) + 4
+	left := x - 2
+	switch anchor {
+	case "middle":
+		left = x - float64(w/2)
+	case anchorEnd:
+		left = x + 2 - w
+	}
+	o.str(`<g class="expanded" transform="translate(`)
+	o.point(r.centre.X, r.centre.Y)
+	o.str(`)">`)
+	r.rect(`<rect class="backing"`, gw.Viewport{X: left, Y: y - opts.FontSize, W: w, H: opts.FontSize + 4})
+	r.textOpen(class, "", x, y, anchor)
+	r.parts(format, text, attrs, runes)
+	o.str(`</text></g>`)
 }
 
 // parts writes the first n characters of the label a format draws.
@@ -828,8 +911,8 @@ func (r *Renderer) dataAttrs(attrs []gw.Attr) {
 	}
 }
 
-// overlay writes the selection outlines in edit mode, and an empty
-// group otherwise.
+// overlay writes the selection outlines in edit mode, and the hovered
+// vertex's cut texts in full in either mode; an empty group otherwise.
 func (r *Renderer) overlay(d *gw.Document, opts Options, maxW float64) {
 	o := r.o
 	o.str(`<g class="overlay">`)
@@ -851,6 +934,13 @@ func (r *Renderer) overlay(d *gw.Document, opts Options, maxW float64) {
 		if opts.HasMarquee {
 			r.rect(`<rect class="marquee"`, opts.Marquee)
 		}
+	}
+	// The hovered vertex's cut texts are drawn in full over everything,
+	// in either mode.
+	if opts.HasHover && vertexLive(d, opts.Hover) {
+		r.expand, r.centre = true, d.Vertices[opts.Hover].Pos
+		r.texts(d, opts, opts.Hover)
+		r.expand = false
 	}
 	o.str(`</g>`)
 }
