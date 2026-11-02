@@ -19,6 +19,8 @@ const (
 	Layout                 // Text "all" unplaces every vertex; Value names a flow to change to, or is empty; the layout is stale either way
 	Compact                // renumbers; see Document.Compact for the index maps
 	SetParent              // Vertex, To: the container it goes in, or None
+	AddPort                // Vertex, Port: a port of the vertex's own, after its others
+	DeletePort             // Vertex, Text: the name of a port of its own that no edge uses
 )
 
 // Command is one change to a document. Which fields matter depends on
@@ -38,6 +40,7 @@ type Command struct {
 	Key      string
 	Value    string
 	Weight   float64
+	Port     Port
 }
 
 // Change names what a command moved: the vertices and edges touched,
@@ -74,6 +77,10 @@ func (d *Document) Apply(c Command) (Change, error) {
 		err = d.setAttr(c)
 	case SetPorts:
 		err = d.setPorts(c)
+	case AddPort:
+		err = d.addPort(c)
+	case DeletePort:
+		err = d.deletePort(c)
 	case Layout:
 		err = d.layout(c)
 	case Compact:
@@ -462,12 +469,13 @@ func (d *Document) checkEdgeEnds(c Command) error {
 	return d.checkPort(c.To, c.ToPort, false)
 }
 
-// checkPort validates a port index on a vertex (None when the vertex has
+// checkPort validates a port index on a vertex (None when its kind has
 // no ports) and that the port has room for one more edge.
 func (d *Document) checkPort(v VertexIndex, p PortIndex, out bool) error {
 	ports := d.Vertices[v].Ports
 	if p == None {
-		if len(ports) > 0 {
+		// Ports of a vertex's own are a choice; its kind's are not.
+		if len(d.Schema.VertexKinds[d.Vertices[v].Kind].Ports) > 0 {
 			return refusal("vertex " + d.vertexName(v) + " has ports; the edge must name one")
 		}
 		return nil
@@ -551,9 +559,9 @@ func (d *Document) resize(c Command) error {
 		return refusal(sizeRule)
 	}
 	v := &d.Vertices[c.Vertex]
-	if d.holdsCompartments(c.Vertex) {
-		// Never smaller than its compartments, so that the redo is
-		// the size it was.
+	if d.selfSized(c.Vertex) {
+		// Never smaller than its compartments and ports, so that the
+		// redo is the size it was.
 		c.Size = d.fitted(c.Vertex, c.Size)
 	}
 	d.seq++
@@ -566,7 +574,7 @@ func (d *Document) resize(c Command) error {
 // compartments, its own size, and names it and its edges as changed.
 func (d *Document) setSize(v VertexIndex, size, own Size) {
 	d.Vertices[v].Size = size
-	if d.isContainer(v) || d.holdsCompartments(v) {
+	if d.isContainer(v) || d.selfSized(v) {
 		d.Vertices[v].Min = own
 	}
 	d.touchVertex(v)
@@ -624,7 +632,7 @@ func (d *Document) setPorts(c Command) error {
 	d.log.push(en)
 	v.Ports = v.Ports[:len(kind.Ports)]
 	copy(v.Ports, kind.Ports)
-	d.touchVertex(c.Vertex)
+	d.portsChanged(c.Vertex)
 	return nil
 }
 

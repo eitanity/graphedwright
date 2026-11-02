@@ -133,10 +133,11 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 	e.field("y")
 	e.num(v.Pos.Y)
 	// A container's size is its own, which its fit grows from, and so
-	// is a vertex's with compartments; the size it is drawn at follows
-	// from what it holds.
+	// is a vertex's with compartments or ports of its own; the size it
+	// is drawn at follows from what it holds.
 	size, kind := v.Size, d.Schema.VertexKinds[v.Kind]
-	if kind.Container || len(kind.Compartments) > 0 {
+	own := v.Ports[len(kind.Ports):]
+	if kind.Container || len(kind.Compartments) > 0 || len(own) > 0 {
 		size = v.Min
 	}
 	if size != kind.Size && size != (gw.Size{}) {
@@ -153,7 +154,31 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 		e.quote(string(d.Vertices[v.Parent].ID))
 	}
 	e.attrs(v.Attrs)
+	e.ports(own)
 	e.byte('}')
+}
+
+// ports writes a vertex's own ports, when it has any.
+func (e *encoder) ports(ports []gw.Port) {
+	if len(ports) == 0 {
+		return
+	}
+	e.str(`,"ports":[`)
+	for i, p := range ports {
+		if i > 0 {
+			e.byte(',')
+		}
+		e.str(`{"name":`)
+		e.quote(p.Name)
+		e.field("side")
+		e.quote(sideName(p.Side))
+		if p.Max > 0 {
+			e.field("max")
+			e.num(float64(p.Max))
+		}
+		e.byte('}')
+	}
+	e.byte(']')
 }
 
 func (e *encoder) edge(d *gw.Document, ed *gw.Edge) {

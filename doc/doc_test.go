@@ -260,6 +260,21 @@ func TestDecodeRefusals(t *testing.T) {
 		{"unknown flow", `{"schema":"basic","flow":"sideways"}`, `document.flow: unknown flow "sideways"`},
 		{"flow not a string", `{"schema":"basic","flow":1}`, `document.flow: expected '"', found '1'`},
 		{"too deep", `{"schema":"basic","vertices":[{"kind":"box","attrs":{"a":"[[[[[[[[[[[[[[[[["}}]}`, ""},
+		{"no ports", v(`{"kind":"leaf","ports":[]}`), ""},
+		{"ports not an array", v(`{"kind":"leaf","ports":{}}`), "document.vertices[0].ports: expected '[', found '{'"},
+		{"port not an object", v(`{"kind":"leaf","ports":[1]}`), "document.vertices[0].ports: expected '{', found '1'"},
+		{"port key", v(`{"kind":"leaf","ports":[{1:2}]}`), `document.vertices[0].ports: expected '"', found '1'`},
+		{"port name", v(`{"kind":"leaf","ports":[{"name":1}]}`), `document.vertices[0].ports: expected '"', found '1'`},
+		{"port side", v(`{"kind":"leaf","ports":[{"name":"a","side":"up"}]}`), `side "up" is not left, right, top or bottom`},
+		{"port side not a string", v(`{"kind":"leaf","ports":[{"name":"a","side":2}]}`), `expected '"', found '2'`},
+		{"port max negative", v(`{"kind":"leaf","ports":[{"name":"a","max":-1}]}`), "port max must be a whole number, not negative"},
+		{"port max fraction", v(`{"kind":"leaf","ports":[{"name":"a","max":1.5}]}`), "port max must be a whole number, not negative"},
+		{"port max not a number", v(`{"kind":"leaf","ports":[{"name":"a","max":"2"}]}`), "document.vertices[0].ports: expected a number"},
+		{"port unknown key", v(`{"kind":"leaf","ports":[{"name":"a","colour":"red"}]}`), `unknown key "colour"`},
+		{"port separator", v(`{"kind":"leaf","ports":[{"name":"a" "side":"left"}]}`), "expected ',' or '}', found '\"'"},
+		{"ports separator", v(`{"kind":"leaf","ports":[{"name":"a"} {"name":"b"}]}`), "expected ',' or ']', found '{'"},
+		{"port twice", v(`{"id":"l","kind":"leaf","ports":[{"name":"a"},{"name":"a"}]}`), `vertex "l" has a port "a"`},
+		{"too many ports", v(`{"kind":"leaf","ports":[{"name":"a"},{"name":"b"},{"name":"c"},{"name":"d"},{"name":"e"},{"name":"f"},{"name":"g"},{"name":"h"},{"name":"i"}]}`), "ports exceed the limit of 8"},
 	} {
 		_, err := doc.Decode([]byte(tc.text), doc.Options{Schemas: schemas()})
 		if tc.want == "" {
@@ -548,5 +563,40 @@ func TestFlowRoundTrip(t *testing.T) {
 	second.Reset()
 	if err := doc.Encode(decode(t, example), "model", &second); err != nil || strings.Contains(second.String(), "flow") {
 		t.Errorf("the default flow was written: %v\n%s", err, second.String())
+	}
+}
+
+// TestPortsRoundTrip: a vertex's own ports, on every side and with a
+// limit, and an edge to one, are written and read back as they were,
+// with the size the ports grew the vertex to.
+func TestPortsRoundTrip(t *testing.T) {
+	text := `{"schema":"model","vertices":[` +
+		`{"id":"a","kind":"node","x":0,"y":0},` +
+		`{"id":"l","kind":"leaf","x":300,"y":0,"ports":[{"name":"in","side":"left","max":2},{"name":"out","side":"right"},{"name":"up","side":"top"},{"name":"down","side":"bottom"}]}],` +
+		`"edges":[{"kind":"outcome","from":"a","to":"l","from_port":"out","to_port":"in"}]}`
+	d, err := doc.Decode([]byte(text), doc.Options{Schemas: schemas()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := d.VertexByID("l")
+	if n := d.OwnPorts(l); n != 4 || d.Vertices[l].Ports[0] != (gw.Port{Name: "in", Side: gw.Left, Max: 2}) {
+		t.Fatalf("%d ports of its own: %v", n, d.Vertices[l].Ports)
+	}
+	var out bytes.Buffer
+	if err := doc.Encode(d, "model", &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := `"ports":[{"name":"in","side":"left","max":2},{"name":"out","side":"right"},{"name":"up","side":"top"},{"name":"down","side":"bottom"}]`; !strings.Contains(out.String(), want) {
+		t.Errorf("written:\n%s\nwant %s", out.String(), want)
+	}
+	again, err := doc.Decode(out.Bytes(), doc.Options{Schemas: schemas()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := again.Vertices[again.VertexByID("l")], d.Vertices[l]; got.Size != want.Size || len(got.Ports) != len(want.Ports) {
+		t.Errorf("read back at %v with %d ports, written at %v with %d", got.Size, len(got.Ports), want.Size, len(want.Ports))
+	}
+	if e := again.Edges[again.EdgeByID(d.Edges[0].ID)]; e.ToPort != 0 {
+		t.Errorf("edge read back at port %d", e.ToPort)
 	}
 }

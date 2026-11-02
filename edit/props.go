@@ -35,6 +35,10 @@ type Properties struct {
 // vertex or edge selected.
 var ErrNotOne = errors.New("select one vertex or edge")
 
+// ErrNotVertex is the error of a port command without one vertex
+// selected.
+var ErrNotVertex = errors.New("select one vertex")
+
 // Properties describes the one selected vertex or edge; ok is false
 // when the selection is not exactly one. It allocates, for a panel to
 // call on a selection change, not on every pointer move.
@@ -86,6 +90,24 @@ func (e *Editor) SetAttr(key, value string) (gw.Change, error) {
 		return gw.Change{}, ErrNotOne
 	}
 	return e.command(gw.Command{Op: gw.SetAttr, Vertex: v, Edge: x, Key: key, Value: value})
+}
+
+// AddPort gives the one selected vertex a port of its own.
+func (e *Editor) AddPort(p gw.Port) (gw.Change, error) {
+	v, _, ok := e.one()
+	if !ok || v == gw.None {
+		return gw.Change{}, ErrNotVertex
+	}
+	return e.command(gw.Command{Op: gw.AddPort, Vertex: v, Port: p})
+}
+
+// DeletePort removes the named port of the one selected vertex's own.
+func (e *Editor) DeletePort(name string) (gw.Change, error) {
+	v, _, ok := e.one()
+	if !ok || v == gw.None {
+		return gw.Change{}, ErrNotVertex
+	}
+	return e.command(gw.Command{Op: gw.DeletePort, Vertex: v, Text: name})
 }
 
 // one is the one selected vertex, or edge with Vertex None.

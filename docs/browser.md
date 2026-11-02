@@ -85,6 +85,8 @@ throws. The first argument of every call after `create` is the handle
 | `properties(g)` | the one selected vertex or edge, described for a properties panel, or `null` (below) |
 | `setLabel(g, text)` | relabels the one selected vertex or edge |
 | `setAttr(g, key, value)` | sets an attribute of the one selected vertex or edge; `""` removes it |
+| `addPort(g, {name, side, max})` | gives the one selected vertex a port of its own; `side` is `"left"`, `"right"`, `"top"` or `"bottom"` |
+| `deletePort(g, name)` | removes a port of the one selected vertex's own that no edge uses |
 | `zoom(g, factor)` | zooms the view about its centre: in by a factor above 1, out by one below |
 | `fit(g)` | sets the view to the drawing's bounds |
 | `annotate(g, {id: {text, class, weight}})` | draws a figure on each element named, replacing the last set: text under a vertex's label or at an edge's middle, a class added to it, and on an edge a weight that sets its stroke width |
@@ -195,7 +197,7 @@ restyle it with CSS or script it.
 - **Shapes:** each is a `g.vertex` with its kind's class, its ID as
   `id`, and its attributes as `data-*`. Inside are `.shape`, `text.label`,
   `text.keyword` for a kind with a keyword, `.annotation`, and `.port`
-  circles. Each compartment is a `g.compartment` with its attribute's
+  circles, with a `text.port-label` naming each of a vertex's own. Each compartment is a `g.compartment` with its attribute's
   key as `data-key`, holding a `line` and a `text.entry` for each line. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,

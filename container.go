@@ -153,8 +153,8 @@ func (d *Document) fit() {
 // to its own size when it holds nothing, and a vertex to its
 // compartments, and adds the vertex's own box to its container's.
 func (d *Document) fitOne(i VertexIndex) {
-	if d.holdsCompartments(i) {
-		d.fitCompartments(i)
+	if d.holdsCompartments(i) && !d.isContainer(i) {
+		d.fitContent(i)
 	}
 	v := &d.Vertices[i]
 	if b := d.box[4*i : 4*i+4]; d.isContainer(i) {
@@ -163,18 +163,12 @@ func (d *Document) fitOne(i VertexIndex) {
 		if b[0] <= b[2] {
 			pos = Point{X: float64((b[0] + b[2]) / 2), Y: float64((b[1]+b[3])/2) - ContainerTitle/2}
 			size = Size{W: b[2] - b[0] + 2*ContainerPad, H: b[3] - b[1] + 2*ContainerPad + ContainerTitle}
-			// Grown to its own size from the top left corner, which
-			// stays where what it holds puts it.
-			if size.W < v.Min.W {
-				pos.X += float64((v.Min.W - size.W) / 2)
-				size.W = v.Min.W
-			}
-			if size.H < v.Min.H {
-				pos.Y += float64((v.Min.H - size.H) / 2)
-				size.H = v.Min.H
-			}
+			// Grown to its own size, and to its ports' room, from the
+			// top left corner, which stays where what it holds puts it.
+			pos, size = grow(pos, size, v.Min)
+			pos, size = grow(pos, size, d.portRoom(i))
 		} else {
-			size = d.ownSize(i)
+			size = d.fitted(i, d.ownSize(i))
 			pos = Point{X: v.Pos.X + float64((size.W-v.Size.W)/2), Y: v.Pos.Y + float64((size.H-v.Size.H)/2)}
 		}
 		if pos != v.Pos || size != v.Size {
@@ -190,6 +184,20 @@ func (d *Document) fitOne(i VertexIndex) {
 		b[2] = math.Max(b[2], v.Pos.X+float64(v.Size.W/2))
 		b[3] = math.Max(b[3], v.Pos.Y+float64(v.Size.H/2))
 	}
+}
+
+// grow is a box at pos of the size grown to at least the least size,
+// its top left corner staying where it is.
+func grow(pos Point, size, least Size) (Point, Size) {
+	if size.W < least.W {
+		pos.X += float64((least.W - size.W) / 2)
+		size.W = least.W
+	}
+	if size.H < least.H {
+		pos.Y += float64((least.H - size.H) / 2)
+		size.H = least.H
+	}
+	return pos, size
 }
 
 // ownSize is the size of a container that holds nothing, or of a vertex
@@ -257,7 +265,7 @@ func moves(op Op) bool {
 	switch op {
 	case DeleteVertex, Move, Resize, SetParent, Layout:
 		return true
-	case AddVertex, AddEdge, DeleteEdge, Relabel, SetAttr, SetPorts, Compact:
+	case AddVertex, AddEdge, DeleteEdge, Relabel, SetAttr, SetPorts, Compact, AddPort, DeletePort:
 	}
 	return false
 }

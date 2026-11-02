@@ -205,7 +205,11 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 		v := &d.Vertices[en.vertex]
 		v.Ports = v.Ports[:len(en.ports)]
 		copy(v.Ports, en.ports)
-		d.touchVertex(en.vertex)
+		d.portsChanged(en.vertex)
+	case AddPort:
+		d.removePort(en.vertex, en.at)
+	case DeletePort:
+		d.insertPort(en.vertex, en.at, en.cmd.Port)
 	case Layout:
 		// The positions the layout gave are kept for its redo.
 		d.savePositions(d.layoutSnap(en.layout, true))
@@ -278,7 +282,11 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 		kind := d.Schema.VertexKinds[v.Kind]
 		v.Ports = v.Ports[:len(kind.Ports)]
 		copy(v.Ports, kind.Ports)
-		d.touchVertex(en.vertex)
+		d.portsChanged(en.vertex)
+	case AddPort:
+		d.insertPort(en.vertex, en.at, en.cmd.Port)
+	case DeletePort:
+		d.removePort(en.vertex, en.at)
 	case Layout:
 		d.loadPositions(d.layoutSnap(en.layout, true))
 		d.Flow = en.flows[1]
@@ -305,7 +313,7 @@ func structural(op Op) bool {
 	switch op {
 	case AddVertex, DeleteVertex, AddEdge, DeleteEdge, Layout, Compact, SetParent:
 		return true
-	case Move, Resize, Relabel, SetAttr, SetPorts:
+	case Move, Resize, Relabel, SetAttr, SetPorts, AddPort, DeletePort:
 		return false
 	}
 	return false

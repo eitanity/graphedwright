@@ -85,6 +85,7 @@ func Main() {
 		{"setMode", withHandle(setMode)}, {"layout", withHandle(relayout)}, {"annotate", withHandle(annotate)},
 		{"on", withHandle(on)}, {"undo", withHandle(undo)}, {"redo", withHandle(redo)}, {"destroy", withHandle(destroy)},
 		{"properties", withHandle(properties)}, {"setLabel", withHandle(setLabel)}, {"setAttr", withHandle(setAttr)},
+		{"addPort", withHandle(addPort)}, {"deletePort", withHandle(deletePort)},
 		{"zoom", withHandle(zoom)}, {"fit", withHandle(fit)},
 		{"registerSchema", registerSchema},
 	} {
@@ -442,6 +443,31 @@ func setAttr(h *handle, args []js.Value) js.Value {
 		return fail("setAttr(handle, key, value)")
 	}
 	ch, err := h.ed.SetAttr(args[0].String(), args[1].String())
+	h.after(ch, err)
+	return result(err == nil, err)
+}
+
+// addPort(g, {name, side, max}) gives the selected vertex a port of
+// its own.
+func addPort(h *handle, args []js.Value) js.Value {
+	if len(args) < 1 || args[0].Type() != js.TypeObject {
+		return fail("addPort(handle, {name, side, max})")
+	}
+	side, err := sideOf(str(args[0], "side"))
+	if err != nil {
+		return result(false, err)
+	}
+	ch, err := h.ed.AddPort(gw.Port{Name: str(args[0], "name"), Side: side, Max: count(args[0], "max")})
+	h.after(ch, err)
+	return result(err == nil, err)
+}
+
+// deletePort(g, name) removes a port of the selected vertex's own.
+func deletePort(h *handle, args []js.Value) js.Value {
+	if len(args) < 1 || args[0].Type() != js.TypeString {
+		return fail("deletePort(handle, name)")
+	}
+	ch, err := h.ed.DeletePort(args[0].String())
 	h.after(ch, err)
 	return result(err == nil, err)
 }

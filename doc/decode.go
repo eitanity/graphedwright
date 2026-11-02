@@ -230,6 +230,7 @@ type vertexFields struct {
 	placed    bool
 	parent    string
 	hasParent bool
+	ports     []gw.Port
 }
 
 // vertex reads one vertex object and applies it.
@@ -287,6 +288,11 @@ func (dec *decoder) applyVertex(f *vertexFields, attrs []gw.Attr) error {
 			return s.errorf(err.Error())
 		}
 	}
+	for _, p := range f.ports {
+		if _, err := dec.d.Apply(gw.Command{Op: gw.AddPort, Vertex: v, Port: p}); err != nil {
+			return s.errorf(err.Error())
+		}
+	}
 	return nil
 }
 
@@ -320,10 +326,100 @@ func (dec *decoder) vertexKey(k string, f *vertexFields, attrs []gw.Attr) ([]gw.
 		f.hasParent = true
 	case "attrs":
 		return dec.attrs(attrs)
+	case "ports":
+		f.ports, err = dec.ports()
 	default:
 		err = s.errorf("unknown key " + strconv.Quote(k))
 	}
 	return attrs, err
+}
+
+// ports reads a vertex's own ports, an array of {name, side, max}, no
+// more than a vertex holds.
+func (dec *decoder) ports() ([]gw.Port, error) {
+	s := dec.s
+	if err := s.open('['); err != nil {
+		return nil, err
+	}
+	var ports []gw.Port
+	for s.peek() != ']' {
+		if len(ports) == dec.d.Caps().PortsPerVertex {
+			return nil, s.errorf("ports exceed the limit of " + strconv.Itoa(dec.d.Caps().PortsPerVertex))
+		}
+		p, err := dec.port1()
+		if err != nil {
+			return nil, err
+		}
+		ports = append(ports, p)
+		more, err := s.more(']')
+		if err != nil {
+			return nil, err
+		}
+		if !more {
+			break
+		}
+	}
+	s.close()
+	return ports, nil
+}
+
+// port1 reads one port object.
+func (dec *decoder) port1() (gw.Port, error) {
+	s := dec.s
+	var p gw.Port
+	if err := s.open('{'); err != nil {
+		return p, err
+	}
+	for s.peek() != '}' {
+		k, err := s.key()
+		if err != nil {
+			return p, err
+		}
+		switch k {
+		case "name":
+			p.Name, err = s.str()
+		case "side":
+			var side string
+			if side, err = s.str(); err == nil {
+				p.Side, err = sideNamed(s, side)
+			}
+		case "max":
+			var n float64
+			if n, err = s.num(); err == nil && (n < 0 || n != float64(int(n)) || n > 1<<30) {
+				err = s.errorf("port max must be a whole number, not negative")
+			}
+			p.Max = int(n)
+		default:
+			err = s.errorf("unknown key " + strconv.Quote(k))
+		}
+		if err != nil {
+			return p, err
+		}
+		more, err := s.more('}')
+		if err != nil {
+			return p, err
+		}
+		if !more {
+			break
+		}
+	}
+	s.close()
+	return p, nil
+}
+
+// sideName is a side as the format names it.
+func sideName(side gw.Side) string {
+	return [...]string{gw.Left: "left", gw.Right: "right", gw.Top: "top", gw.Bottom: "bottom"}[side]
+}
+
+// sideNamed is the side with the name.
+func sideNamed(s *scanner, name string) (gw.Side, error) {
+	for _, side := range [...]gw.Side{gw.Left, gw.Right, gw.Top, gw.Bottom} {
+		if sideName(side) == name {
+			return side, nil
+		}
+	}
+	return 0, s.errorf("side " + strconv.Quote(name) + " is not left, right, top or bottom")
 }
 
 // resolveParents puts each vertex that names a container in it, once

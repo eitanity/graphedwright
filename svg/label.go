@@ -108,3 +108,96 @@ func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	}
 	return p.X >= b.X && p.X <= b.X+b.W && p.Y >= b.Y && p.Y <= b.Y+b.H
 }
+
+// anchorEnd anchors a text at its end.
+const anchorEnd = "end"
+
+// portLabel is where a port's label is drawn, outside the shape beside
+// the port: on a left or right side above the line an edge leaves along,
+// outwards, or below it when an edge at the port rises under the label;
+// on the top or bottom to the right of the port, or to its left when an
+// edge runs right beside the label, above or below the shape. The box
+// is the text's estimated extent.
+func portLabel(d *gw.Document, i gw.VertexIndex, p gw.PortIndex) (x, y float64, anchor string, box gw.Viewport) {
+	v := &d.Vertices[i]
+	at := portAt(v, p)
+	w := float64(float64(runeCount(v.Ports[p].Name)) * gw.PortLabelChar)
+	side := v.Ports[p].Side
+	// An edge is followed as far as the label reaches from the port.
+	reach := w + portRadius + 4
+	if side == gw.Top || side == gw.Bottom {
+		reach = portRadius + 15
+	}
+	up, right := portHeads(d, i, p, at, reach)
+	x, y, anchor = at.X+portRadius+2, at.Y-portRadius-2, "start"
+	if side == gw.Left {
+		x, anchor = at.X-portRadius-2, anchorEnd
+	}
+	switch side {
+	case gw.Left, gw.Right:
+		if up {
+			y = at.Y + portRadius + 11
+		}
+	case gw.Top, gw.Bottom:
+		if side == gw.Bottom {
+			y = at.Y + portRadius + 11
+		}
+		if right {
+			x, anchor = at.X-portRadius-2, anchorEnd
+		}
+	}
+	box = gw.Viewport{X: x, Y: y - 9, W: w, H: 11}
+	if anchor == anchorEnd {
+		box.X -= w
+	}
+	return x, y, anchor, box
+}
+
+// portHeads reports whether an edge at a port rises above it, and
+// whether one runs right of it, within reach of it as drawn.
+func portHeads(d *gw.Document, v gw.VertexIndex, p gw.PortIndex, at gw.Point, reach float64) (up, right bool) {
+	for k := range d.Edges {
+		e := &d.Edges[k]
+		from := e.From == v && e.FromPort == p
+		if !e.Live || (!from && (e.To != v || e.ToPort != p)) {
+			continue
+		}
+		u, r := edgeHeads(d, gw.EdgeIndex(k), from, at, reach) //nolint:gosec // bounded by the capacity
+		up, right = up || u, right || r
+	}
+	return up, right
+}
+
+// edgeHeads reports whether an edge's route as drawn, followed leg by
+// leg from its start or from its end until it is reach from the port,
+// rises above the port or runs right of it on the way.
+func edgeHeads(d *gw.Document, i gw.EdgeIndex, from bool, at gw.Point, reach float64) (up, right bool) {
+	var lane [1]gw.Point
+	wy := wayOf(d, i, &lane)
+	f := wy.f
+	route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+	legs := len(wy.through) + 1
+	// bound: the legs, at most the bends per edge and one
+	for n := range legs {
+		k := n
+		if !from {
+			k = legs - 1 - n
+		}
+		u, w := leg(wy.a, wy.through, wy.b, k)
+		u, w = f.t(u), f.t(w)
+		r := legRoute(route, legs > 1, u, w)
+		// bound: edgeSamples
+		for s := 1; s <= edgeSamples; s++ {
+			t := float64(s) / edgeSamples
+			if !from {
+				t = float64(edgeSamples-s) / edgeSamples
+			}
+			q := f.t(f.at(r, u, w, t))
+			up, right = up || q.Y < at.Y-1, right || q.X > at.X+1
+			if math.Hypot(q.X-at.X, q.Y-at.Y) >= reach {
+				return up, right
+			}
+		}
+	}
+	return up, right
+}

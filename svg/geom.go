@@ -583,6 +583,10 @@ func bounds(d *gw.Document) gw.Viewport {
 		y0 = math.Min(y0, v.Pos.Y-float64(v.Size.H/2))
 		x1 = math.Max(x1, v.Pos.X+half)
 		y1 = math.Max(y1, v.Pos.Y+float64(v.Size.H/2))
+		for p := len(d.Schema.VertexKinds[v.Kind].Ports); p < len(v.Ports); p++ {
+			_, _, _, b := portLabel(d, gw.VertexIndex(i), gw.PortIndex(p)) //nolint:gosec // bounded by the capacities
+			x0, y0, x1, y1 = math.Min(x0, b.X), math.Min(y0, b.Y), math.Max(x1, b.X+b.W), math.Max(y1, b.Y+b.H)
+		}
 	}
 	for i := range d.Edges {
 		if e := &d.Edges[i]; e.Live {

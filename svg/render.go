@@ -385,7 +385,7 @@ func (r *Renderer) levelLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mi
 // on side -1, for a lane left of the others, the other way about.
 func (r *Renderer) besideLabels(kind gw.EdgeKind, e *gw.Edge, note Annotation, mid gw.Point, width, side float64, opts Options) {
 	x, other, y := mid.X+float64(width/2)+4, mid.X-float64(width/2)-4, mid.Y+opts.FontSize/3
-	anchor, otherAnchor := "start", "end"
+	anchor, otherAnchor := "start", anchorEnd
 	if side < 0 {
 		x, other, anchor, otherAnchor = other, x, otherAnchor, anchor
 	}
@@ -518,7 +518,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	if note.Text != "" {
 		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size.W-8, opts)
 	}
-	r.ports(v)
+	r.ports(d, i)
 	o.str(`</g>`)
 }
 
@@ -783,7 +783,8 @@ func (r *Renderer) textRunes(s string, n int) {
 }
 
 // ports writes a vertex's ports as circles on its sides.
-func (r *Renderer) ports(v *gw.Vertex) {
+func (r *Renderer) ports(d *gw.Document, vi gw.VertexIndex) {
+	v := &d.Vertices[vi]
 	if len(v.Ports) == 0 {
 		return
 	}
@@ -798,6 +799,19 @@ func (r *Renderer) ports(v *gw.Vertex) {
 		o.numAttr("cy", p.Y-v.Pos.Y)
 		o.numAttr("r", portRadius)
 		o.str(`/>`)
+	}
+	// A vertex's own ports are named beside them; its kind's are
+	// known from the kind.
+	for i := len(d.Schema.VertexKinds[v.Kind].Ports); i < len(v.Ports); i++ {
+		x, y, anchor, _ := portLabel(d, vi, gw.PortIndex(i)) //nolint:gosec // bounded by the ports per vertex
+		o.str(`<text class="port-label"`)
+		o.numAttr("x", x-v.Pos.X)
+		o.numAttr("y", y-v.Pos.Y)
+		o.str(` text-anchor="`)
+		o.str(anchor)
+		o.str(`">`)
+		o.text(v.Ports[i].Name)
+		o.str(`</text>`)
 	}
 	o.str(`</g>`)
 }

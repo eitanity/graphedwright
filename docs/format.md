@@ -42,6 +42,7 @@ return the same shape as a string or an object.
 | `placed` | `true` when a user or a host placed it: a layout leaves it where it is. |
 | `parent` | the ID of the container it is in. The container may come later in the list. A container that holds anything is fitted around it when read, whatever its own position says, at least its own size. |
 | `attrs` | its attributes, an object of strings, keyed by lowercase letters, digits, `-` and `_` (not `kind`, `from` or `to`). |
+| `ports` | its own ports, after its kind's: an array of `{"name", "side", "max"}`, with `side` one of `"left"`, `"right"`, `"top"` and `"bottom"`, and `max`, the most edges it takes, left out for any. A vertex with ports of its own writes its own size in `w` and `h`, as a container does. |
 
 ## An edge
 
@@ -49,7 +50,7 @@ return the same shape as a string or an object.
 |---|---|
 | `kind`, `from`, `to` | **required.** The edge kind's name and the IDs of the vertices it joins. |
 | `id` | the edge's ID; minted (`e1`, `e2`, …) when missing. |
-| `from_port`, `to_port` | the names of the ports it uses, required at an end whose vertex has ports. |
+| `from_port`, `to_port` | the names of the ports it uses, required at an end whose vertex's kind has ports. |
 | `label` | the label text. |
 | `weight` | a number that drives the stroke width when the kind is weighted: not negative, at most 10⁹. |
 | `bends` | the points a layout routed it through, `[[x, y], …]`. They hold for the positions of its ends as read. |

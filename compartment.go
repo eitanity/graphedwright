@@ -74,16 +74,23 @@ func (d *Document) holdsCompartments(v VertexIndex) bool {
 }
 
 // refits reports whether a command, applied or undone, can change what
-// the fit sizes: a move, or a vertex's attributes when compartments
-// show them.
+// the fit sizes: a move, a vertex's attributes when compartments show
+// them, or a container's ports.
 func (d *Document) refits(op Op) bool {
-	return moves(op) || ((op == SetAttr || op == AddVertex) && d.hasCompartments())
+	if op == SetPorts || op == AddPort || op == DeletePort {
+		// A container's ports are on its fitted border.
+		return d.hasContainers()
+	}
+	if op == SetAttr || op == AddVertex {
+		return d.hasCompartments()
+	}
+	return moves(op)
 }
 
-// fitted is the size of a vertex that holds compartments: its own size,
-// grown to the label's room and every compartment with a value, and as
-// wide as the widest line up to the kind's MaxWidth. A vertex whose
-// compartments are all empty is its own size.
+// fitted is the size of a vertex that holds compartments or ports of
+// its own: its own size, grown to its ports' room (portRoom), then to
+// the label's room and every compartment with a value, as wide as the
+// widest line up to the kind's MaxWidth.
 func (d *Document) fitted(i VertexIndex, own Size) Size {
 	v := &d.Vertices[i]
 	kind := &d.Schema.VertexKinds[v.Kind]
@@ -104,6 +111,8 @@ func (d *Document) fitted(i VertexIndex, own Size) Size {
 		}
 		h += float64(float64(lines)*CompartmentLine) + 2*CompartmentPad
 	}
+	room := d.portRoom(i)
+	own = Size{W: max(own.W, room.W), H: max(own.H, room.H)}
 	if !shown {
 		return own
 	}
@@ -111,10 +120,10 @@ func (d *Document) fitted(i VertexIndex, own Size) Size {
 	return Size{W: max(own.W, min(w, limit)), H: max(own.H, h)}
 }
 
-// fitCompartments sizes a vertex that holds compartments to them about
-// its centre, which is where a document saves it, and names it as
-// resized when that changes its size.
-func (d *Document) fitCompartments(i VertexIndex) {
+// fitContent sizes a vertex to its compartments and ports about its
+// centre, which is where a document saves it, and names it as resized
+// when that changes its size.
+func (d *Document) fitContent(i VertexIndex) {
 	v := &d.Vertices[i]
 	size := d.fitted(i, d.ownSize(i))
 	if size == v.Size {

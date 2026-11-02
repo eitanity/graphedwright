@@ -13,6 +13,7 @@
 .graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
 .graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
 .graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+.graphedwright .port-label { fill: #4a5568; font-size: 10px; }
 
 .graphedwright .edge path { fill: none; stroke: #718096; }
 .graphedwright .edge .label { fill: #2d3748; }

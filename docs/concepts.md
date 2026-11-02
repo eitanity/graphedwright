@@ -109,7 +109,9 @@ way, and undo is a log of commands.
 | `Resize` | resizes a vertex; a container's size becomes its own size | `Vertex`, `Size` |
 | `Relabel` | sets a label | `Vertex`, or `Edge` with `Vertex: gw.None`; `Text` |
 | `SetAttr` | sets an attribute; an empty value removes it | `Vertex` or `Edge` as for `Relabel`; `Key`, `Value` |
-| `SetPorts` | puts a vertex's ports back to its kind's | `Vertex` |
+| `SetPorts` | puts a vertex's ports back to its kind's, dropping its own | `Vertex` |
+| `AddPort` | gives a vertex a port of its own, after its others | `Vertex`, `Port` (`Name`, `Side`, `Max`) |
+| `DeletePort` | removes a port of the vertex's own that no edge uses | `Vertex`, `Text` (the port's name) |
 | `Layout` | records positions before a layout, so it can be undone | `Text: "all"` to lay out placed vertices too; `Value` a flow |
 | `SetParent` | puts a vertex in a container, or takes it out with `To: gw.None` | `Vertex`, `To` |
 | `Compact` | drops tombstones and renumbers; clears the undo log | |
@@ -213,7 +215,17 @@ Each edge kind has a **route**, an arrowhead and a few styles.
 
 **Ports.** A vertex kind can have ports, named places on its sides where
 edges attach; a port can limit how many edges it takes. An edge to a
-vertex with ports must name one. A vertex without ports is joined at
+vertex whose kind has ports must name one. A vertex can also have ports
+of its own, as a part has its own ports or an action its parameters:
+`AddPort` adds one after the kind's, and `DeletePort` removes one no
+edge uses, naming the edges that do. An edge may name one of them, or
+join the vertex at its outline. A vertex's own ports are named beside
+them, outside the shape, on the side of the port away from where its
+edges go, and the vertex grows so that the labels on a side clear each
+other: ports on a left or right side `PortGap` (32) apart, and on the
+top or bottom far enough apart for each label either side of its port.
+A container's ports sit on its border as it is fitted. A vertex without
+ports is joined at
 its outline: a straight edge leaves where the line towards the other
 end crosses the shape (the box, the diamond's sides, the ellipse), so
 shapes can sit at any angle to each other, as in use case and data flow

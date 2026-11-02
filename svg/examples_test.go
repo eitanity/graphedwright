@@ -391,3 +391,46 @@ func formats(t testing.TB) (*gw.Document, svg.Options) {
 	set(gw.None, stop, "guard", "idle")
 	return d, svg.Options{Title: "Label formats", Mode: svg.View}
 }
+
+// ownPortSchema has a part kind and a container kind with no ports, a
+// block kind with the kind's own, and a routed edge kind.
+func ownPortSchema() gw.Schema {
+	return gw.Schema{
+		VertexKinds: []gw.VertexKind{
+			{Name: "part", Shape: gw.Rect, Size: gw.Size{W: 100, H: 40}},
+			{Name: "system", Size: gw.Size{W: 160, H: 100}, Container: true},
+			{Name: "block", Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 40}, Ports: []gw.Port{{Name: "in", Side: gw.Left}, {Name: "out", Side: gw.Right}}},
+		},
+		EdgeKinds: []gw.EdgeKind{{Name: "connect", Route: gw.Orthogonal, Arrow: true}},
+	}
+}
+
+// ownPorts draws a part with ports of its own on every side, a
+// container with ports on its border, and a block with only its kind's,
+// whose ports are not named, joined at the ports.
+func ownPorts(t testing.TB) (*gw.Document, svg.Options) {
+	d, err := gw.New(ownPortSchema(), gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addPort := func(v gw.VertexIndex, name string, side gw.Side) {
+		must(t, d, gw.Command{Op: gw.AddPort, Vertex: v, Port: gw.Port{Name: name, Side: side}})
+	}
+	engine := vertex(t, d, 0, "engine", 260, 140)
+	addPort(engine, "fuel", gw.Left)
+	addPort(engine, "air", gw.Left)
+	addPort(engine, "torque", gw.Right)
+	addPort(engine, "ecu", gw.Top)
+	addPort(engine, "mount", gw.Bottom)
+	tank := vertex(t, d, 2, "tank", 60, 60)
+	sys := must(t, d, gw.Command{Op: gw.AddVertex, Kind: 1, ID: "drive", Text: "drive"}).Vertices[0]
+	gearbox := vertex(t, d, 0, "gearbox", 520, 140)
+	must(t, d, gw.Command{Op: gw.SetParent, Vertex: gearbox, To: sys})
+	addPort(sys, "power", gw.Left)
+	addPort(sys, "wheels", gw.Right)
+	edge(t, d, 0, tank, engine, 1, 0, "", 0)
+	edge(t, d, 0, engine, sys, 2, 0, "", 0)
+	axle := vertex(t, d, 0, "axle", 760, 140)
+	edge(t, d, 0, sys, axle, 1, gw.None, "", 0)
+	return d, svg.Options{Title: "Ports of their own", Mode: svg.View}
+}
