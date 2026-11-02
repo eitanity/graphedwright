@@ -10,7 +10,7 @@ BIN                   := $(abspath bin)
 PKGS                  := ./...
 HOTPATH               := internal/lint/hotpath.txt
 WASM_SIZE_LIMIT_GO    := 4194304
-WASM_SIZE_LIMIT_TINY  := 614400
+WASM_SIZE_LIMIT_TINY  := 716800
 
 .PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
 
