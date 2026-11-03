@@ -144,6 +144,7 @@ type Document struct {
 	View     Viewport
 	Flow     Flow // the way the layers run: set by a Layout command, or by a loader
 	caps     Caps
+	locked   bool // Lock: no method may change the document
 
 	portSlab  []Port
 	vattrSlab []Attr
@@ -430,7 +431,7 @@ func (d *Document) LiveEdges() int {
 // vertex. It reports
 // whether the vertex was live.
 func (d *Document) Place(v VertexIndex, p Point, placed bool) bool {
-	if !d.vertexLive(v) || !point(p) {
+	if d.locked || !d.vertexLive(v) || !point(p) {
 		return false
 	}
 	d.Vertices[v].Pos, d.Vertices[v].Placed = p, placed

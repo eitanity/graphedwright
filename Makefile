@@ -75,8 +75,8 @@ vet:
 	cd internal/lint && go vet ./...
 	GOOS=js GOARCH=wasm go vet $(PKGS)
 	@! grep -rn --include='*.go' --exclude-dir=bin --exclude-dir=.git '^//go:build' . || { echo "build constraints are not allowed"; exit 1; }
-	@bad="$$(find . -path ./bin -prune -o -name '*.go' -print | grep -E '_(js|wasm|wasip1|linux|darwin|windows|amd64|arm64)(_test)?\.go$$' | grep -v -E '^\./(dom|cmd/graphedwright-wasm)/')"; \
-	  if [ -n "$$bad" ]; then echo "only dom/ and cmd/graphedwright-wasm/ may hold target-named files:"; echo "$$bad"; exit 1; fi
+	@bad="$$(find . -path ./bin -prune -o -name '*.go' -print | grep -E '_(js|wasm|wasip1|linux|darwin|windows|amd64|arm64)(_test)?\.go$$' | grep -v -E '^\./(dom|cmd/graphedwright-wasm|cmd/graphedwright-gohost)/')"; \
+	  if [ -n "$$bad" ]; then echo "only dom/, cmd/graphedwright-wasm/ and cmd/graphedwright-gohost/ may hold target-named files:"; echo "$$bad"; exit 1; fi
 
 lint: $(BIN)/golangci-lint
 	$(BIN)/golangci-lint run $(PKGS)
@@ -146,13 +146,23 @@ vuln: $(BIN)/govulncheck
 # files or this Makefile has changed since.
 WASM_SRCS := $(shell GOOS=js GOARCH=wasm go list -deps -f '{{if not .Standard}}{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .EmbedFiles}}{{$$.Dir}}/{{.}} {{end}}{{end}}' ./cmd/graphedwright-wasm) go.mod $(wildcard go.sum) Makefile
 
-wasm: $(BIN)/graphedwright.go.wasm $(BIN)/graphedwright.tinygo.wasm
+wasm: $(BIN)/graphedwright.go.wasm $(BIN)/graphedwright.tinygo.wasm $(BIN)/graphedwright-gohost.go.wasm $(BIN)/graphedwright-gohost.tinygo.wasm
 
 $(BIN)/graphedwright.go.wasm: $(WASM_SRCS)
 	GOOS=js GOARCH=wasm go build -trimpath -o $@ ./cmd/graphedwright-wasm
 
 $(BIN)/graphedwright.tinygo.wasm: $(WASM_SRCS)
 	tinygo build -o $@ -target wasm -opt=z -no-debug ./cmd/graphedwright-wasm
+
+# The smoke test's host written in Go, which mounts an editor without
+# the JavaScript object.
+GOHOST_SRCS := $(WASM_SRCS) $(wildcard cmd/graphedwright-gohost/*.go)
+
+$(BIN)/graphedwright-gohost.go.wasm: $(GOHOST_SRCS)
+	GOOS=js GOARCH=wasm go build -trimpath -o $@ ./cmd/graphedwright-gohost
+
+$(BIN)/graphedwright-gohost.tinygo.wasm: $(GOHOST_SRCS)
+	tinygo build -o $@ -target wasm -opt=z -no-debug ./cmd/graphedwright-gohost
 
 # The browser smoke test under each toolchain, in headless Firefox
 # through geckodriver: the page's export, drawing, annotation, DOM and
@@ -206,6 +216,7 @@ demo: wasm
 size: wasm
 	@g=$$(stat -c %s $(BIN)/graphedwright.go.wasm); t=$$(stat -c %s $(BIN)/graphedwright.tinygo.wasm); \
 	  echo "go $$g bytes, tinygo $$t bytes"; \
+	  echo "go host (no JavaScript object): go $$(stat -c %s $(BIN)/graphedwright-gohost.go.wasm) bytes, tinygo $$(stat -c %s $(BIN)/graphedwright-gohost.tinygo.wasm) bytes"; \
 	  test $$g -le $(WASM_SIZE_LIMIT_GO) || { echo "go wasm over $(WASM_SIZE_LIMIT_GO)"; exit 1; }; \
 	  test $$t -le $(WASM_SIZE_LIMIT_TINY) || { echo "tinygo wasm over $(WASM_SIZE_LIMIT_TINY)"; exit 1; }
 

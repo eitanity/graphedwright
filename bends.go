@@ -33,7 +33,7 @@ func (d *Document) endsOf(e *Edge) ends {
 // the points coordinates (within MaxCoord) and the slab had room; when not, the edge has no
 // bends.
 func (d *Document) SetBends(e EdgeIndex, pts []Point) bool {
-	if !d.edgeLive(e) {
+	if d.locked || !d.edgeLive(e) {
 		return false
 	}
 	ed := &d.Edges[e]
@@ -60,7 +60,7 @@ func (d *Document) SetBends(e EdgeIndex, pts []Point) bool {
 // where they are now. It is nil, and the edge left without bends, when
 // the edge is not live, n is zero or the slab has no room.
 func (d *Document) ReserveBends(e EdgeIndex, n int) []Point {
-	if !d.edgeLive(e) {
+	if d.locked || !d.edgeLive(e) {
 		return nil
 	}
 	ed := &d.Edges[e]
@@ -77,6 +77,9 @@ func (d *Document) ReserveBends(e EdgeIndex, n int) []Point {
 
 // ClearBends drops every edge's route and empties the slab.
 func (d *Document) ClearBends() {
+	if d.locked {
+		return
+	}
 	for i := range d.Edges {
 		e := &d.Edges[i]
 		if e.Live && len(e.Bends) > 0 {

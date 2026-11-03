@@ -118,6 +118,9 @@ func (d *Document) shift(c VertexIndex, dx, dy float64) {
 // not reported. Every command that moves a vertex fits the containers
 // itself.
 func (d *Document) Fit() {
+	if d.locked {
+		return
+	}
 	d.resetChange()
 	d.fit()
 	d.rebend()

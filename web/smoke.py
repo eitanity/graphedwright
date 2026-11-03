@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """The browser smoke test: serve the demo, open smoke.html in headless
 Firefox through geckodriver for the toolchain named, and compare what
-the browser build did with the native command.
+the browser build did with the native command, then open gohost.html,
+whose editor a host written in Go mounts and drives, and require every
+check it reports.
 
     python3 -I web/smoke.py go|tinygo native.svg
 
@@ -64,6 +66,22 @@ def main():
             raise SystemExit("page: " + out["fatal"])
         check(out, native, example)
         print(f"smoke {toolchain}: ok")
+        # The Go host: a page whose only script is the loader, and an
+        # editor mounted and driven from Go, which writes its checks.
+        call(base, "POST", s + "/url", {"url": f"http://127.0.0.1:{PORT}/gohost.html?toolchain={toolchain}"})
+        checks = None
+        for _ in range(60):
+            text = call(base, "POST", s + "/execute/sync", {"script": "return document.getElementById('out').textContent", "args": []})
+            if text:
+                checks = json.loads(text)
+                break
+            time.sleep(0.5)
+        if not checks:
+            raise SystemExit("the Go host produced nothing")
+        failed = [c for c in checks if not c["ok"]]
+        if failed:
+            raise SystemExit("go host:\n" + "\n".join(f"{c['name']}: {c['detail']}" for c in failed))
+        print(f"smoke {toolchain} go host: ok, {len(checks)} checks")
     finally:
         if sess:
             call(base, "DELETE", f"/session/{sess}")
@@ -111,6 +129,18 @@ def check(out, native, example):
         raise SystemExit(f"switches: full text {out['fullText']}, hover off {out['hoverOff']}, full text off {out['fullTextOff']}")
     if out["clashSelected"] != {"a": True, "selection": True} or not out["clashDeleted"] or not out["clashRestored"]:
         raise SystemExit(f"kinds and classes named as the binding's groups: selected {out['clashSelected']}, deleted {out['clashDeleted']}, restored {out['clashRestored']}")
+
+    f = out["fns"]
+    for key in ("on", "zoom", "fit", "setLabel", "setAttr", "addPort", "deletePort", "redo"):
+        if f[key].get("ok") is not True:
+            raise SystemExit(f"{key}: {f[key]}")
+    laid = f["layout"].get("ok")
+    if not isinstance(laid, dict) or not isinstance(laid.get("layers"), int) or not f["zoomed"] or not f["fitted"]:
+        raise SystemExit(f"layout, zoom and fit: {f['layout']} zoomed {f['zoomed']} fitted {f['fitted']}")
+    if (f["properties"].get("ok") or {}).get("id") != "p":
+        raise SystemExit(f"properties of the vertex clicked: {f['properties']}")
+    if f["effects"] != {"ported": True, "unported": True, "undone": True, "redone": True, "label": "renamed", "note": True} or f["heard"] < 5:
+        raise SystemExit(f"the functions' effects: {f['effects']}, changes heard {f['heard']}")
 
 
 if __name__ == "__main__":

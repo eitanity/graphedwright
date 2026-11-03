@@ -12,7 +12,7 @@ import (
 // mount builds the host element's content: the drawing, the palette
 // in edit mode, the zoom buttons, the hidden label input, and the
 // listeners.
-func (h *handle) mount() {
+func (h *Handle) mount() {
 	doc := js.Global().Get("document")
 	h.el.Set("tabIndex", 0)
 	h.el.Get("classList").Call("add", "graphedwright-host")
@@ -44,7 +44,7 @@ func (h *handle) mount() {
 }
 
 // unmount removes the listeners, the content and the functions.
-func (h *handle) unmount() {
+func (h *Handle) unmount() {
 	for _, f := range h.funcs {
 		f.Release()
 	}
@@ -53,7 +53,7 @@ func (h *handle) unmount() {
 }
 
 // listen adds an event listener whose function is released on unmount.
-func (h *handle) listen(target js.Value, event string, fn func(js.Value, []js.Value) any) {
+func (h *Handle) listen(target js.Value, event string, fn func(js.Value, []js.Value) any) {
 	f := js.FuncOf(fn)
 	h.funcs = append(h.funcs, f)
 	target.Call("addEventListener", event, f)
@@ -61,7 +61,7 @@ func (h *handle) listen(target js.Value, event string, fn func(js.Value, []js.Va
 
 // zoomBar makes the buttons that zoom in, out and to the drawing, in
 // either mode.
-func (h *handle) zoomBar(doc js.Value) {
+func (h *Handle) zoomBar(doc js.Value) {
 	bar := doc.Call("createElement", "div")
 	bar.Set("className", "graphedwright-zoom")
 	h.el.Call("appendChild", bar)
@@ -93,7 +93,7 @@ const zoomFactor = 1.25
 // buildPalette makes a button per vertex kind, which a press starts
 // placing, and per edge kind, which a press chooses for the edges drawn
 // from then on, or unchooses.
-func (h *handle) buildPalette() {
+func (h *Handle) buildPalette() {
 	doc := js.Global().Get("document")
 	h.palette.Set("innerHTML", "")
 	h.edgeItems = h.edgeItems[:0]
@@ -109,7 +109,7 @@ func (h *handle) buildPalette() {
 	h.markChosen()
 }
 
-func (h *handle) paletteButton(doc js.Value, name, class string, kind gw.KindIndex, isEdge bool) js.Value {
+func (h *Handle) paletteButton(doc js.Value, name, class string, kind gw.KindIndex, isEdge bool) js.Value {
 	b := doc.Call("createElement", "button")
 	b.Set("type", "button")
 	b.Set("className", "graphedwright-item graphedwright-"+class)
@@ -147,7 +147,7 @@ func (h *handle) paletteButton(doc js.Value, name, class string, kind gw.KindInd
 
 // markChosen shows which edge kind's button is chosen, pressed and
 // with the class graphedwright-chosen.
-func (h *handle) markChosen() {
+func (h *Handle) markChosen() {
 	chosen := h.ed.EdgeKind()
 	for i, b := range h.edgeItems {
 		on := gw.KindIndex(i) == chosen //nolint:gosec // bounded by the schema
@@ -157,13 +157,13 @@ func (h *handle) markChosen() {
 }
 
 // drawing is the element the SVG lives in.
-func (h *handle) drawing() js.Value { return h.el.Call("querySelector", ".graphedwright-drawing") }
+func (h *Handle) drawing() js.Value { return h.el.Call("querySelector", ".graphedwright-drawing") }
 
 // pointer converts a pointer event to the editor's. The point is mapped
 // into document units here, through the SVG's own screen matrix, which
 // knows the viewport and the letterboxing the browser applied; the
 // editor therefore sees document units and applies no viewport.
-func (h *handle) pointer(kind edit.EventKind) func(js.Value, []js.Value) any {
+func (h *Handle) pointer(kind edit.EventKind) func(js.Value, []js.Value) any {
 	return func(_ js.Value, args []js.Value) any {
 		if len(args) == 0 {
 			return nil
@@ -178,8 +178,7 @@ func (h *handle) pointer(kind edit.EventKind) func(js.Value, []js.Value) any {
 			h.el.Call("focus")
 			ev.Call("preventDefault")
 		}
-		ch, err := h.ed.Handle(e)
-		h.after(ch, err)
+		h.handle(e)
 		return nil
 	}
 }
@@ -190,12 +189,11 @@ const escapeKey = "Escape"
 // pointerCancel ends the gesture of the pointer that is down when the
 // browser takes it, for a scroll or a system gesture: the editor cancels
 // it as it does for Escape, so a drag goes back to where it began.
-func (h *handle) pointerCancel(_ js.Value, args []js.Value) any {
+func (h *Handle) pointerCancel(_ js.Value, args []js.Value) any {
 	if len(args) == 0 || !h.ptr.cancel(args[0].Get("pointerId").Int()) {
 		return nil
 	}
-	ch, err := h.ed.Handle(edit.Event{Kind: edit.Key, Key: escapeKey})
-	h.after(ch, err)
+	h.handle(edit.Event{Kind: edit.Key, Key: escapeKey})
 	return nil
 }
 
@@ -215,7 +213,7 @@ func modifiers(ev js.Value) edit.Modifiers {
 
 // toDoc maps a client point into document units through the SVG's
 // screen matrix; without an SVG the point is taken as it is.
-func (h *handle) toDoc(x, y float64) gw.Point {
+func (h *Handle) toDoc(x, y float64) gw.Point {
 	if !h.svgEl.Truthy() {
 		return gw.Point{X: x, Y: y}
 	}
@@ -235,7 +233,7 @@ func (h *handle) toDoc(x, y float64) gw.Point {
 // wheel forwards a scroll, in pixels: as document units through the
 // SVG's scale to pan, so that the drawing moves as far as the scroll on
 // screen at any zoom, or as they are with Ctrl to zoom.
-func (h *handle) wheel(_ js.Value, args []js.Value) any {
+func (h *Handle) wheel(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return nil
 	}
@@ -258,15 +256,14 @@ func (h *handle) wheel(_ js.Value, args []js.Value) any {
 		}
 	}
 	p := h.toDoc(ev.Get("clientX").Float(), ev.Get("clientY").Float())
-	ch, err := h.ed.Handle(edit.Event{Kind: edit.Wheel, Point: p, Delta: dy, DeltaX: dx, Modifiers: m})
-	h.after(ch, err)
+	h.handle(edit.Event{Kind: edit.Wheel, Point: p, Delta: dy, DeltaX: dx, Modifiers: m})
 	return nil
 }
 
 // lineHeight is the pixels a wheel scroll counted in lines moves by.
 const lineHeight = 16
 
-func (h *handle) keydown(_ js.Value, args []js.Value) any {
+func (h *Handle) keydown(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return nil
 	}
@@ -281,8 +278,7 @@ func (h *handle) keydown(_ js.Value, args []js.Value) any {
 			ev.Call("preventDefault")
 		}
 	}
-	ch, err := h.ed.Handle(edit.Event{Kind: edit.Key, Key: key, Modifiers: modifiers(ev)})
-	h.after(ch, err)
+	h.handle(edit.Event{Kind: edit.Key, Key: key, Modifiers: modifiers(ev)})
 	if h.ed.State() == edit.EditingText {
 		// A character that began the editing is the input's first, not
 		// typed into it again by the browser.
@@ -293,15 +289,14 @@ func (h *handle) keydown(_ js.Value, args []js.Value) any {
 }
 
 // doubleClick edits the label of what is under the pointer.
-func (h *handle) doubleClick(_ js.Value, args []js.Value) any {
+func (h *Handle) doubleClick(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return nil
 	}
 	ev := args[0]
 	ev.Call("preventDefault")
 	p := h.toDoc(ev.Get("clientX").Float(), ev.Get("clientY").Float())
-	ch, err := h.ed.Handle(edit.Event{Kind: edit.DoubleClick, Point: p})
-	h.after(ch, err)
+	h.handle(edit.Event{Kind: edit.DoubleClick, Point: p})
 	if h.ed.State() == edit.EditingText {
 		h.showInput()
 	}
@@ -311,24 +306,21 @@ func (h *handle) doubleClick(_ js.Value, args []js.Value) any {
 // showInput puts the label input over the label being edited, as big
 // as its box at the drawing's scale, holding the label selected, or the
 // character typed to begin the editing with the caret after it.
-func (h *handle) showInput() {
+func (h *Handle) showInput() {
 	v, e := h.ed.Editing()
-	var text, id string
+	var text string
 	var box gw.Viewport
 	switch {
 	case v != gw.None:
-		text, id, box = h.d.Vertices[v].Label, string(h.d.Vertices[v].ID), svg.VertexLabelBox(h.d, v)
+		text, box = h.d.Vertices[v].Label, svg.VertexLabelBox(h.d, v)
 	case e != gw.None:
-		text, id, box = h.d.Edges[e].Label, string(h.d.Edges[e].ID), svg.EdgeLabelBox(h.d, e)
+		text, box = h.d.Edges[e].Label, svg.EdgeLabelBox(h.d, e)
 	default:
 		return
 	}
-	if cb := h.cbs[cbEditLabel]; cb.Type() == js.TypeFunction {
-		arg := js.Global().Get("Object").New()
-		arg.Set("id", id)
-		arg.Set("text", text)
-		h.emit(cbEditLabel, arg)
-	}
+	h.enter()
+	h.host.EditingLabel(v, e, text)
+	h.leave()
 	tl, br := h.toClient(gw.Point{X: box.X, Y: box.Y}), h.toClient(gw.Point{X: box.X + box.W, Y: box.Y + box.H})
 	style := h.input.Get("style")
 	style.Set("display", "block")
@@ -352,7 +344,7 @@ func px(x float64) string { return strconv.FormatFloat(x, 'f', 0, 64) + "px" }
 
 // toClient maps document units to pixels within the host element,
 // through the SVG's screen matrix.
-func (h *handle) toClient(p gw.Point) gw.Point {
+func (h *Handle) toClient(p gw.Point) gw.Point {
 	if !h.svgEl.Truthy() {
 		return p
 	}
@@ -368,12 +360,12 @@ func (h *handle) toClient(p gw.Point) gw.Point {
 	return gw.Point{X: q.Get("x").Float() - host.Get("left").Float(), Y: q.Get("y").Float() - host.Get("top").Float()}
 }
 
-func (h *handle) hideInput() {
+func (h *Handle) hideInput() {
 	h.input.Get("style").Set("display", "none")
 	h.el.Call("focus")
 }
 
-func (h *handle) inputKey(_ js.Value, args []js.Value) any {
+func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return nil
 	}
@@ -383,14 +375,12 @@ func (h *handle) inputKey(_ js.Value, args []js.Value) any {
 	switch ev.Get("key").String() {
 	case "Enter":
 		ev.Call("preventDefault")
-		ch, err := h.ed.Handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
+		h.handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
 		h.hideInput()
-		h.after(ch, err)
 	case escapeKey:
 		ev.Call("preventDefault")
-		ch, err := h.ed.Handle(edit.Event{Kind: edit.TextCancel})
+		h.handle(edit.Event{Kind: edit.TextCancel})
 		h.hideInput()
-		h.after(ch, err)
 	}
 	ev.Call("stopPropagation")
 	return nil
@@ -398,85 +388,16 @@ func (h *handle) inputKey(_ js.Value, args []js.Value) any {
 
 // inputBlur keeps the text when the input loses the focus while still
 // editing, as a click elsewhere does.
-func (h *handle) inputBlur(js.Value, []js.Value) any {
+func (h *Handle) inputBlur(js.Value, []js.Value) any {
 	if h.ed.State() == edit.EditingText {
 		h.input.Get("style").Set("display", "none")
-		ch, err := h.ed.Handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
-		h.after(ch, err)
+		h.handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
 	}
 	return nil
 }
 
-// after patches the drawing from a change, reports an error, and tells
-// the host what changed and what is selected.
-func (h *handle) after(ch gw.Change, err error) {
-	if err != nil {
-		h.emit(cbError, err.Error())
-	}
-	if ch.Layout || !h.patch {
-		h.renderAll()
-	} else {
-		h.patchElements(ch)
-		h.renderOverlay()
-	}
-	if (len(ch.Vertices) > 0 || len(ch.Edges) > 0 || ch.Layout) && h.cbs[cbChange].Type() == js.TypeFunction {
-		h.emit(cbChange, h.changeObject(ch))
-	}
-	sv, se := h.ed.Selected()
-	if n := len(sv) + len(se); n != h.lastSel || n > 0 {
-		h.lastSel = n
-		if h.cbs[cbSelect].Type() == js.TypeFunction {
-			h.emit(cbSelect, h.selectionObject(sv, se))
-		}
-	}
-}
-
-// emit calls a host's callback as a microtask: after the call that
-// caused it returns and before the next event. A callback that throws
-// is reported by the browser and never reaches Go, where an exception
-// would end the program, and a callback that calls back in finds the
-// drawing finished.
-func (h *handle) emit(which int, arg any) {
-	cb := h.cbs[which]
-	if cb.Type() != js.TypeFunction {
-		return
-	}
-	js.Global().Call("queueMicrotask", cb.Call("bind", js.Null(), arg))
-}
-
-func (h *handle) changeObject(ch gw.Change) js.Value {
-	out := js.Global().Get("Object").New()
-	vs := js.Global().Get("Array").New()
-	for _, v := range ch.Vertices {
-		vs.Call("push", string(h.d.Vertices[v].ID))
-	}
-	es := js.Global().Get("Array").New()
-	for _, e := range ch.Edges {
-		es.Call("push", string(h.d.Edges[e].ID))
-	}
-	out.Set("vertices", vs)
-	out.Set("edges", es)
-	out.Set("layout", ch.Layout)
-	return out
-}
-
-func (h *handle) selectionObject(sv []gw.VertexIndex, se []gw.EdgeIndex) js.Value {
-	out := js.Global().Get("Object").New()
-	vs := js.Global().Get("Array").New()
-	for _, v := range sv {
-		vs.Call("push", string(h.d.Vertices[v].ID))
-	}
-	es := js.Global().Get("Array").New()
-	for _, e := range se {
-		es.Call("push", string(h.d.Edges[e].ID))
-	}
-	out.Set("vertices", vs)
-	out.Set("edges", es)
-	return out
-}
-
 // renderAll replaces the whole drawing.
-func (h *handle) renderAll() {
+func (h *Handle) renderAll() {
 	h.ed.Overlay(&h.opts)
 	h.opts.VertexNotes, h.opts.EdgeNotes = h.notesV, h.notesE
 	h.buf.Reset()
@@ -491,7 +412,7 @@ func (h *handle) renderAll() {
 // renderOverlay replaces the overlay group alone. The groups are found
 // as children of the SVG root: an annotation's class is the host's and
 // may be a group's name, and an element carrying it would come first.
-func (h *handle) renderOverlay() {
+func (h *Handle) renderOverlay() {
 	h.ed.Overlay(&h.opts)
 	h.buf.Reset()
 	if err := h.r.RenderOverlay(h.d, h.opts, &h.buf); err != nil {
@@ -504,7 +425,7 @@ func (h *handle) renderOverlay() {
 
 // patchElements replaces, removes or appends the elements a change
 // names, by id.
-func (h *handle) patchElements(ch gw.Change) {
+func (h *Handle) patchElements(ch gw.Change) {
 	for _, v := range ch.Vertices {
 		h.buf.Reset()
 		if err := h.r.RenderVertex(h.d, h.opts, v, &h.buf); err != nil {
@@ -528,7 +449,7 @@ func (h *handle) patchElements(ch gw.Change) {
 // patchOne puts the rendered fragment in h.buf in place of the element
 // with the id, removes the element when the fragment is a tombstone's,
 // or appends it to the group, a child of the SVG root, when it is new.
-func (h *handle) patchOne(id string, live bool, group string) {
+func (h *Handle) patchOne(id string, live bool, group string) {
 	// CSS.escape makes any id a valid selector; one built by hand from
 	// document text could throw, and a throw ends the program.
 	el := h.svgEl.Call("querySelector", "#"+js.Global().Get("CSS").Call("escape", h.opts.DocIDPrefix+id).String())

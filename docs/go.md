@@ -14,7 +14,7 @@ how the pieces fit.
 | [`svg`](#svg) | the renderer, the hit test and the default stylesheet |
 | [`doc`](#doc) | the JSON format and the built-in schemas |
 | [`edit`](#edit) | the editor: input events in, commands out |
-| `dom` | the browser binding, for `GOOS=js` only ([browser guide](browser.md)) |
+| `dom` | the browser binding, for `GOOS=js` only: an editor mounted in an element from Go (`Mount`), or from JavaScript (`Main`) ([browser guide](browser.md)) |
 
 The [tutorial](tutorial.md) walks through a whole program, and
 [`example_test.go`](../example_test.go) holds it as a runnable example.
@@ -58,6 +58,11 @@ layout engine or a loader, not for edits a user should be able to undo:
 - **`Place(v, p, placed)`** sets a vertex's position.
 - **`Fit()`** fits every container around what it holds.
 - **`SetBends(e, pts)` and `ReserveBends(e, n)`** give an edge its route.
+
+`Lock` makes a document read-only through its methods until `Unlock`:
+`Apply` refuses with `gw.ErrLocked`, and the rest do nothing. It is for
+code that hands the document to other code that may only read it, as
+`dom` does while a host's method runs.
 
 ## layout
 
@@ -195,6 +200,10 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
   a panel, and `SetLabel` and `SetAttr` change it as commands.
 - **Mode:** `SetMode(edit.View)` turns editing off; edits are then
   refused with `edit.ErrView`.
+
+In a browser, `dom.Mount` puts an editor in an element and drives it
+from the element's events; [the browser guide](browser.md#a-host-written-in-go)
+shows a host written in Go.
 
 [The browser guide](browser.md#using-the-editor) lists what each gesture
 does.

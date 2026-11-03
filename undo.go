@@ -125,6 +125,9 @@ func (l *undoLog) clear() { l.start, l.n, l.done = 0, 0, 0 }
 // it. A group whose oldest entries fall off a full log is undone as far
 // as it is kept.
 func (d *Document) Group() {
+	if d.locked {
+		return
+	}
 	l := &d.log
 	if l.open == 0 {
 		if l.groups == math.MaxUint64 {
@@ -140,6 +143,9 @@ func (d *Document) Group() {
 
 // EndGroup ends the group the last Group began.
 func (d *Document) EndGroup() {
+	if d.locked {
+		return
+	}
 	l := &d.log
 	if l.open > 0 {
 		l.open--
@@ -151,7 +157,11 @@ func (d *Document) EndGroup() {
 
 // ClearUndo empties the undo log, so that what built the document, a
 // decode or a host's setup, is not undone.
-func (d *Document) ClearUndo() { d.log.clear() }
+func (d *Document) ClearUndo() {
+	if !d.locked {
+		d.log.clear()
+	}
+}
 
 // CanUndo and CanRedo report whether there is anything to undo or redo.
 func (d *Document) CanUndo() bool { return d.log.done > 0 }
@@ -163,6 +173,9 @@ func (d *Document) CanRedo() bool { return d.log.done < d.log.n }
 // applied in, and reports what it touched;
 // ok is false when there is nothing to undo.
 func (d *Document) Undo() (Change, bool) {
+	if d.locked {
+		return Change{}, false
+	}
 	d.resetChange()
 	en, ok := d.log.pop()
 	if !ok {
@@ -239,6 +252,9 @@ func (d *Document) settle(st, mv bool) Change {
 // Redo applies the last undone command again, or the whole group it was
 // applied in; ok is false when there is nothing to redo.
 func (d *Document) Redo() (Change, bool) {
+	if d.locked {
+		return Change{}, false
+	}
 	d.resetChange()
 	en, ok := d.log.unpop()
 	if !ok {

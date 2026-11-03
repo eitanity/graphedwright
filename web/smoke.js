@@ -117,6 +117,42 @@ async function main() {
   out.hoverOff = hoverAt("#long");
   out.fullTextOff = graphedwright.svg(ho).ok.includes(' full"') || clash.querySelector("svg .full") !== null;
   graphedwright.destroy(ho);
+  // The object's other functions, each on an editor of its own and
+  // each checked by its own effect, so that one wired to another's work
+  // shows.
+  const hf = graphedwright.create(clash, { schema: "basic" }).ok;
+  graphedwright.load(hf, { schema: "basic", vertices: [{ id: "p", kind: "box", label: "p" }, { id: "q", kind: "box", label: "q" }], edges: [{ id: "pq", kind: "arrow", from: "p", to: "q" }] });
+  const fns = {};
+  const heard = [];
+  fns.on = graphedwright.on(hf, "change", (c) => heard.push(c));
+  fns.layout = graphedwright.layout(hf, { all: true });
+  const viewBox = () => clash.querySelector("svg").getAttribute("viewBox");
+  const fitted = viewBox();
+  fns.zoom = graphedwright.zoom(hf, 2);
+  fns.zoomed = viewBox() !== fitted;
+  fns.fit = graphedwright.fit(hf);
+  fns.fitted = viewBox() === fitted;
+  const pb = clash.querySelector("svg #p").getBoundingClientRect();
+  const onP = { clientX: pb.x + pb.width / 2, clientY: pb.y + pb.height / 2, pointerId: 5, button: 0, bubbles: true };
+  clash.querySelector("svg").dispatchEvent(new PointerEvent("pointerdown", onP));
+  window.dispatchEvent(new PointerEvent("pointerup", onP));
+  fns.properties = graphedwright.properties(hf);
+  fns.setLabel = graphedwright.setLabel(hf, "renamed");
+  fns.setAttr = graphedwright.setAttr(hf, "note", "kept");
+  fns.addPort = graphedwright.addPort(hf, { name: "portx", side: "right", max: 1 });
+  const ported = JSON.stringify(graphedwright.export(hf).ok).includes("portx");
+  fns.deletePort = graphedwright.deletePort(hf, "portx");
+  const unported = !JSON.stringify(graphedwright.export(hf).ok).includes("portx");
+  graphedwright.undo(hf); // the delete: the port is back
+  const undone = JSON.stringify(graphedwright.export(hf).ok).includes("portx");
+  graphedwright.undo(hf); // the add: gone again
+  fns.redo = graphedwright.redo(hf); // the add again, where a third undo would take the attribute
+  const vp = graphedwright.export(hf).ok.vertices.find((v) => v.id === "p");
+  fns.effects = { ported, unported, undone, redone: JSON.stringify(vp).includes("portx"), label: vp.label, note: JSON.stringify(vp).includes("kept") };
+  await new Promise((r) => setTimeout(r, 0)); // the callbacks are microtasks
+  fns.heard = heard.length;
+  graphedwright.destroy(hf);
+  out.fns = fns;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

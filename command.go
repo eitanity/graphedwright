@@ -56,6 +56,9 @@ type Change struct {
 // either leaves the document untouched, returning an error that names
 // the rule, or applies it and records its inverse for Undo.
 func (d *Document) Apply(c Command) (Change, error) {
+	if d.locked {
+		return Change{}, ErrLocked
+	}
 	d.resetChange()
 	var err error
 	switch c.Op {

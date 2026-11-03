@@ -1,13 +1,14 @@
 // Package dom is the browser binding: it mounts a document in a host
 // element, forwards the element's pointer, wheel and keyboard events to
-// the editor, patches the SVG from each change, and exposes the
-// graphedwright object to JavaScript. It is the only package that
-// touches the browser, and it uses the part of syscall/js that both
-// the Go and the TinyGo toolchains implement.
+// the editor, patches the SVG from each change, and reports to the
+// host. A host written in Go mounts an editor with Mount and hears from
+// it through its Host; Install exposes the same to JavaScript as the
+// graphedwright object. It is the only package that touches the
+// browser, and it uses the part of syscall/js that both the Go and the
+// TinyGo toolchains implement.
 package dom
 
 import (
-	"bytes"
 	"errors"
 	"math"
 	"strconv"
@@ -20,7 +21,7 @@ import (
 	"code.eitanity.com/graphedwright/svg"
 )
 
-// The callbacks a host can register, by index.
+// The callbacks a page can register, by index.
 const (
 	cbChange = iota
 	cbSelect
@@ -29,72 +30,79 @@ const (
 	cbCount
 )
 
-// handle is one mounted document with everything the binding keeps
-// for it.
-type handle struct {
-	id        int
-	el        js.Value // the host element
-	svgEl     js.Value // the SVG inside it
-	palette   js.Value
-	edgeItems []js.Value // the palette's edge kind buttons, by kind
-	grid      float64    // the grid create was given, for each editor load makes
-	noExpand  bool       // create turned off the overlay's expansion of cut texts, for each editor load makes
-	input     js.Value
-	d         *gw.Document
-	ed        *edit.Editor
-	r         *svg.Renderer
-	lay       *layout.Layouter
-	schemas   []doc.Named
-	schema    string
-	caps      gw.Caps
-	notesV    []svg.Annotation
-	notesE    []svg.Annotation
-	opts      svg.Options
-	buf       bytes.Buffer
-	funcs     []js.Func
-	cbs       [cbCount]js.Value
-	patch     bool     // patch the DOM by element, else re-render the whole drawing
-	lastSel   int      // the selection's size at the last report, to notice a change
-	ptr       pointers // the pointer that drives the editor
+// jsHost is the host of an editor the page created: it hears the
+// handle as any host does and passes what it hears to the page's
+// callbacks, and keeps what only the JavaScript object needs.
+type jsHost struct {
+	h       *Handle
+	id      int // the handle the page knows it by
+	cbs     [cbCount]js.Value
+	schemas []doc.Named
+	schema  string
 }
 
-// binding is the page's state: the handles and the schemas known.
+// binding is the graphedwright object's state: the editors created and
+// the schemas known. Install makes one, and only the object's functions
+// reach it, so the package holds none.
 type binding struct {
-	handles map[int]*handle
+	handles map[int]*jsHost
 	next    int
 	schemas []doc.Named
-	funcs   []js.Func
 }
 
-var state = &binding{handles: map[int]*handle{}, next: 1, schemas: doc.Builtin()} //nolint:gochecknoglobals // the page's one binding
+// The graphedwright object's functions, by index.
+const (
+	opCreate = iota
+	opRegisterSchema
+	opLoad
+	opExport
+	opSVG
+	opSetMode
+	opLayout
+	opAnnotate
+	opOn
+	opUndo
+	opRedo
+	opDestroy
+	opProperties
+	opSetLabel
+	opSetAttr
+	opAddPort
+	opDeletePort
+	opZoom
+	opFit
+	opCount
+)
 
-// Register adds a schema a page can name in create, for a host built
-// in Go that embeds its own kinds.
-func Register(name string, s gw.Schema) {
-	state.schemas = append(state.schemas, doc.Named{Name: name, Schema: s})
+// call is one of the object's functions: the binding it works on and
+// which function it is.
+type call struct {
+	b  *binding
+	op int
 }
 
-// Main installs the graphedwright object and keeps the program alive
-// for its callbacks.
-func Main() {
+// Install sets the graphedwright object on the page's global object.
+// A page may name the built-in schemas and those given here in create,
+// as well as any it registers itself.
+func Install(schemas ...doc.Named) {
+	b := &binding{handles: map[int]*jsHost{}, next: 1, schemas: append(doc.Builtin(), schemas...)}
+	names := [opCount]string{
+		opCreate: "create", opRegisterSchema: "registerSchema", opLoad: "load", opExport: "export", opSVG: "svg",
+		opSetMode: "setMode", opLayout: "layout", opAnnotate: "annotate", opOn: "on", opUndo: "undo", opRedo: "redo",
+		opDestroy: "destroy", opProperties: "properties", opSetLabel: "setLabel", opSetAttr: "setAttr",
+		opAddPort: "addPort", opDeletePort: "deletePort", opZoom: "zoom", opFit: "fit",
+	}
 	obj := js.Global().Get("Object").New()
-	for _, f := range []struct {
-		name string
-		fn   func(js.Value, []js.Value) any
-	}{
-		{"create", create}, {"load", withHandle(load)}, {"export", withHandle(export)}, {"svg", withHandle(svgText)},
-		{"setMode", withHandle(setMode)}, {"layout", withHandle(relayout)}, {"annotate", withHandle(annotate)},
-		{"on", withHandle(on)}, {"undo", withHandle(undo)}, {"redo", withHandle(redo)}, {"destroy", withHandle(destroy)},
-		{"properties", withHandle(properties)}, {"setLabel", withHandle(setLabel)}, {"setAttr", withHandle(setAttr)},
-		{"addPort", withHandle(addPort)}, {"deletePort", withHandle(deletePort)},
-		{"zoom", withHandle(zoom)}, {"fit", withHandle(fit)},
-		{"registerSchema", registerSchema},
-	} {
-		fn := js.FuncOf(f.fn)
-		state.funcs = append(state.funcs, fn)
-		obj.Set(f.name, fn)
+	for op, name := range names {
+		obj.Set(name, js.FuncOf((&call{b: b, op: op}).invoke))
 	}
 	js.Global().Set("graphedwright", obj)
+}
+
+// Main installs the graphedwright object, with the schemas given, and
+// keeps the program alive for its callbacks.
+func Main(schemas ...doc.Named) {
+	Install(schemas...)
 	select {}
 }
 
@@ -109,25 +117,69 @@ func result(v any, err error) js.Value {
 	return out
 }
 
+// fail is a refusal with a message.
 func fail(msg string) js.Value { return result(nil, errors.New(msg)) }
 
-// withHandle looks the handle up from the first argument.
-func withHandle(f func(*handle, []js.Value) js.Value) func(js.Value, []js.Value) any {
-	return func(_ js.Value, args []js.Value) any {
-		if len(args) == 0 || args[0].Type() != js.TypeNumber {
-			return fail("the first argument is the handle create returned")
-		}
-		h, ok := state.handles[args[0].Int()]
-		if !ok {
-			return fail("no such handle " + strconv.Itoa(args[0].Int()))
-		}
-		return f(h, args[1:])
+// invoke runs the function: create and registerSchema as they are, the
+// rest on the editor the first argument names.
+func (c *call) invoke(_ js.Value, args []js.Value) any {
+	switch c.op {
+	case opCreate:
+		return c.b.create(args)
+	case opRegisterSchema:
+		return c.b.registerSchema(args)
 	}
+	if len(args) == 0 || args[0].Type() != js.TypeNumber {
+		return fail("the first argument is the handle create returned")
+	}
+	j, ok := c.b.handles[args[0].Int()]
+	if !ok {
+		return fail("no such handle " + strconv.Itoa(args[0].Int()))
+	}
+	args = args[1:]
+	switch c.op {
+	case opLoad:
+		return load(j, args)
+	case opExport:
+		return export(j, args)
+	case opSVG:
+		return svgText(j, args)
+	case opSetMode:
+		return setMode(j, args)
+	case opLayout:
+		return relayout(j, args)
+	case opAnnotate:
+		return annotate(j, args)
+	case opOn:
+		return on(j, args)
+	case opUndo:
+		return result(j.h.Undo(), nil)
+	case opRedo:
+		return result(j.h.Redo(), nil)
+	case opDestroy:
+		return c.b.destroy(j)
+	case opProperties:
+		return properties(j, args)
+	case opSetLabel:
+		return setLabel(j, args)
+	case opSetAttr:
+		return setAttr(j, args)
+	case opAddPort:
+		return addPort(j, args)
+	case opDeletePort:
+		return deletePort(j, args)
+	case opZoom:
+		return zoom(j, args)
+	case opFit:
+		return fit(j, args)
+	}
+	return fail("no such function")
 }
 
-// create(el, {schema, mode, caps, patch}) mounts an empty document of
-// the schema in the element and returns the handle.
-func create(_ js.Value, args []js.Value) any {
+// create(el, {schema, mode, caps, grid, patch, expand, fullText,
+// idPrefix}) mounts an empty document of the schema in the element and
+// returns the handle.
+func (b *binding) create(args []js.Value) any {
 	if len(args) < 1 || args[0].Type() != js.TypeObject {
 		return fail("create(element, options)")
 	}
@@ -135,49 +187,42 @@ func create(_ js.Value, args []js.Value) any {
 	if len(args) > 1 {
 		opts = args[1]
 	}
-	schemas, name, err := schemaOption(opts)
+	schemas, name, err := b.schemaOption(opts)
 	if err != nil {
 		return result(nil, err)
 	}
-	caps := capsOption(opts)
 	prefix := str(opts, "idPrefix")
 	if !token(prefix) {
 		return fail("idPrefix may hold only letters, digits, '-' and '_'")
 	}
-	d, err := doc.Decode([]byte(`{"schema":`+strconv.Quote(name)+`}`), doc.Options{Schemas: schemas, Caps: caps})
+	d, err := doc.Decode([]byte(`{"schema":`+strconv.Quote(name)+`}`), doc.Options{Schemas: schemas, Caps: capsOption(opts)})
 	if err != nil {
 		return result(nil, err)
 	}
-	h := &handle{id: state.next, el: args[0], d: d, r: svg.New(), lay: layout.New(d.Caps()), schemas: schemas, schema: name, caps: d.Caps(), patch: true}
-	state.next++
+	id := b.next
 	// The renderer's own IDs are the handle's, so that two editors in a
 	// page keep their arrowheads apart; the document's IDs take the
-	// host's prefix, if it gives one.
-	h.opts.IDPrefix, h.opts.DocIDPrefix = "gw"+strconv.Itoa(h.id)+"-", prefix
-	mode := edit.Edit
-	if str(opts, "mode") == "view" {
-		mode = edit.View
+	// host's prefix, if it gives one. A hovered vertex's cut texts are
+	// drawn in full in the overlay, and each cut text is written in
+	// full after it for the stylesheet, unless the page turns either off.
+	j := &jsHost{id: id, schemas: schemas, schema: name}
+	h, err := Mount(args[0], d, Options{
+		View: str(opts, "mode") == "view", Grid: float(opts, "grid"), NoPatch: off(opts, "patch"),
+		NoExpand: off(opts, "expand"), NoFullText: off(opts, "fullText"),
+		IDPrefix: "gw" + strconv.Itoa(id) + "-", DocIDPrefix: prefix,
+	}, j)
+	if err != nil {
+		return result(nil, err)
 	}
-	if off(opts, "patch") {
-		h.patch = false
-	}
-	h.grid = float(opts, "grid")
-	// A hovered vertex's cut texts are drawn in full in the overlay, and
-	// each cut text is written in full after it for the stylesheet,
-	// unless the host turns either off.
-	h.noExpand, h.opts.NoFullText = off(opts, "expand"), off(opts, "fullText")
-	h.ed = edit.New(d, mode, h.grid)
-	h.ed.SetExpand(!h.noExpand)
-	h.notesV = make([]svg.Annotation, d.Caps().Vertices)
-	h.notesE = make([]svg.Annotation, d.Caps().Edges)
-	h.mount()
-	state.handles[h.id] = h
-	return result(h.id, nil)
+	j.h = h
+	b.next++
+	b.handles[id] = j
+	return result(id, nil)
 }
 
 // registerSchema(name, schemaObject) adds a schema described from
 // JavaScript.
-func registerSchema(_ js.Value, args []js.Value) any {
+func (b *binding) registerSchema(args []js.Value) any {
 	if len(args) < 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeObject {
 		return fail("registerSchema(name, schema)")
 	}
@@ -185,20 +230,20 @@ func registerSchema(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return result(nil, err)
 	}
-	Register(args[0].String(), s)
+	b.schemas = append(b.schemas, doc.Named{Name: args[0].String(), Schema: s})
 	return result(true, nil)
 }
 
 // schemaOption resolves the schema option: a name the binding knows,
 // or an object describing one, which is then known under its name or
 // "custom".
-func schemaOption(opts js.Value) ([]doc.Named, string, error) {
+func (b *binding) schemaOption(opts js.Value) ([]doc.Named, string, error) {
 	v := get(opts, "schema")
 	switch v.Type() {
 	case js.TypeString:
-		for _, n := range state.schemas {
+		for _, n := range b.schemas {
 			if n.Name == v.String() {
-				return state.schemas, v.String(), nil
+				return b.schemas, v.String(), nil
 			}
 		}
 		return nil, "", errors.New("schema " + strconv.Quote(v.String()) + " not known; registerSchema it or pass an object")
@@ -211,10 +256,10 @@ func schemaOption(opts js.Value) ([]doc.Named, string, error) {
 		if name == "" {
 			name = "custom"
 		}
-		return append([]doc.Named{{Name: name, Schema: s}}, state.schemas...), name, nil
+		return append([]doc.Named{{Name: name, Schema: s}}, b.schemas...), name, nil
 	case js.TypeUndefined, js.TypeNull, js.TypeBoolean, js.TypeNumber, js.TypeSymbol, js.TypeFunction:
 	}
-	return state.schemas, "basic", nil
+	return b.schemas, "basic", nil
 }
 
 // capsOption reads {caps: {vertices, edges, ...}}.
@@ -229,7 +274,7 @@ func capsOption(opts js.Value) gw.Caps {
 
 // load(g, document) replaces the document with one decoded from a JSON
 // string or an object, which is stringified in JavaScript.
-func load(h *handle, args []js.Value) js.Value {
+func load(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 {
 		return fail("load(handle, document)")
 	}
@@ -237,18 +282,14 @@ func load(h *handle, args []js.Value) js.Value {
 	if err != nil {
 		return result(nil, err)
 	}
-	d, name, err := doc.DecodeNamed([]byte(text), doc.Options{Schemas: h.schemas, Caps: h.caps})
+	d, name, err := doc.DecodeNamed([]byte(text), doc.Options{Schemas: j.schemas, Caps: j.h.d.Caps()})
 	if err != nil {
 		return result(nil, err)
 	}
-	h.d, h.schema = d, name
-	h.ed = edit.New(d, h.ed.Mode(), h.grid)
-	h.ed.SetExpand(!h.noExpand)
-	h.lay = layout.New(d.Caps())
-	clear(h.notesV)
-	clear(h.notesE)
-	h.fitView()
-	h.renderAll()
+	if err := j.h.Load(d); err != nil {
+		return result(nil, err)
+	}
+	j.schema = name
 	return result(true, nil)
 }
 
@@ -265,120 +306,81 @@ func textOf(v js.Value) (string, error) {
 }
 
 // export(g) returns the document as an object.
-func export(h *handle, _ []js.Value) js.Value {
-	h.buf.Reset()
-	if err := doc.Encode(h.d, h.schema, &h.buf); err != nil {
+func export(j *jsHost, _ []js.Value) js.Value {
+	j.h.buf.Reset()
+	if err := doc.Encode(j.h.d, j.schema, &j.h.buf); err != nil {
 		return result(nil, err)
 	}
-	return result(js.Global().Get("JSON").Call("parse", h.buf.String()), nil)
+	return result(js.Global().Get("JSON").Call("parse", j.h.buf.String()), nil)
 }
 
-// svg(g) returns the current drawing as text, a document of its own
-// and so without the page's ID prefixes.
-func svgText(h *handle, _ []js.Value) js.Value {
-	h.buf.Reset()
-	h.ed.Overlay(&h.opts)
-	opts := h.opts
-	opts.IDPrefix, opts.DocIDPrefix = "", ""
-	if err := h.r.Render(h.d, opts, &h.buf); err != nil {
+// svg(g) returns the current drawing as text.
+func svgText(j *jsHost, _ []js.Value) js.Value {
+	j.h.buf.Reset()
+	if err := j.h.SVG(&j.h.buf); err != nil {
 		return result(nil, err)
 	}
-	return result(h.buf.String(), nil)
+	return result(j.h.buf.String(), nil)
 }
 
 // setMode(g, "view"|"edit").
-func setMode(h *handle, args []js.Value) js.Value {
+func setMode(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeString {
 		return fail(`setMode(handle, "view" or "edit")`)
 	}
-	// SetMode cancels label editing, so the input goes with it: left
-	// showing, it would take text the editor no longer wants. As for
-	// Escape in the input, the editor hears first, so the blur that
-	// hiding causes finds nothing to commit.
-	if h.ed.State() == edit.EditingText {
-		ch, err := h.ed.Handle(edit.Event{Kind: edit.TextCancel})
-		h.hideInput()
-		h.after(ch, err)
-	}
+	m := edit.Edit
 	switch args[0].String() {
 	case "view":
-		h.ed.SetMode(edit.View)
+		m = edit.View
 	case "edit":
-		h.ed.SetMode(edit.Edit)
 	default:
 		return fail(`mode is "view" or "edit"`)
 	}
-	h.renderAll()
+	if err := j.h.SetMode(m); err != nil {
+		return result(nil, err)
+	}
 	return result(true, nil)
 }
 
 // layout(g, {all, flow}) lays the document out, in the flow named
 // ("left-to-right" or "top-to-bottom") or the document's own.
-func relayout(h *handle, args []js.Value) js.Value {
+func relayout(j *jsHost, args []js.Value) js.Value {
 	all := len(args) > 0 && get(args[0], "all").Truthy()
-	text, flow := "", ""
-	if all {
-		text = "all"
-	}
+	flow := ""
 	if len(args) > 0 {
 		flow = str(args[0], "flow")
 	}
-	if _, err := h.d.Apply(gw.Command{Op: gw.Layout, Text: text, Value: flow}); err != nil {
+	if err := j.h.refuse(); err != nil {
 		return result(nil, err)
 	}
-	res, err := h.lay.Run(h.d, layout.Options{All: all})
+	res, err := j.h.relayout(layout.Options{All: all}, flow)
 	if err != nil {
 		return result(nil, err)
 	}
-	h.fitView()
-	h.renderAll()
 	out := js.Global().Get("Object").New()
 	out.Set("layers", res.Layers)
 	out.Set("crossings", res.Crossings)
 	return result(out, nil)
 }
 
-// fitView sets the viewport to the drawing's bounds when any vertex
-// lies outside it, so a layout is never off the screen.
-func (h *handle) fitView() {
-	if h.d.LiveVertices() == 0 {
-		// Nothing to fit: one unit to a pixel of the drawing, so that a
-		// vertex placed in it is drawn at its size.
-		w, ht := h.drawing().Get("clientWidth").Float(), h.drawing().Get("clientHeight").Float()
-		if w <= 0 || ht <= 0 {
-			w, ht = 800, 480
-		}
-		h.d.View = gw.Viewport{W: w, H: ht}
-		return
-	}
-	b := svg.Bounds(h.d)
-	// The bounds carry the renderer's margin; the vertices themselves
-	// are what must be in view.
-	x0, y0, x1, y1 := b.X+svg.Margin, b.Y+svg.Margin, b.X+b.W-svg.Margin, b.Y+b.H-svg.Margin
-	v := h.d.View
-	if v.W <= 0 || v.H <= 0 || x0 < v.X || y0 < v.Y || x1 > v.X+v.W || y1 > v.Y+v.H {
-		h.d.View = b
-	}
-}
-
 // zoom(g, factor) zooms the view about its centre, in by a factor above
 // 1 and out by one below; a factor that is not a positive number, or a
 // zoom past the view's bounds, changes nothing.
-func zoom(h *handle, args []js.Value) js.Value {
+func zoom(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeNumber {
 		return fail("zoom(handle, factor)")
 	}
-	f := args[0].Float()
-	if !(f > 0) || f-f != 0 {
-		return fail("the zoom factor is a positive number")
+	if err := j.h.Zoom(args[0].Float()); err != nil {
+		return result(nil, err)
 	}
-	h.after(h.ed.Zoom(f), nil)
 	return result(true, nil)
 }
 
 // fit(g) sets the view to the drawing's bounds.
-func fit(h *handle, _ []js.Value) js.Value {
-	h.after(h.ed.Fit(), nil)
+func fit(j *jsHost, _ []js.Value) js.Value {
+	if err := j.h.Fit(); err != nil {
+		return result(nil, err)
+	}
 	return result(true, nil)
 }
 
@@ -386,8 +388,8 @@ func fit(h *handle, _ []js.Value) js.Value {
 // properties panel, or is null: {id, element ("vertex" or "edge"), kind,
 // label, from, to (an edge's), attrs: [{key, value, kind ("text",
 // "number" or "choice"), choices, required, known}]}.
-func properties(h *handle, _ []js.Value) js.Value {
-	p, ok := h.ed.Properties()
+func properties(j *jsHost, _ []js.Value) js.Value {
+	p, ok := j.h.ed.Properties()
 	if !ok {
 		return result(nil, nil)
 	}
@@ -434,29 +436,37 @@ func attrKind(k gw.AttrKind) string {
 }
 
 // setLabel(g, text) relabels the one selected vertex or edge.
-func setLabel(h *handle, args []js.Value) js.Value {
+func setLabel(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeString {
 		return fail("setLabel(handle, text)")
 	}
-	ch, err := h.ed.SetLabel(args[0].String())
-	h.after(ch, err)
+	if err := j.h.refuse(); err != nil {
+		return result(false, err)
+	}
+	j.h.d.Group()
+	ch, err := j.h.ed.SetLabel(args[0].String())
+	j.h.after(ch, err)
 	return result(err == nil, err)
 }
 
 // setAttr(g, key, value) sets an attribute of the one selected vertex or
 // edge; an empty value removes it.
-func setAttr(h *handle, args []js.Value) js.Value {
+func setAttr(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeString {
 		return fail("setAttr(handle, key, value)")
 	}
-	ch, err := h.ed.SetAttr(args[0].String(), args[1].String())
-	h.after(ch, err)
+	if err := j.h.refuse(); err != nil {
+		return result(false, err)
+	}
+	j.h.d.Group()
+	ch, err := j.h.ed.SetAttr(args[0].String(), args[1].String())
+	j.h.after(ch, err)
 	return result(err == nil, err)
 }
 
 // addPort(g, {name, side, max}) gives the selected vertex a port of
 // its own.
-func addPort(h *handle, args []js.Value) js.Value {
+func addPort(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeObject {
 		return fail("addPort(handle, {name, side, max})")
 	}
@@ -464,26 +474,38 @@ func addPort(h *handle, args []js.Value) js.Value {
 	if err != nil {
 		return result(false, err)
 	}
-	ch, err := h.ed.AddPort(gw.Port{Name: str(args[0], "name"), Side: side, Max: count(args[0], "max")})
-	h.after(ch, err)
+	if err := j.h.refuse(); err != nil {
+		return result(false, err)
+	}
+	j.h.d.Group()
+	ch, err := j.h.ed.AddPort(gw.Port{Name: str(args[0], "name"), Side: side, Max: count(args[0], "max")})
+	j.h.after(ch, err)
 	return result(err == nil, err)
 }
 
 // deletePort(g, name) removes a port of the selected vertex's own.
-func deletePort(h *handle, args []js.Value) js.Value {
+func deletePort(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeString {
 		return fail("deletePort(handle, name)")
 	}
-	ch, err := h.ed.DeletePort(args[0].String())
-	h.after(ch, err)
+	if err := j.h.refuse(); err != nil {
+		return result(false, err)
+	}
+	j.h.d.Group()
+	ch, err := j.h.ed.DeletePort(args[0].String())
+	j.h.after(ch, err)
 	return result(err == nil, err)
 }
 
 // annotate(g, {id: {text, class, weight}}) sets the figures drawn on
 // the elements named, replacing the last ones.
-func annotate(h *handle, args []js.Value) js.Value {
+func annotate(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 1 || args[0].Type() != js.TypeObject {
 		return fail("annotate(handle, {id: {text, class, weight}})")
+	}
+	h := j.h
+	if err := h.refuse(); err != nil {
+		return result(nil, err)
 	}
 	clear(h.notesV)
 	clear(h.notesE)
@@ -504,43 +526,113 @@ func annotate(h *handle, args []js.Value) js.Value {
 
 // on(g, event, callback) registers a callback for "change", "select",
 // "error" or "edit-label".
-func on(h *handle, args []js.Value) js.Value {
+func on(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeFunction {
 		return fail("on(handle, event, callback)")
 	}
 	switch args[0].String() {
 	case "change":
-		h.cbs[cbChange] = args[1]
+		j.cbs[cbChange] = args[1]
 	case "select":
-		h.cbs[cbSelect] = args[1]
+		j.cbs[cbSelect] = args[1]
 	case "error":
-		h.cbs[cbError] = args[1]
+		j.cbs[cbError] = args[1]
 	case "edit-label":
-		h.cbs[cbEditLabel] = args[1]
+		j.cbs[cbEditLabel] = args[1]
 	default:
 		return fail(`events are "change", "select", "error" and "edit-label"`)
 	}
 	return result(true, nil)
 }
 
-func undo(h *handle, _ []js.Value) js.Value {
-	ch, ok := h.d.Undo()
-	h.after(ch, nil)
-	return result(ok, nil)
-}
-
-func redo(h *handle, _ []js.Value) js.Value {
-	ch, ok := h.d.Redo()
-	h.after(ch, nil)
-	return result(ok, nil)
-}
-
 // destroy(g) removes the listeners and the elements and releases every
 // function.
-func destroy(h *handle, _ []js.Value) js.Value {
-	h.unmount()
-	delete(state.handles, h.id)
+func (b *binding) destroy(j *jsHost) js.Value {
+	if err := j.h.Destroy(); err != nil {
+		return result(nil, err)
+	}
+	delete(b.handles, j.id)
 	return result(true, nil)
+}
+
+// Changed passes a change to the page's "change" callback.
+func (j *jsHost) Changed(ch gw.Change) (gw.Command, bool) {
+	if j.cbs[cbChange].Type() == js.TypeFunction {
+		j.emit(cbChange, j.changeObject(ch))
+	}
+	return gw.Command{}, false
+}
+
+// Selected passes the selection to the page's "select" callback.
+func (j *jsHost) Selected(sv []gw.VertexIndex, se []gw.EdgeIndex) {
+	if j.cbs[cbSelect].Type() == js.TypeFunction {
+		j.emit(cbSelect, j.selectionObject(sv, se))
+	}
+}
+
+// Refused passes a refusal's text to the page's "error" callback.
+func (j *jsHost) Refused(err error) { j.emit(cbError, err.Error()) }
+
+// EditingLabel passes the element and its label to the page's
+// "edit-label" callback.
+func (j *jsHost) EditingLabel(v gw.VertexIndex, e gw.EdgeIndex, text string) {
+	if j.cbs[cbEditLabel].Type() != js.TypeFunction {
+		return
+	}
+	id := ""
+	if v != gw.None {
+		id = string(j.h.d.Vertices[v].ID)
+	} else if e != gw.None {
+		id = string(j.h.d.Edges[e].ID)
+	}
+	arg := js.Global().Get("Object").New()
+	arg.Set("id", id)
+	arg.Set("text", text)
+	j.emit(cbEditLabel, arg)
+}
+
+// emit calls a page's callback as a microtask: after the call that
+// caused it returns and before the next event. A callback that throws
+// is reported by the browser and never reaches Go, where an exception
+// would end the program, and a callback that calls back in finds the
+// drawing finished.
+func (j *jsHost) emit(which int, arg any) {
+	cb := j.cbs[which]
+	if cb.Type() != js.TypeFunction {
+		return
+	}
+	js.Global().Call("queueMicrotask", cb.Call("bind", js.Null(), arg))
+}
+
+func (j *jsHost) changeObject(ch gw.Change) js.Value {
+	out := js.Global().Get("Object").New()
+	vs := js.Global().Get("Array").New()
+	for _, v := range ch.Vertices {
+		vs.Call("push", string(j.h.d.Vertices[v].ID))
+	}
+	es := js.Global().Get("Array").New()
+	for _, e := range ch.Edges {
+		es.Call("push", string(j.h.d.Edges[e].ID))
+	}
+	out.Set("vertices", vs)
+	out.Set("edges", es)
+	out.Set("layout", ch.Layout)
+	return out
+}
+
+func (j *jsHost) selectionObject(sv []gw.VertexIndex, se []gw.EdgeIndex) js.Value {
+	out := js.Global().Get("Object").New()
+	vs := js.Global().Get("Array").New()
+	for _, v := range sv {
+		vs.Call("push", string(j.h.d.Vertices[v].ID))
+	}
+	es := js.Global().Get("Array").New()
+	for _, e := range se {
+		es.Call("push", string(j.h.d.Edges[e].ID))
+	}
+	out.Set("vertices", vs)
+	out.Set("edges", es)
+	return out
 }
 
 // token reports whether s holds only letters, digits, '-' and '_', as
@@ -565,13 +657,13 @@ func get(v js.Value, key string) js.Value {
 	return v.Get(key)
 }
 
-// str reads a string property, "" when absent.
 // off reports whether a boolean option is given as false.
 func off(v js.Value, key string) bool {
 	o := get(v, key)
 	return o.Type() == js.TypeBoolean && !o.Bool()
 }
 
+// str reads a string property, "" when absent.
 func str(v js.Value, key string) string {
 	p := get(v, key)
 	if p.Type() != js.TypeString {

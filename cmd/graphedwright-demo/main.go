@@ -37,10 +37,12 @@ func handler(goExec, tinyExec string) http.Handler {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = w.Write([]byte(svg.Stylesheet))
 	})
-	mux.HandleFunc("/graphedwright.wasm", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/wasm")
-		http.ServeFile(w, r, filepath.Join("bin", "graphedwright."+toolchain(r)+".wasm"))
-	})
+	for _, name := range []string{"graphedwright", "graphedwright-gohost"} {
+		mux.HandleFunc("/"+name+".wasm", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/wasm")
+			http.ServeFile(w, r, filepath.Join("bin", name+"."+toolchain(r)+".wasm"))
+		})
+	}
 	mux.HandleFunc("/wasm_exec.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		path := goExec

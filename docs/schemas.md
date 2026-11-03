@@ -225,4 +225,5 @@ differences:
 A missing field takes the first value in each list.
 
 A Go program built for the browser can also add schemas before the
-page starts, with `dom.Register(name, schema)` followed by `dom.Main()`.
+page starts, by passing them to `dom.Main`, as
+`dom.Main(doc.Named{Name: name, Schema: schema})`.

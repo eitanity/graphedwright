@@ -6,6 +6,9 @@ package graphedwright
 // are valid until the next Compact. The undo log is cleared, since it
 // names indices.
 func (d *Document) Compact() (vmap []VertexIndex, emap []EdgeIndex) {
+	if d.locked {
+		return nil, nil
+	}
 	d.resetChange()
 	d.compact()
 	return d.vmap[:d.vmapN], d.emap[:d.emapN]

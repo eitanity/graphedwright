@@ -146,6 +146,67 @@ are commands: the schema checks them, so a word for a number comes back
 as an error, and `undo` takes them back. Build the panel with DOM calls,
 not HTML strings, since labels and values are user text.
 
+## A host written in Go
+
+An application written in Go and compiled to WebAssembly mounts the
+editor from Go, holds its document and hears its changes in Go, with
+no JavaScript in the page but the loader. It never needs the
+`graphedwright` object: its `main` calls `dom.Mount` rather than
+`dom.Main`, and the build then carries none of the object's code.
+
+```go
+type app struct {
+	dom.NoHost // the methods this host does not need
+	h *dom.Handle
+}
+
+// Changed is told what each change drew. It reads the document and may
+// annotate; a command it returns is applied in the same undo step.
+func (a *app) Changed(ch gw.Change) (gw.Command, bool) {
+	d := a.h.Document()
+	notes := make([]svg.Annotation, len(d.Vertices))
+	for _, v := range ch.Vertices {
+		notes[v] = svg.Annotation{Text: "changed"}
+	}
+	a.h.Annotate(notes, nil)
+	return gw.Command{}, false
+}
+
+func main() {
+	d, _ := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+	a := &app{}
+	el := js.Global().Get("document").Call("getElementById", "graph")
+	a.h, _ = dom.Mount(el, d, dom.Options{IDPrefix: "g1-"}, a)
+	select {} // keep the program alive for the editor's events
+}
+```
+
+- **The handle** draws whatever the host changes through it: `Apply`,
+  `Undo`, `Redo`, `Load`, `Layout`, `SetMode`, `Annotate`, `Zoom`,
+  `Fit` and `Destroy`. `Document` and `Editor` are for reading; change
+  the document through the handle, so that the drawing follows.
+- **The host** implements `dom.Host`: `Changed`, `Selected`,
+  `Refused` and `EditingLabel`. It embeds `dom.NoHost` to leave out
+  the ones it doesn't need. Each method runs after the change it reports
+  is drawn.
+- **Inside a host method the document is locked.** Calls that change
+  it, through the handle or the document, are refused (`dom.ErrReentered`,
+  `gw.ErrLocked`); reading and `Annotate` are allowed. To answer a
+  change with a command, return it from `Changed`. It is applied in the
+  same undo step as the edit, so one undo takes both back, and reported
+  to `Changed` in turn, up to `dom.MaxFollow` (8) times per event.
+  A command returned while a gesture is under way, such as a vertex
+  following the pointer, is refused, since it would split the action.
+- **A host method must not panic.** On wasm a panic ends the program,
+  and every editor in the page with it.
+- **`dom.Options`** take what `create`'s options do, in Go: `View`,
+  `Grid`, `NoPatch`, `NoExpand`, `NoFullText`, `IDPrefix` (the
+  renderer's own IDs; give each editor in a page its own) and
+  `DocIDPrefix`.
+
+[`cmd/graphedwright-gohost`](../cmd/graphedwright-gohost) is such a host,
+the one the smoke test runs.
+
 ## Using the editor
 
 In edit mode the drawing shows a palette of the schema's kinds above it.
