@@ -117,7 +117,7 @@ default, in `create` and in `annotate`.
 | `"change"` | `{vertices: [id], edges: [id], layout}`: what a command changed, and whether everything was redrawn |
 | `"select"` | `{vertices: [id], edges: [id]}`: the selection, when it changes |
 | `"error"` | the text of a refusal, such as `edge would make a cycle: a → b → a` |
-| `"edit-label"` | `{id, text}`: a label is about to be edited in the input |
+| `"edit-label"` | `{id, text}`: a label, or the attribute its kind edits in its place, is about to be edited in the input, which starts with `text` |
 
 Callbacks run as a microtask, just after the call or the event that
 caused them, never in the middle of a redraw. One that throws is
@@ -141,7 +141,8 @@ the editor.
 ```
 
 The attributes come in the schema's order, then any the element carries
-that its kind does not name (`known: false`). `setLabel` and `setAttr`
+that its kind does not name (`known: false`). A bounded number also has
+`min` and `max`, either of which may be `Infinity`. `setLabel` and `setAttr`
 are commands: the schema checks them, so a word for a number comes back
 as an error, and `undo` takes them back. Build the panel with DOM calls,
 not HTML strings, since labels and values are user text.
@@ -214,10 +215,11 @@ func main() {
 
 [`cmd/graphedwright-eventtree`](../cmd/graphedwright-eventtree) is an
 application built this way: an editor of event trees, with its own
-schema, a probability computed and drawn on every edit, a rule kept by
-follow-ups (a new branch splits its event evenly), a check that flags
-an event whose branches do not sum to 1, and a panel, a status line,
-and Open and Save of its own. Run `make demo` and open
+schema, a probability computed and drawn on every edit, a branch's
+probability edited on the drawing (its kind's `EditAttr`, bounded from 0
+to 1), a rule kept by follow-ups (a new branch splits its event evenly),
+a check that flags an event whose branches do not sum to 1, and a
+panel, a status line, and Open and Save of its own. Run `make demo` and open
 `/eventtree.html`. [`cmd/graphedwright-gohost`](../cmd/graphedwright-gohost)
 is the host the smoke test uses to check the rules above.
 
@@ -233,7 +235,7 @@ In edit mode the drawing shows a palette of the schema's kinds above it.
 | add a shape | drag a kind from the palette onto the drawing |
 | connect | drag from a port, or from the edge of a shape without ports (it shows a ring and a crosshair), to another shape |
 | choose a line kind | click an edge kind in the palette: new edges take it until it is clicked again; otherwise the first kind the two shapes allow is used |
-| edit a label | double-click a shape, an edge or a container, or select one and press Enter, press F2 or just start typing; Enter or a click elsewhere keeps the text, Escape drops it |
+| edit a label | double-click a shape, an edge or a container, or select one and press Enter, press F2 or just start typing; Enter or a click elsewhere keeps the text, Escape drops it. A kind with an `EditAttr` edits that attribute instead ([Schemas](schemas.md)) |
 | delete | Delete or Backspace |
 | nudge | the arrow keys, one grid step |
 | undo, redo | Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y (Cmd on a Mac) |

@@ -176,9 +176,25 @@ func (e *Editor) startText(k gesture.EventKind, key string) {
 	e.editV, e.editE, e.typed = v, x, typed
 }
 
-// relabel relabels the element being edited with the host's final text.
-func (e *Editor) relabel(text string) error {
+// commitText sets the label of the element being edited to the host's
+// final text, or the attribute its kind edits in place of the label.
+func (e *Editor) commitText(text string) error {
+	if key := e.editAttr(); key != "" {
+		return e.apply(gw.Command{Op: gw.SetAttr, Vertex: e.editV, Edge: e.editE, Key: key, Value: text})
+	}
 	return e.apply(gw.Command{Op: gw.Relabel, Vertex: e.editV, Edge: e.editE, Text: text})
+}
+
+// editAttr is the attribute the kind of the element being edited edits
+// in place of its label, or "".
+func (e *Editor) editAttr() string {
+	if e.editV != gw.None {
+		return e.d.Schema.VertexKinds[e.d.Vertices[e.editV].Kind].EditAttr
+	}
+	if e.editE != gw.None {
+		return e.d.Schema.EdgeKinds[e.d.Edges[e.editE].Kind].EditAttr
+	}
+	return ""
 }
 
 // paletteStart begins placing a vertex kind from the palette, or for an

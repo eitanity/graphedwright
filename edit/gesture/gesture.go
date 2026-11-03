@@ -22,7 +22,7 @@ const (
 	Connecting        // an edge from a port or an outline to the pointer
 	Placing           // a palette item follows the pointer
 	Panning           // the viewport follows the pointer
-	EditingText       // the host shows an input for a label
+	EditingText       // the host shows an input for a label, or the attribute its kind edits
 	Resizing          // the selected vertex's corner follows the pointer
 )
 
@@ -85,7 +85,7 @@ type Actions uint64
 // The actions, declared in the order the editor carries them out: what
 // finishes a gesture, then what drops it, then what starts the next.
 const (
-	ActRelabel        Actions = 1 << iota // relabel the element being edited with the host's text
+	ActCommitText     Actions = 1 << iota // set the label, or the attribute its kind edits, of the element being edited to the host's text
 	ActCommitDrag                         // move the dragged vertices by command
 	ActSelectIn                           // select what the marquee holds
 	ActEndResize                          // resize the vertex by command
@@ -99,7 +99,7 @@ const (
 	ActStartDrag                          // remember where the vertices to drag are
 	ActStartResize                        // remember the vertex being resized and its corner
 	ActBeginConnect                       // remember the port or outline the edge starts at
-	ActStartText                          // begin editing the selected element's label
+	ActStartText                          // begin editing the selected element's label, or the attribute its kind edits
 	ActPlacing                            // remember the palette's vertex kind
 	ActChooseEdge                         // choose the palette's edge kind for new edges, or unchoose it
 	ActMoveDrag                           // move the dragged vertices with the pointer
@@ -384,7 +384,7 @@ func (m Machine) textDone() (Machine, Actions, fsm.Outcome) {
 	if m.state != EditingText {
 		return m, 0, fsm.Ignored
 	}
-	next, acts := m.cancel(ActRelabel)
+	next, acts := m.cancel(ActCommitText)
 	return next, acts, fsm.Moved
 }
 

@@ -387,7 +387,8 @@ func fit(j *jsHost, _ []js.Value) js.Value {
 // properties(g) describes the one selected vertex or edge for a
 // properties panel, or is null: {id, element ("vertex" or "edge"), kind,
 // label, from, to (an edge's), attrs: [{key, value, kind ("text",
-// "number" or "choice"), choices, required, known}]}.
+// "number" or "choice"), choices, required, known, and min and max for
+// a bounded number, either of which may be infinite}]}.
 func properties(j *jsHost, _ []js.Value) js.Value {
 	p, ok := j.h.ed.Properties()
 	if !ok {
@@ -417,6 +418,10 @@ func properties(j *jsHost, _ []js.Value) js.Value {
 		x.Set("choices", choices)
 		x.Set("required", a.Required)
 		x.Set("known", a.Known)
+		if a.Bounded {
+			x.Set("min", a.Min)
+			x.Set("max", a.Max)
+		}
 		attrs.Call("push", x)
 	}
 	out.Set("attrs", attrs)

@@ -78,6 +78,20 @@ func TestSchemaRefusals(t *testing.T) {
 		{"control in choice", func(s *gw.Schema) { s.VertexKinds[1].Attrs[1].Choices[0] = "a\x1f" }, `attribute "mode" choice holds the control character U+001f`},
 		{"control in default", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Default = "\x03" }, "default holds the control character U+0003"},
 		{"default not accepted", func(s *gw.Schema) { s.VertexKinds[1].Attrs[0].Default = "x" }, `attribute "p" has a default it does not accept: "x"`},
+		{"vertex edits an undeclared attr", func(s *gw.Schema) { s.VertexKinds[1].EditAttr = "body" }, `vertex kind "node": edits attribute "body", which is not an attribute of the kind`},
+		{"edge edits an undeclared attr", func(s *gw.Schema) { s.EdgeKinds[1].EditAttr = "q" }, `edge kind "outcome": edits attribute "q", which is not an attribute of the kind`},
+		{"bounded text", func(s *gw.Schema) { s.VertexKinds[1].Attrs[2].Bounded = true }, `attribute "note" is bounded and not a number`},
+		{"bounds crossed", func(s *gw.Schema) { s.VertexKinds[1].Attrs[0].Bounded, s.VertexKinds[1].Attrs[0].Min = true, 1 }, `attribute "p" has bounds that hold no number`},
+		{"bound NaN", func(s *gw.Schema) {
+			s.VertexKinds[1].Attrs[0].Bounded, s.VertexKinds[1].Attrs[0].Max = true, math.NaN()
+		}, `attribute "p" has bounds that hold no number`},
+		{"min infinite above", func(s *gw.Schema) {
+			s.VertexKinds[1].Attrs[0].Bounded, s.VertexKinds[1].Attrs[0].Min, s.VertexKinds[1].Attrs[0].Max = true, math.Inf(1), math.Inf(1)
+		}, `attribute "p" has bounds that hold no number`},
+		{"max infinite below", func(s *gw.Schema) {
+			s.VertexKinds[1].Attrs[0].Bounded, s.VertexKinds[1].Attrs[0].Min, s.VertexKinds[1].Attrs[0].Max = true, math.Inf(-1), math.Inf(-1)
+		}, `attribute "p" has bounds that hold no number`},
+		{"default out of bounds", func(s *gw.Schema) { s.VertexKinds[1].Attrs[0].Bounded, s.VertexKinds[1].Attrs[0].Max = true, 0.4 }, `attribute "p" has a default it does not accept: "0.5"`},
 	} {
 		s := testSchema()
 		tc.mod(&s)

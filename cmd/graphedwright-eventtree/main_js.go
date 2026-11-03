@@ -10,11 +10,15 @@
 //     that carry a probability p;
 //   - a figure computed from the document on every change and drawn
 //     with Annotate: the probability of reaching each vertex;
-//   - a rule kept with follow-up commands: a new branch splits its
-//     event evenly, one SetAttr at a time, all undone in one step with
-//     the edit that caused them;
+//   - an attribute edited on the drawing: a branch is labelled with its
+//     p, and a double-click on it edits p, which the schema bounds from
+//     0 to 1;
+//   - a rule kept with follow-up commands: a branch with no p, a new
+//     one or one whose p was cleared, splits its event evenly, one
+//     SetAttr at a time, all undone in one step with the edit that
+//     caused them;
 //   - a check that flags, rather than changes: an event whose branches
-//     do not sum to 1;
+//     do not sum to 1, as after a p typed in;
 //   - its own interface around the drawing: a panel for the selection,
 //     a status line for refusals, and Open and Save.
 //
@@ -64,7 +68,9 @@ func schema() gw.Schema {
 		},
 		EdgeKinds: []gw.EdgeKind{{
 			Name: "branch", From: []gw.KindIndex{kEvent}, To: []gw.KindIndex{kEvent, kOutcome}, Arrow: true,
-			Attrs: []gw.AttrSpec{{Key: keyP, Kind: gw.Number}},
+			Attrs:       []gw.AttrSpec{{Key: keyP, Kind: gw.Number, Bounded: true, Min: 0, Max: 1}},
+			LabelFormat: "{p = |p}",
+			EditAttr:    keyP,
 		}},
 		Acyclic: true,
 	}
@@ -98,7 +104,6 @@ type app struct {
 	indeg  []int            // by vertex: in edges not yet walked
 	order  []gw.VertexIndex // the walk's queue
 	notesV []svg.Annotation
-	notesE []svg.Annotation
 	num    []byte // scratch for formatting
 }
 
@@ -112,7 +117,6 @@ func main() {
 		indeg:  make([]int, maxVertices),
 		order:  make([]gw.VertexIndex, 0, maxVertices),
 		notesV: make([]svg.Annotation, maxVertices),
-		notesE: make([]svg.Annotation, maxEdges),
 	}
 	d, err := decode(example)
 	if err != nil {
@@ -179,8 +183,8 @@ func (a *app) say(err error) { a.status.Set("textContent", err.Error()) }
 
 // figures computes the probability of reaching each vertex, walking the
 // tree from its roots in topological order, and draws it on every
-// vertex, with each branch's p on its edge. An event whose branches do
-// not sum to 1 is flagged.
+// vertex; each branch's label is its p. An event whose branches do not
+// sum to 1 is flagged.
 func (a *app) figures() {
 	a.walk()
 	a.draw()
@@ -220,12 +224,11 @@ func (a *app) walk() {
 }
 
 // draw annotates each vertex with its probability, flagging an event
-// whose branches do not sum to 1, and each branch with its p.
+// whose branches do not sum to 1.
 func (a *app) draw() {
 	d := a.h.Document()
 	n := len(d.Vertices)
 	clear(a.notesV)
-	clear(a.notesE)
 	for v := range n {
 		if !d.Vertices[v].Live {
 			continue
@@ -235,21 +238,16 @@ func (a *app) draw() {
 			a.notesV[v] = svg.Annotation{Text: "P = " + a.fmt(a.prob[v]) + ", branches sum to " + a.fmt(sum), Class: "unbalanced"}
 		}
 	}
-	for e := range d.Edges {
-		if d.Edges[e].Live {
-			if p, ok := branchP(d, gw.EdgeIndex(e)); ok { //nolint:gosec // bounded by the capacity
-				a.notesE[e] = svg.Annotation{Text: "p = " + a.fmt(p)}
-			}
-		}
-	}
-	if err := a.h.Annotate(a.notesV[:n], a.notesE[:len(d.Edges)]); err != nil {
+	if err := a.h.Annotate(a.notesV[:n], nil); err != nil {
 		a.say(err)
 	}
 }
 
 // split is the next command of the even split, if an event has a branch
-// with no p: first a sibling whose p is not the share, then the branch
-// itself, so that the rule holds until the last command and stops there.
+// with no p. The split is in steps of 1/places, so that it is drawn as
+// typed and sums to 1 exactly: each branch with a p is set to the share
+// rounded down, and then the branch without, to what is left. So the
+// rule holds until the last command and stops there.
 func (a *app) split() (gw.Command, bool) {
 	d := a.h.Document()
 	for e := range d.Edges {
@@ -261,15 +259,23 @@ func (a *app) split() (gw.Command, bool) {
 		}
 		from := d.Edges[e].From
 		_, out := sumOut(d, from)
-		share := strconv.FormatFloat(1/float64(out), 'g', -1, 64) // in full, so that the shares sum to 1
+		share := places / out
 		for s := d.FirstOut(from); s != gw.None; s = d.NextOut(s) {
-			if v, ok := attr(d, s); ok && v != share {
-				return gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: s, Key: keyP, Value: share}, true
+			if v, ok := attr(d, s); ok && v != steps(share) {
+				return gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: s, Key: keyP, Value: steps(share)}, true
 			}
 		}
-		return gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: gw.EdgeIndex(e), Key: keyP, Value: share}, true //nolint:gosec // bounded by the capacity
+		return gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: gw.EdgeIndex(e), Key: keyP, Value: steps(places - share*(out-1))}, true //nolint:gosec // bounded by the capacity
 	}
 	return gw.Command{}, false
+}
+
+// places is the steps of an even split in 1: four decimal places.
+const places = 10000
+
+// steps is n steps of 1/places as a decimal.
+func steps(n int) string {
+	return strconv.FormatFloat(float64(n)/places, 'g', -1, 64)
 }
 
 // open replaces the document with the JSON in the file box.

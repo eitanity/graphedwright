@@ -16,6 +16,8 @@ type Property struct {
 	Choices  []string
 	Required bool
 	Known    bool
+	Bounded  bool    // a number from Min to Max
+	Min, Max float64 // the bounds of a bounded number
 }
 
 // Properties describe the one selected vertex or edge for a host's
@@ -62,7 +64,7 @@ func (e *Editor) Properties() (Properties, bool) {
 	}
 	p.Attrs = make([]Property, 0, len(specs)+len(attrs))
 	for _, s := range specs {
-		p.Attrs = append(p.Attrs, Property{Key: s.Key, Value: value(attrs, s.Key), Kind: s.Kind, Choices: s.Choices, Required: s.Required, Known: true})
+		p.Attrs = append(p.Attrs, Property{Key: s.Key, Value: value(attrs, s.Key), Kind: s.Kind, Choices: s.Choices, Required: s.Required, Known: true, Bounded: s.Bounded, Min: s.Min, Max: s.Max})
 	}
 	for _, a := range attrs {
 		if !named(specs, a.Key) {

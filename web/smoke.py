@@ -139,6 +139,18 @@ def check(out, native, example):
     if out["clashSelected"] != {"a": True, "selection": True} or not out["clashDeleted"] or not out["clashRestored"]:
         raise SystemExit(f"kinds and classes named as the binding's groups: selected {out['clashSelected']}, deleted {out['clashDeleted']}, restored {out['clashRestored']}")
 
+    b = out["bounded"]
+    if b["registered"].get("ok") is not True:
+        raise SystemExit(f"bounded schema: {b['registered']}")
+    if "edits attribute \"nope\", which is not an attribute of the kind" not in b["badEdit"].get("error", "") or "attribute \"note\" is bounded and not a number" not in b["badBound"].get("error", ""):
+        raise SystemExit(f"bounded schema refusals: {b['badEdit']} {b['badBound']}")
+    if b["bounds"] != {"shareMin": 0, "shareMax": 1, "rateMin": 0, "rateMaxInfinite": True}:
+        raise SystemExit(f"bounds in properties: {b['bounds']}")
+    if "must be a number from 0 to 1" not in b["outside"].get("error", "") or "must be a number at least 0" not in b["below"].get("error", ""):
+        raise SystemExit(f"values out of bounds: {b['outside']} {b['below']}")
+    if b["editing"] != "0.5" or b["done"] != {"share": "0.25", "label": ""}:
+        raise SystemExit(f"the label input edits the attribute: started {b['editing']!r}, then {b['done']}")
+
     f = out["fns"]
     for key in ("on", "zoom", "fit", "setLabel", "setAttr", "addPort", "deletePort", "redo"):
         if f[key].get("ok") is not True:
@@ -155,8 +167,9 @@ def check(out, native, example):
 def check_eventtree(seen):
     """What a person using the event-tree example would see: the figures
     the app computed, the split its rule made, one undo for an edit and
-    its split, the panel, a refusal, Save and Open, and a split longer
-    than the default follow-up bound."""
+    its split, the panel, a refusal, Save and Open, a p typed on the
+    drawing and one out of bounds, and a split longer than the default
+    follow-up bound."""
     def fail(step):
         raise SystemExit(f"event tree, {step}: " + json.dumps(seen[step]))
 
@@ -172,8 +185,10 @@ def check_eventtree(seen):
     if len(seen["dropped"]["added"]) != 1 or seen["dropped"]["status"] != "":
         fail("dropped")
     c = seen["connected"]
+    # The split is in steps of 0.0001: the branches already there take
+    # the share rounded down, the new one what is left, so they sum to 1.
     third = "p = 0.3333"
-    if len(c["branch"]) != 1 or not drawn(c["figures"], {"b3": third, "b4": third, c["branch"][0]: third, "contained": "P = 0.2667, branches sum to 0.9", "major": "P = 0.3467"}) or c["status"] != "" or c["unbalanced"] != ["contained"]:
+    if len(c["branch"]) != 1 or not drawn(c["figures"], {"b3": third, "b4": third, c["branch"][0]: "p = 0.3334", "contained": "P = 0.2666, branches sum to 0.9", "major": "P = 0.3466"}) or c["status"] != "" or c["unbalanced"] != ["contained"]:
         fail("connected")
     u = seen["undone"]
     if u["edges"] != 6 or not drawn(u["figures"], {"b3": "p = 0.5", "b4": "p = 0.5", "contained": "P = 0.4, branches sum to 0.9", "major": "P = 0.52"}):
@@ -190,11 +205,22 @@ def check_eventtree(seen):
         fail("saved")
     if not drawn(seen["reopened"], {k: v for k, v in opened.items() if not k.startswith("b")}):
         fail("reopened")
+    r = seen["retyped"]
+    if r["started"] != "0.6" or not drawn(r["figures"], {"b5": "p = 0.7", "b6": "p = 0.3", "minor": "P = 0.28", "contained": "P = 0.4"}) or r["unbalanced"] != [] or r["status"] != "":
+        fail("retyped")
+    ob = seen["outOfBounds"]
+    if not drawn(ob["figures"], {"b5": "p = 0.7", "minor": "P = 0.28"}) or 'must be a number from 0 to 1: "1.5"' not in ob["status"]:
+        fail("outOfBounds")
+    ru = seen["retypeUndone"]
+    if not drawn(ru["figures"], {"b5": "p = 0.6", "minor": "P = 0.24"}) or ru["unbalanced"] != ["contained"]:
+        fail("retypeUndone")
     if "unknown vertex kind" not in seen["badOpen"]:
         fail("badOpen")
     w = seen["wide"]
-    ninth = "p = 0.1111"
-    if len(w["ninth"]) != 1 or len(w["figures"]) != 9 or any(v != ninth for v in w["figures"].values()) or w["status"] != "" or w["unbalanced"] != []:
+    want = {k: "p = 0.1111" for k in w["figures"]}
+    if len(w["ninth"]) == 1:
+        want[w["ninth"][0]] = "p = 0.1112"
+    if len(w["ninth"]) != 1 or len(w["figures"]) != 9 or w["figures"] != want or w["status"] != "" or w["unbalanced"] != []:
         fail("wide")
     wu = seen["wideUndone"]
     if wu["edges"] != 8 or any(v != "p = 0.125" for v in wu["figures"].values()):

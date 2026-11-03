@@ -35,7 +35,7 @@ const (
 	Connecting  = gesture.Connecting  // an edge from a port to the pointer
 	Placing     = gesture.Placing     // a palette item follows the pointer
 	Panning     = gesture.Panning     // the viewport follows the pointer
-	EditingText = gesture.EditingText // the host shows an input for a label
+	EditingText = gesture.EditingText // the host shows an input for a label, or the attribute its kind edits
 	Resizing    = gesture.Resizing    // the selected vertex's corner follows the pointer
 )
 
@@ -204,6 +204,26 @@ func (e *Editor) Hover() svg.Hit { return e.hover }
 // Editing is the vertex or edge whose label the host is editing, when
 // the state is EditingText.
 func (e *Editor) Editing() (gw.VertexIndex, gw.EdgeIndex) { return e.editV, e.editE }
+
+// EditText is the text the host's input starts with while the state is
+// EditingText: the label of the element being edited, or, when its kind
+// names an EditAttr, that attribute's value. Done, the text is set where
+// it came from.
+func (e *Editor) EditText() string {
+	if e.g.State() != EditingText {
+		return ""
+	}
+	if key := e.editAttr(); key != "" {
+		if e.editV != gw.None {
+			return gw.AttrValue(e.d.Vertices[e.editV].Attrs, key)
+		}
+		return gw.AttrValue(e.d.Edges[e.editE].Attrs, key)
+	}
+	if e.editV != gw.None {
+		return e.d.Vertices[e.editV].Label
+	}
+	return e.d.Edges[e.editE].Label
+}
 
 // Typed is the character whose key began the label editing, which the
 // host's input starts with in place of the label, or "" when the
@@ -508,8 +528,8 @@ func (e *Editor) do(a gesture.Actions, ge gesture.Event, in input) error {
 		e.redo()
 	case gesture.ActStartText:
 		e.startText(ge.Kind, in.ev.Key)
-	case gesture.ActRelabel:
-		return e.relabel(in.ev.Text)
+	case gesture.ActCommitText:
+		return e.commitText(in.ev.Text)
 	default:
 		return errInvalid
 	}

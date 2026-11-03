@@ -308,13 +308,13 @@ func (h *Handle) doubleClick(_ js.Value, args []js.Value) any {
 // character typed to begin the editing with the caret after it.
 func (h *Handle) showInput() {
 	v, e := h.ed.Editing()
-	var text string
+	text := h.ed.EditText()
 	var box gw.Viewport
 	switch {
 	case v != gw.None:
-		text, box = h.d.Vertices[v].Label, svg.VertexLabelBox(h.d, v)
+		box = svg.VertexLabelBox(h.d, v)
 	case e != gw.None:
-		text, box = h.d.Edges[e].Label, svg.EdgeLabelBox(h.d, e)
+		box = svg.EdgeLabelBox(h.d, e)
 	default:
 		return
 	}

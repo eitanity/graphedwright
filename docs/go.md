@@ -194,9 +194,11 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
   size, in its pixels, mapped through the document's view.
 - **Return value:** each `Handle` returns the `Change` and the refusal,
   if any.
-- **State:** `State`, `Selected`, `Hover`, `Editing`, `Typed` and
-  `ResizeHandle` report where the editor is, which is what a front end
-  needs to draw it.
+- **State:** `State`, `Selected`, `Hover`, `Editing`, `EditText`,
+  `Typed` and `ResizeHandle` report where the editor is, which is what
+  a front end needs to draw it. `EditText` is what the label input
+  starts with: the label, or the value of the attribute the kind edits
+  in its place (`EditAttr`).
 - **View:** `Zoom(factor)` zooms about the view's centre and `Fit()`
   shows the whole drawing, for a front end's buttons; Ctrl with `=`,
   `-` and `0` do the same from the keyboard.

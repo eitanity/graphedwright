@@ -65,13 +65,17 @@ const (
 
 // AttrSpec describes an attribute a kind allows: its key, what its
 // value may be, whether it must be present and what it starts as. A
-// required attribute needs a default, so that a new element has one.
+// required attribute needs a default, so that a new element has one. A
+// bounded number must lie from Min to Max, inclusive; either may be
+// infinite, for a number bounded on one side only.
 type AttrSpec struct {
 	Key      string
 	Kind     AttrKind
 	Choices  []string
 	Required bool
 	Default  string
+	Bounded  bool
+	Min, Max float64
 }
 
 // VertexKind is a palette entry: what a kind of vertex looks like, the
@@ -88,7 +92,9 @@ type AttrSpec struct {
 // rectangle, ruled off from what is above it; the vertex grows to hold
 // them, as wide as MaxWidth at most, or its kind's width when that is 0.
 // A label format builds the label drawn from the label as set and the
-// attributes (see NextLabelPart).
+// attributes (see NextLabelPart). EditAttr names an attribute the kind
+// declares that the editor's text input edits in place of the label,
+// for a kind whose label format draws it; empty edits the label.
 type VertexKind struct {
 	Name         string
 	Shape        Shape
@@ -105,6 +111,7 @@ type VertexKind struct {
 	Compartments []string
 	MaxWidth     float64
 	LabelFormat  string
+	EditAttr     string
 }
 
 // KeywordHeight is the least height of a vertex kind with a keyword,
@@ -116,7 +123,8 @@ const KeywordHeight = 32
 // attributes it takes. Head says how an arrow ends, and Tail what is
 // drawn where the edge starts; a stereotype, such as «include», is
 // drawn on every edge of the kind beside its label. A label format
-// builds the label drawn, as a vertex kind's does.
+// builds the label drawn, and EditAttr names the attribute the text
+// input edits, as a vertex kind's do.
 type EdgeKind struct {
 	Name        string
 	From, To    []KindIndex
@@ -129,6 +137,7 @@ type EdgeKind struct {
 	Attrs       []AttrSpec
 	Weighted    bool
 	LabelFormat string
+	EditAttr    string
 }
 
 // Schema says what a document may contain. The editor's palette is the
@@ -187,6 +196,9 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 		return schemaError(where, err.Error())
 	}
 	if err := checkLabelFormat(k.LabelFormat, k.Attrs); err != nil {
+		return schemaError(where, err.Error())
+	}
+	if err := checkEditAttr(k.EditAttr, k.Attrs); err != nil {
 		return schemaError(where, err.Error())
 	}
 	if len(k.Contains) > 0 && !k.Container {
@@ -265,6 +277,9 @@ func checkEdgeKind(s Schema, i int, k EdgeKind, caps Caps) error {
 	if err := checkLabelFormat(k.LabelFormat, k.Attrs); err != nil {
 		return schemaError(where, err.Error())
 	}
+	if err := checkEditAttr(k.EditAttr, k.Attrs); err != nil {
+		return schemaError(where, err.Error())
+	}
 	for j := range i {
 		if s.EdgeKinds[j].Name == k.Name {
 			return schemaError(where, "duplicate name")
@@ -299,15 +314,55 @@ func checkAttrSpecs(where string, specs []AttrSpec, caps Caps) error {
 				return schemaError(where, "attribute "+strconv.Quote(a.Key)+" duplicated")
 			}
 		}
-		if a.Kind > Choice || (a.Kind == Choice && len(a.Choices) == 0) {
-			return schemaError(where, "attribute "+strconv.Quote(a.Key)+" of kind choice has no choices")
+		if err := checkSpecValues(a); err != nil {
+			return schemaError(where, err.Error())
 		}
-		if a.Required && a.Default == "" {
-			return schemaError(where, "attribute "+strconv.Quote(a.Key)+" is required without a default")
-		}
-		if a.Default != "" && !a.accepts(a.Default) {
-			return schemaError(where, "attribute "+strconv.Quote(a.Key)+" has a default it does not accept: "+strconv.Quote(a.Default))
-		}
+	}
+	return nil
+}
+
+// checkSpecValues refuses an attribute specification whose kind is out
+// of range, a choice without choices, bounds that do not fit, and a
+// default that is missing when required or that the kind refuses.
+func checkSpecValues(a AttrSpec) error {
+	if a.Kind > Choice || (a.Kind == Choice && len(a.Choices) == 0) {
+		return refusal("attribute " + strconv.Quote(a.Key) + " of kind choice has no choices")
+	}
+	if err := checkBounds(a); err != nil {
+		return err
+	}
+	if a.Required && a.Default == "" {
+		return refusal("attribute " + strconv.Quote(a.Key) + " is required without a default")
+	}
+	if a.Default != "" && !a.accepts(a.Default) {
+		return refusal("attribute " + strconv.Quote(a.Key) + " has a default it does not accept: " + strconv.Quote(a.Default))
+	}
+	return nil
+}
+
+// checkEditAttr refuses an attribute to edit in place of the label
+// that the kind does not declare.
+func checkEditAttr(key string, specs []AttrSpec) error {
+	if key == "" {
+		return nil
+	}
+	if _, ok := spec(specs, key); !ok {
+		return refusal("edits attribute " + strconv.Quote(key) + ", which is not an attribute of the kind")
+	}
+	return nil
+}
+
+// checkBounds refuses bounds on an attribute that is not a number, and
+// bounds that are NaN or that hold no number.
+func checkBounds(a AttrSpec) error {
+	if !a.Bounded {
+		return nil
+	}
+	if a.Kind != Number {
+		return refusal("attribute " + strconv.Quote(a.Key) + " is bounded and not a number")
+	}
+	if !(a.Min <= a.Max) || math.IsInf(a.Min, 1) || math.IsInf(a.Max, -1) {
+		return refusal("attribute " + strconv.Quote(a.Key) + " has bounds that hold no number")
 	}
 	return nil
 }
@@ -336,7 +391,7 @@ func (a AttrSpec) accepts(value string) bool {
 		return true
 	case Number:
 		x, err := strconv.ParseFloat(value, 64)
-		return err == nil && !math.IsNaN(x) && !math.IsInf(x, 0)
+		return err == nil && !math.IsNaN(x) && !math.IsInf(x, 0) && (!a.Bounded || (a.Min <= x && x <= a.Max))
 	case Choice:
 		for _, c := range a.Choices {
 			if c == value {

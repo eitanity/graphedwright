@@ -1,6 +1,9 @@
 package graphedwright
 
-import "strconv"
+import (
+	"math"
+	"strconv"
+)
 
 // setAttr sets or removes an attribute on a vertex, or on an edge when
 // Vertex is None, as the kind's specification allows.
@@ -88,7 +91,7 @@ func (d *Document) checkAttr(c Command, specs []AttrSpec) error {
 	if !s.accepts(c.Value) {
 		switch s.Kind {
 		case Number:
-			return refusal(d.attrName(c) + " must be a number: " + strconv.Quote(c.Value))
+			return refusal(d.attrName(c) + " must be " + s.numberText() + ": " + strconv.Quote(c.Value))
 		case Choice:
 			return refusal(d.attrName(c) + " must be one of " + joinChoices(s.Choices))
 		case Text:
@@ -100,6 +103,23 @@ func (d *Document) checkAttr(c Command, specs []AttrSpec) error {
 func (d *Document) attrName(c Command) string {
 	return "attribute " + strconv.Quote(c.Key) + " of " + d.attrWhere(c)
 }
+
+// numberText says what number a specification takes, for a refusal.
+func (a AttrSpec) numberText() string {
+	switch {
+	case !a.Bounded:
+		return "a number"
+	case math.IsInf(a.Min, -1) && math.IsInf(a.Max, 1):
+		return "a number"
+	case math.IsInf(a.Min, -1):
+		return "a number at most " + formatNumber(a.Max)
+	case math.IsInf(a.Max, 1):
+		return "a number at least " + formatNumber(a.Min)
+	}
+	return "a number from " + formatNumber(a.Min) + " to " + formatNumber(a.Max)
+}
+
+func formatNumber(x float64) string { return strconv.FormatFloat(x, 'g', -1, 64) }
 
 // joinChoices lists choices for a refusal.
 func joinChoices(choices []string) string {

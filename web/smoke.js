@@ -153,6 +153,38 @@ async function main() {
   fns.heard = heard.length;
   graphedwright.destroy(hf);
   out.fns = fns;
+
+  // A schema's bounded numbers and the attribute its label input edits,
+  // from JavaScript: the bounds reach properties and refuse a value
+  // outside them, a double-click edits the attribute, and a schema that
+  // names an undeclared attribute or bounds a text is refused.
+  const bounded = {};
+  bounded.registered = graphedwright.registerSchema("bounded", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, labelFormat: "{share}", editAttr: "share", attrs: [{ key: "share", kind: "number", min: 0, max: 1 }, { key: "rate", kind: "number", min: 0 }] }], edgeKinds: [] });
+  graphedwright.registerSchema("bounded-bad-edit", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, editAttr: "nope" }], edgeKinds: [] });
+  graphedwright.registerSchema("bounded-bad-bound", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, attrs: [{ key: "note", kind: "text", max: 3 }] }], edgeKinds: [] });
+  bounded.badEdit = graphedwright.create(clash, { schema: "bounded-bad-edit" });
+  bounded.badBound = graphedwright.create(clash, { schema: "bounded-bad-bound" });
+  const hb = graphedwright.create(clash, { schema: "bounded" }).ok;
+  graphedwright.load(hb, { schema: "bounded", vertices: [{ id: "x", kind: "box", attrs: { share: "0.5" } }], edges: [] });
+  const xb = clash.querySelector("svg #x").getBoundingClientRect();
+  const onX = { clientX: xb.x + xb.width / 2, clientY: xb.y + xb.height / 2, pointerId: 6, button: 0, bubbles: true };
+  clash.querySelector("svg").dispatchEvent(new PointerEvent("pointerdown", onX));
+  window.dispatchEvent(new PointerEvent("pointerup", onX));
+  const props = (graphedwright.properties(hb).ok || {}).attrs || [];
+  const share = props.find((a) => a.key === "share") || {};
+  const rate = props.find((a) => a.key === "rate") || {};
+  bounded.bounds = { shareMin: share.min, shareMax: share.max, rateMin: rate.min, rateMaxInfinite: rate.max === Infinity };
+  bounded.outside = graphedwright.setAttr(hb, "share", "1.5");
+  bounded.below = graphedwright.setAttr(hb, "rate", "-1");
+  clash.querySelector("svg").dispatchEvent(new MouseEvent("dblclick", { clientX: onX.clientX, clientY: onX.clientY, button: 0, bubbles: true }));
+  const input = clash.querySelector("input.graphedwright-label");
+  bounded.editing = input.style.display === "block" ? input.value : null;
+  input.value = "0.25";
+  input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  const xv = graphedwright.export(hb).ok.vertices.find((v) => v.id === "x");
+  bounded.done = { share: xv.attrs && xv.attrs.share, label: xv.label || "" };
+  graphedwright.destroy(hb);
+  out.bounded = bounded;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

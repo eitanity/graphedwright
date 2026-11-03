@@ -72,6 +72,19 @@ const done = arguments[arguments.length - 1];
     await wait(0);
   };
   const figures = (list) => Object.fromEntries(list.map((id) => [id, text(id)]));
+  // A double-click on a branch's label, then the text typed into the
+  // input the editor shows and Enter; what the input started with.
+  const input = () => root.querySelector("input.graphedwright-label");
+  const retype = async (id, value) => {
+    const [x, y] = centre(byId(id).querySelector("text").getBoundingClientRect());
+    document.elementFromPoint(x, y).dispatchEvent(new MouseEvent("dblclick", { clientX: x, clientY: y, button: 0, bubbles: true }));
+    await wait(0);
+    const started = input().style.display === "block" ? input().value : null;
+    input().value = value;
+    input().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await wait(0);
+    return started;
+  };
   const out = {};
 
   // What the app drew from its example.
@@ -111,6 +124,17 @@ const done = arguments[arguments.length - 1];
   document.getElementById("open").click();
   await wait(0);
   out.reopened = figures(["fire", "detected", "contained", "minor", "major", "loss"]);
+
+  // A branch's p typed in on the drawing: the figures after it follow,
+  // and contained's branches now sum to 1. A p the schema refuses
+  // changes nothing and the status says why. One undo takes back the
+  // p typed.
+  const started = await retype("b5", "0.7");
+  out.retyped = { started, figures: figures(["b5", "b6", "minor", "contained"]), unbalanced: ids("g.vertex.unbalanced"), status: status() };
+  await retype("b5", "1.5");
+  out.outOfBounds = { figures: figures(["b5", "minor"]), status: status() };
+  await key("z", { ctrlKey: true });
+  out.retypeUndone = { figures: figures(["b5", "minor"]), unbalanced: ids("g.vertex.unbalanced") };
 
   // Open a document that does not decode: the status says why.
   document.getElementById("file").value = '{"schema":"event-tree","vertices":[{"id":"x","kind":"nope"}]}';

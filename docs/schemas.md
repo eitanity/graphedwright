@@ -153,6 +153,7 @@ commands.
 | `Compartments` | keys of the kind's attributes drawn as compartments below the label, in order, each one with a value; only for a `Rect` or `RoundRect` that is not a container ([Concepts](concepts.md#schemas)) |
 | `MaxWidth` | how wide compartments may make a vertex; 0 for the kind's width. A longer line is cut with an ellipsis |
 | `LabelFormat` | builds the label drawn from the label as set and the attributes ([Concepts](concepts.md#schemas)); empty draws the label as set |
+| `EditAttr` | an attribute of the kind that the label input edits in place of the label, for a kind whose `LabelFormat` draws it: a double-click, Enter or typing then edits that value, and the text done sets it as a `SetAttr`. Empty edits the label |
 
 ### `EdgeKind`
 
@@ -169,6 +170,7 @@ commands.
 | `Weighted` | the stroke width follows the edge's weight, 1 to 7 against the heaviest |
 | `Attrs` | the attributes the kind takes |
 | `LabelFormat` | builds the label drawn, as a vertex kind's does |
+| `EditAttr` | the attribute the label input edits, as a vertex kind's does |
 
 ### `AttrSpec`
 
@@ -179,6 +181,7 @@ commands.
 | `Choices` | the values a choice allows |
 | `Required` | the attribute must be present; needs a `Default` |
 | `Default` | the value a new element starts with |
+| `Bounded`, `Min`, `Max` | a bounded number must lie from `Min` to `Max`, both included; a value outside is refused, naming the bounds. Either may be infinite (`math.Inf`), for a number bounded on one side |
 
 An element can also carry attributes its kind does not name. They are
 kept, written to the document and shown as text in a properties panel.
@@ -221,6 +224,8 @@ differences:
 - **Tails:** `"none"`, `"filled-diamond"`, `"hollow-diamond"` or
   `"circled-plus"`.
 - **Attribute kinds:** `"text"`, `"number"` or `"choice"`.
+- **Bounds:** a number with `min` or `max`, or both, is bounded by
+  them; the one left out is infinite.
 
 A missing field takes the first value in each list.
 

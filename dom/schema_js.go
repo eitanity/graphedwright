@@ -2,6 +2,7 @@ package dom
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"syscall/js"
 
@@ -12,16 +13,17 @@ import (
 //
 //	{ name, acyclic, vertexKinds: [{name, shape, w, h, root, leaf, max, dashed,
 //	  container, contains: [kindName], keyword, compartments: [key], maxWidth,
-//	  labelFormat, ports: [{name, side, max}],
-//	  attrs: [{key, kind, choices, required, default}]}],
+//	  labelFormat, editAttr, ports: [{name, side, max}],
+//	  attrs: [{key, kind, choices, required, default, min, max}]}],
 //	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
-//	  tail, dashed, stereotype, weighted, labelFormat, attrs}] }
+//	  tail, dashed, stereotype, weighted, labelFormat, editAttr, attrs}] }
 //
 // Shapes are "rect", "round", "pill", "diamond", "circle", "actor",
 // "datastore"; sides "left", "right", "top", "bottom"; routes
 // "straight", "curve", "orthogonal"; heads "filled", "open", "hollow",
 // "typed", "bar"; tails "none", "filled-diamond", "hollow-diamond",
-// "circled-plus"; attribute kinds "text", "number", "choice". The kinds an edge joins
+// "circled-plus"; attribute kinds "text", "number", "choice". A number
+// with min or max, or both, is bounded by them. The kinds an edge joins
 // and a container holds are named, and resolved here, once every vertex
 // kind is read.
 func schemaFromJS(v js.Value) (gw.Schema, error) {
@@ -52,7 +54,7 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat")}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
 	compartments := get(k, "compartments")
 	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
 		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())
@@ -75,7 +77,7 @@ func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
 }
 
 func edgeKindFromJS(s gw.Schema, k js.Value) (gw.EdgeKind, error) {
-	ek := gw.EdgeKind{Name: str(k, "name"), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype"), LabelFormat: str(k, "labelFormat")}
+	ek := gw.EdgeKind{Name: str(k, "name"), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
 	var err error
 	if ek.Route, err = routeOf(str(k, "route")); err != nil {
 		return ek, err
@@ -114,6 +116,21 @@ func attrsFromJS(v js.Value) ([]gw.AttrSpec, error) {
 		choices := get(a, "choices")
 		for j := 0; choices.Type() == js.TypeObject && j < choices.Length(); j++ {
 			spec.Choices = append(spec.Choices, choices.Index(j).String())
+		}
+		// A bound absent, or NaN, is infinite; the schema check refuses
+		// one infinite on the wrong side.
+		spec.Min, spec.Max = math.Inf(-1), math.Inf(1)
+		if m := get(a, "min"); m.Type() == js.TypeNumber {
+			spec.Bounded = true
+			if f := m.Float(); !math.IsNaN(f) {
+				spec.Min = f
+			}
+		}
+		if m := get(a, "max"); m.Type() == js.TypeNumber {
+			spec.Bounded = true
+			if f := m.Float(); !math.IsNaN(f) {
+				spec.Max = f
+			}
 		}
 		out = append(out, spec)
 	}

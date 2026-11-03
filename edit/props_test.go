@@ -134,3 +134,85 @@ func TestProperties(t *testing.T) {
 		t.Errorf("SetLabel in view mode: %v", err)
 	}
 }
+
+// TestAttrEditing: on a kind that names an EditAttr, the label input
+// edits that attribute: it starts with the attribute's value, its text
+// done sets the attribute and leaves the label, as one command undone
+// in one step; a value the schema refuses comes back as the error and
+// changes nothing; cancelling changes nothing. A vertex kind's EditAttr
+// works as an edge kind's does.
+func TestAttrEditing(t *testing.T) {
+	s := schema()
+	s.VertexKinds[kNode].EditAttr = "p"
+	s.EdgeKinds[1].Attrs = []gw.AttrSpec{{Key: "share", Kind: gw.Number, Bounded: true, Min: 0, Max: 1}}
+	s.EdgeKinds[1].LabelFormat, s.EdgeKinds[1].EditAttr = "{share = |share}", "share"
+	d, err := gw.New(s, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range []float64{220, 420} {
+		ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: kNode, Text: "n"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.Apply(gw.Command{Op: gw.Move, Vertex: ch.Vertices[0], Pos: pt(x, 100)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := d.Apply(gw.Command{Op: gw.AddEdge, Kind: 1, From: 0, To: 1, FromPort: 1, ToPort: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Apply(gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: 0, Key: "share", Value: "0.5"}); err != nil {
+		t.Fatal(err)
+	}
+	d.View = gw.Viewport{X: 0, Y: 0, W: 800, H: 200}
+	d.ClearUndo()
+	e := edit.New(d, edit.Edit, 8)
+	share := func() string { return gw.AttrValue(d.Edges[0].Attrs, "share") }
+	dbl := edit.Event{Kind: edit.DoubleClick, Point: pt(320, 100)}
+
+	if e.EditText() != "" {
+		t.Errorf("edit text while idle: %q", e.EditText())
+	}
+	send(t, e, dbl)
+	if v, x := e.Editing(); e.State() != edit.EditingText || v != gw.None || x != 0 || e.EditText() != "0.5" {
+		t.Fatalf("double-click on the edge: state %d editing %d %d text %q", e.State(), v, x, e.EditText())
+	}
+	send(t, e, edit.Event{Kind: edit.TextDone, Text: "0.7"})
+	if share() != "0.7" || d.Edges[0].Label != "" || e.State() != edit.Idle {
+		t.Errorf("text done: share %q label %q state %d", share(), d.Edges[0].Label, e.State())
+	}
+	send(t, e, key("z", edit.Ctrl))
+	if share() != "0.5" || d.CanUndo() {
+		t.Errorf("one undo: share %q, more to undo %v", share(), d.CanUndo())
+	}
+
+	send(t, e, dbl)
+	if _, err := e.Handle(edit.Event{Kind: edit.TextDone, Text: "1.5"}); err == nil || !strings.Contains(err.Error(), "must be a number from 0 to 1") {
+		t.Errorf("an out-of-bounds share: %v", err)
+	}
+	if share() != "0.5" || d.CanUndo() || e.State() != edit.Idle {
+		t.Errorf("after the refusal: share %q, something to undo %v, state %d", share(), d.CanUndo(), e.State())
+	}
+	send(t, e, dbl, edit.Event{Kind: edit.TextCancel})
+	if share() != "0.5" || d.CanUndo() {
+		t.Errorf("cancel: share %q, something to undo %v", share(), d.CanUndo())
+	}
+
+	// A key typed begins the editing with it, the attribute's value
+	// still what the input would hold without it.
+	send(t, e, key("0", 0))
+	if e.State() != edit.EditingText || e.Typed() != "0" || e.EditText() != "0.5" {
+		t.Errorf("typing 0 on the selected edge: state %d typed %q text %q", e.State(), e.Typed(), e.EditText())
+	}
+	send(t, e, edit.Event{Kind: edit.TextCancel})
+
+	send(t, e, edit.Event{Kind: edit.DoubleClick, Point: pt(220, 100)})
+	if e.EditText() != "0.5" {
+		t.Errorf("the vertex's text: %q, want its p", e.EditText())
+	}
+	send(t, e, edit.Event{Kind: edit.TextDone, Text: "0.9"})
+	if p := gw.AttrValue(d.Vertices[0].Attrs, "p"); p != "0.9" || d.Vertices[0].Label != "n" {
+		t.Errorf("the vertex's text done: p %q label %q", p, d.Vertices[0].Label)
+	}
+}
