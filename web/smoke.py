@@ -82,6 +82,15 @@ def main():
         if failed:
             raise SystemExit("go host:\n" + "\n".join(f"{c['name']}: {c['detail']}" for c in failed))
         print(f"smoke {toolchain} go host: ok, {len(checks)} checks")
+        # The example application, an event-tree editor written in Go,
+        # worked by a script that uses only what a person could.
+        call(base, "POST", s + "/url", {"url": f"http://127.0.0.1:{PORT}/eventtree.html?toolchain={toolchain}"})
+        script = open("web/smoke_eventtree.js", encoding="utf-8").read()
+        seen = call(base, "POST", s + "/execute/async", {"script": script, "args": []})
+        if "fatal" in seen:
+            raise SystemExit("event tree: " + seen["fatal"])
+        check_eventtree(seen)
+        print(f"smoke {toolchain} event tree: ok")
     finally:
         if sess:
             call(base, "DELETE", f"/session/{sess}")
@@ -141,6 +150,55 @@ def check(out, native, example):
         raise SystemExit(f"properties of the vertex clicked: {f['properties']}")
     if f["effects"] != {"ported": True, "unported": True, "undone": True, "redone": True, "label": "renamed", "note": True} or f["heard"] < 5:
         raise SystemExit(f"the functions' effects: {f['effects']}, changes heard {f['heard']}")
+
+
+def check_eventtree(seen):
+    """What a person using the event-tree example would see: the figures
+    the app computed, the split its rule made, one undo for an edit and
+    its split, the panel, a refusal, Save and Open, and a split longer
+    than the default follow-up bound."""
+    def fail(step):
+        raise SystemExit(f"event tree, {step}: " + json.dumps(seen[step]))
+
+    def drawn(figs, want):
+        # A vertex's text is its label then its figure, the figure in full
+        # last when it is cut; an edge's is its figure alone.
+        return all(figs.get(k) is not None and (figs[k] == v if v.startswith("p = ") else figs[k].endswith(v)) for k, v in want.items())
+
+    opened = {"fire": "P = 1", "detected": "P = 0.8", "contained": "P = 0.4, branches sum to 0.9", "minor": "P = 0.24", "major": "P = 0.52", "loss": "P = 0.2", "b1": "p = 0.8", "b6": "p = 0.3"}
+    o = seen["opened"]
+    if not drawn(o["figures"], opened) or o["unbalanced"] != ["contained"] or o["status"] != "" or not o["panel"].startswith("Select"):
+        fail("opened")
+    if len(seen["dropped"]["added"]) != 1 or seen["dropped"]["status"] != "":
+        fail("dropped")
+    c = seen["connected"]
+    third = "p = 0.3333"
+    if len(c["branch"]) != 1 or not drawn(c["figures"], {"b3": third, "b4": third, c["branch"][0]: third, "contained": "P = 0.2667, branches sum to 0.9", "major": "P = 0.3467"}) or c["status"] != "" or c["unbalanced"] != ["contained"]:
+        fail("connected")
+    u = seen["undone"]
+    if u["edges"] != 6 or not drawn(u["figures"], {"b3": "p = 0.5", "b4": "p = 0.5", "contained": "P = 0.4, branches sum to 0.9", "major": "P = 0.52"}):
+        fail("undone")
+    if seen["undoneTwice"]["vertices"] != 6:
+        fail("undoneTwice")
+    lines = seen["selected"].split("\n")
+    if lines[0] != "detected: P = 0.8" or sorted(lines[1:]) != ["  → contained, p = 0.5", "  → major damage, p = 0.5"]:
+        fail("selected")
+    f = seen["forbidden"]
+    if f["edges"] != f["edgesBefore"] or f["status"] != "no edge kind joins these vertices":
+        fail("forbidden")
+    if dict(seen["saved"]) != {"b1": "0.8", "b2": "0.2", "b3": "0.5", "b4": "0.5", "b5": "0.6", "b6": "0.3"}:
+        fail("saved")
+    if not drawn(seen["reopened"], {k: v for k, v in opened.items() if not k.startswith("b")}):
+        fail("reopened")
+    if "unknown vertex kind" not in seen["badOpen"]:
+        fail("badOpen")
+    w = seen["wide"]
+    ninth = "p = 0.1111"
+    if len(w["ninth"]) != 1 or len(w["figures"]) != 9 or any(v != ninth for v in w["figures"].values()) or w["status"] != "" or w["unbalanced"] != []:
+        fail("wide")
+    wu = seen["wideUndone"]
+    if wu["edges"] != 8 or any(v != "p = 0.125" for v in wu["figures"].values()):
+        fail("wideUndone")
 
 
 if __name__ == "__main__":

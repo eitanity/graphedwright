@@ -445,7 +445,9 @@ func setLabel(j *jsHost, args []js.Value) js.Value {
 	}
 	j.h.d.Group()
 	ch, err := j.h.ed.SetLabel(args[0].String())
-	j.h.after(ch, err)
+	if back := j.h.after(ch, err); err == nil {
+		err = back
+	}
 	return result(err == nil, err)
 }
 
@@ -460,7 +462,9 @@ func setAttr(j *jsHost, args []js.Value) js.Value {
 	}
 	j.h.d.Group()
 	ch, err := j.h.ed.SetAttr(args[0].String(), args[1].String())
-	j.h.after(ch, err)
+	if back := j.h.after(ch, err); err == nil {
+		err = back
+	}
 	return result(err == nil, err)
 }
 
@@ -479,7 +483,9 @@ func addPort(j *jsHost, args []js.Value) js.Value {
 	}
 	j.h.d.Group()
 	ch, err := j.h.ed.AddPort(gw.Port{Name: str(args[0], "name"), Side: side, Max: count(args[0], "max")})
-	j.h.after(ch, err)
+	if back := j.h.after(ch, err); err == nil {
+		err = back
+	}
 	return result(err == nil, err)
 }
 
@@ -493,7 +499,9 @@ func deletePort(j *jsHost, args []js.Value) js.Value {
 	}
 	j.h.d.Group()
 	ch, err := j.h.ed.DeletePort(args[0].String())
-	j.h.after(ch, err)
+	if back := j.h.after(ch, err); err == nil {
+		err = back
+	}
 	return result(err == nil, err)
 }
 

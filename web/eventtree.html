@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event tree</title>
+<link rel="stylesheet" href="graphedwright.css">
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 16px; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
+  #drawing { height: 460px; border: 1px solid #ccc; }
+  #panel { white-space: pre-wrap; margin: 0 0 12px; }
+  #status { color: #b00; min-height: 1.4em; }
+  #file { width: 100%; height: 160px; font: 12px monospace; }
+  .unbalanced text { fill: #b00; }
+  @media (max-width: 640px) { body { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="drawing"></div>
+<aside>
+  <p id="panel"></p>
+  <p id="status" role="status"></p>
+  <textarea id="file" aria-label="document as JSON"></textarea>
+  <button type="button" id="open">Open</button>
+  <button type="button" id="save">Save</button>
+</aside>
+<script src="goapp.js" data-wasm="graphedwright-eventtree"></script>
+</body>
+</html>

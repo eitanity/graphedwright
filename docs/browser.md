@@ -194,18 +194,32 @@ func main() {
   `gw.ErrLocked`); reading and `Annotate` are allowed. To answer a
   change with a command, return it from `Changed`. It is applied in the
   same undo step as the edit, so one undo takes both back, and reported
-  to `Changed` in turn, up to `dom.MaxFollow` (8) times per event.
-  A command returned while a gesture is under way, such as a vertex
-  following the pointer, is refused, since it would split the action.
+  to `Changed` in turn, up to `Options.MaxFollow` times per event (8
+  unless the host sets it). A command returned while a gesture is under
+  way, such as a vertex following the pointer, is refused, since it
+  would split the action.
+- **An edit and its follow-ups stand or fall together.** When the host
+  asks for more than `MaxFollow`, or the document refuses a follow-up,
+  the edit and every follow-up are taken back. `Refused` hears why, then
+  `Changed` hears the change that took them back; a follow-up returned
+  for that one is not applied. A rule that may take many commands, one
+  per element it changes, needs a `MaxFollow` and an undo depth
+  (`gw.Caps.UndoDepth`) to match.
 - **A host method must not panic.** On wasm a panic ends the program,
   and every editor in the page with it.
 - **`dom.Options`** take what `create`'s options do, in Go: `View`,
   `Grid`, `NoPatch`, `NoExpand`, `NoFullText`, `IDPrefix` (the
-  renderer's own IDs; give each editor in a page its own) and
-  `DocIDPrefix`.
+  renderer's own IDs; give each editor in a page its own),
+  `DocIDPrefix`, and `MaxFollow`.
 
-[`cmd/graphedwright-gohost`](../cmd/graphedwright-gohost) is such a host,
-the one the smoke test runs.
+[`cmd/graphedwright-eventtree`](../cmd/graphedwright-eventtree) is an
+application built this way: an editor of event trees, with its own
+schema, a probability computed and drawn on every edit, a rule kept by
+follow-ups (a new branch splits its event evenly), a check that flags
+an event whose branches do not sum to 1, and a panel, a status line,
+and Open and Save of its own. Run `make demo` and open
+`/eventtree.html`. [`cmd/graphedwright-gohost`](../cmd/graphedwright-gohost)
+is the host the smoke test uses to check the rules above.
 
 ## Using the editor
 

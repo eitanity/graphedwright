@@ -33,6 +33,7 @@ type undoLog struct {
 	groups  uint64 // groups begun
 	group   uint64 // the group open, or 0
 	open    int    // Group calls not yet ended, so a group within a group stays one
+	lost    uint64 // the last group an entry fell off the ring from, which Discard can no longer take back whole
 }
 
 func newUndoLog(depth, portsPerVertex int) undoLog {
@@ -61,6 +62,7 @@ func (l *undoLog) push(e entry) {
 	}
 	e.group = l.group
 	if l.done == len(l.entries) {
+		l.lost = l.entries[l.start].group
 		l.entries[l.start] = e
 		l.start = (l.start + 1) % len(l.entries)
 		l.n = l.done
@@ -97,6 +99,12 @@ func (l *undoLog) dropLayout(k uint64) {
 	for i := 0; i < l.done; i++ {
 		e := &l.entries[(l.start+i)%len(l.entries)]
 		if e.cmd.Op == Layout && e.layout == k {
+			// bound: the entries dropped, at most the ring's length
+			for j := 0; j <= i; j++ {
+				if g := l.entries[(l.start+j)%len(l.entries)].group; g != 0 {
+					l.lost = g
+				}
+			}
 			l.start = (l.start + i + 1) % len(l.entries)
 			l.done -= i + 1
 			l.n -= i + 1
@@ -153,6 +161,31 @@ func (d *Document) EndGroup() {
 	if l.open == 0 {
 		l.group = 0
 	}
+}
+
+// Discard takes back every command applied in the open group and
+// forgets them, so that they can be neither undone nor redone: for a
+// host whose reaction to an edit cannot be completed, so that the edit
+// and the reaction stand or fall together. The group stays open until
+// its EndGroup. It reports what it drew back, or false, having taken
+// back nothing, when no group is open, the document is locked, the
+// undo log is off, or the log no longer holds the group's first
+// command because the group held more than the undo depth.
+func (d *Document) Discard() (Change, bool) {
+	l := &d.log
+	if d.locked || l.group == 0 || len(l.entries) == 0 || l.lost == l.group {
+		return Change{}, false
+	}
+	d.resetChange()
+	st, mv := false, false
+	// bound: the group's entries, at most the log's depth
+	for i := 0; i < len(l.entries) && l.grouped(l.group, false); i++ {
+		en, _ := l.pop()
+		s, m := d.undoOne(en)
+		st, mv = st || s, mv || m
+	}
+	l.n = l.done
+	return d.settle(st, mv), true
 }
 
 // ClearUndo empties the undo log, so that what built the document, a

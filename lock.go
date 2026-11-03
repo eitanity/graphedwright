@@ -6,7 +6,7 @@ import "errors"
 var ErrLocked = errors.New("the document is locked: it may be read, not changed")
 
 // Lock makes the document read-only through its methods until Unlock:
-// Apply refuses with ErrLocked; Undo, Redo, Place and SetBends report
+// Apply refuses with ErrLocked; Undo, Redo, Discard, Place and SetBends report
 // that they did nothing; ReserveBends gives no room; Compact renumbers
 // nothing and returns nil maps; and Group, EndGroup, ClearUndo, Fit and
 // ClearBends do nothing. It is for a caller that hands the document to

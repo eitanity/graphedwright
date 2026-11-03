@@ -24,9 +24,14 @@ type Host interface {
 	// Changed reports what a change drew, a gesture's progress among
 	// them, such as a vertex following the pointer. A command it
 	// returns with ok is applied in the same undo step as the edit,
-	// drawn, and reported to Changed in turn, up to MaxFollow times per
-	// event; one returned while a gesture is under way (the editor's
-	// State is not Idle) is refused, since it would split the action.
+	// drawn, and reported to Changed in turn, up to Options.MaxFollow
+	// times per event. The edit and its follow-ups stand or fall
+	// together: when the host asks for one more than that, or a
+	// follow-up is refused, all of them and the edit are taken back,
+	// the refusal is reported, and then the change that took them back,
+	// for which a follow-up is not applied. One returned while a gesture
+	// is under way (the editor's State is not Idle) is refused, and
+	// nothing taken back, since it would split the action.
 	Changed(ch gw.Change) (follow gw.Command, ok bool)
 	// Selected reports the selection after an event that changed it,
 	// or with anything selected.
@@ -54,9 +59,9 @@ func (NoHost) Refused(error) {}
 // EditingLabel does nothing.
 func (NoHost) EditingLabel(gw.VertexIndex, gw.EdgeIndex, string) {}
 
-// MaxFollow is the most follow-up commands Changed may ask for in one
-// event; the next is refused through Refused.
-const MaxFollow = 8
+// DefaultMaxFollow is the most follow-up commands Changed may ask for in
+// one event when Options.MaxFollow is 0.
+const DefaultMaxFollow = 8
 
 // Options are how an editor is mounted. The zero value is an editor in
 // edit mode on an 8-unit grid that patches the drawing by element.
@@ -68,13 +73,22 @@ type Options struct {
 	NoFullText  bool    // a cut text is written without its full text after it (svg.Options.NoFullText)
 	IDPrefix    string  // before the renderer's own IDs; give each editor in a page its own
 	DocIDPrefix string  // before each vertex's and edge's id in the page
+	// MaxFollow is the most follow-up commands Changed may ask for in one
+	// event: 0 for DefaultMaxFollow, and at most the document's vertex
+	// and edge capacities together, enough for a rule that changes each
+	// element once. A rule's commands are undone with the edit, so its
+	// longest reaction must also fit within the undo depth.
+	MaxFollow int
 }
 
 // The refusals of a handle's own calls.
 var (
 	ErrReentered = errors.New("called from inside the host's own method: return a follow-up from Changed, or call once it returns")
 	ErrDestroyed = errors.New("the editor was destroyed")
-	errFollow    = errors.New("more follow-up commands for one event than MaxFollow")
+	errFollow    = errors.New("the host's follow-up commands passed their limit, so the edit was taken back")
+	errFollowErr = errors.New("a follow-up command was refused, so the edit was taken back")
+	errKept      = errors.New("the edit could not be taken back: it and its follow-ups outgrew the undo log")
+	errMaxFollow = errors.New("MaxFollow is less than 0 or more than the document's vertex and edge capacities together")
 	errGesture   = errors.New("a follow-up command while a gesture is under way; return it once the editor is idle")
 	errMount     = errors.New("mount needs an element, a document and a host")
 	errPrefix    = errors.New("an ID prefix may hold only letters, digits, '-' and '_'")
@@ -90,6 +104,8 @@ type Handle struct {
 	edgeItems []js.Value // the palette's edge kind buttons, by kind
 	grid      float64    // the grid Mount was given, for each editor Load makes
 	noExpand  bool       // no overlay expansion of cut texts, for each editor Load makes
+	maxFollow int        // Options.MaxFollow, or its default
+	follow    int        // what Options.MaxFollow asked for, checked again against each document Load gives
 	input     js.Value
 	d         *gw.Document
 	ed        *edit.Editor
@@ -120,11 +136,15 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	if !token(opts.IDPrefix) || !token(opts.DocIDPrefix) {
 		return nil, errPrefix
 	}
+	maxFollow, err := followFor(opts.MaxFollow, d)
+	if err != nil {
+		return nil, err
+	}
 	mode := edit.Edit
 	if opts.View {
 		mode = edit.View
 	}
-	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, grid: opts.Grid, noExpand: opts.NoExpand}
+	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
 	h.opts.IDPrefix, h.opts.DocIDPrefix, h.opts.NoFullText = opts.IDPrefix, opts.DocIDPrefix, opts.NoFullText
 	h.ed = edit.New(d, mode, h.grid)
 	h.ed.SetExpand(!h.noExpand)
@@ -165,7 +185,9 @@ func (h *Handle) Apply(c gw.Command) (gw.Change, error) {
 	}
 	h.d.Group()
 	ch, err := h.d.Apply(c)
-	h.after(ch, nil)
+	if back := h.after(ch, nil); err == nil {
+		err = back
+	}
 	return ch, err
 }
 
@@ -177,7 +199,7 @@ func (h *Handle) Undo() bool {
 	}
 	h.d.Group()
 	ch, ok := h.d.Undo()
-	h.after(ch, nil)
+	h.report(ch, nil)
 	return ok
 }
 
@@ -188,7 +210,7 @@ func (h *Handle) Redo() bool {
 	}
 	h.d.Group()
 	ch, ok := h.d.Redo()
-	h.after(ch, nil)
+	h.report(ch, nil)
 	return ok
 }
 
@@ -201,7 +223,11 @@ func (h *Handle) Load(d *gw.Document) error {
 	if d == nil {
 		return errMount
 	}
-	h.d = d
+	maxFollow, err := followFor(h.follow, d)
+	if err != nil {
+		return err
+	}
+	h.d, h.maxFollow = d, maxFollow
 	h.ed = edit.New(d, h.ed.Mode(), h.grid)
 	h.ed.SetExpand(!h.noExpand)
 	h.lay = layout.New(d.Caps())
@@ -316,7 +342,7 @@ func (h *Handle) Zoom(f float64) error {
 		return errZoom
 	}
 	h.d.Group()
-	h.after(h.ed.Zoom(f), nil)
+	h.report(h.ed.Zoom(f), nil)
 	return nil
 }
 
@@ -326,7 +352,7 @@ func (h *Handle) Fit() error {
 		return err
 	}
 	h.d.Group()
-	h.after(h.ed.Fit(), nil)
+	h.report(h.ed.Fit(), nil)
 	return nil
 }
 
@@ -363,20 +389,22 @@ func (h *Handle) handle(e edit.Event) {
 	}
 	h.d.Group()
 	ch, err := h.ed.Handle(e)
-	h.after(ch, err)
+	h.report(ch, err)
 }
 
 // after shows a change and reports it, applying each follow-up the
-// host returns, and ends the undo step the caller began with Group.
-// The loop is the trampoline that makes a host's reaction a tail call
-// rather than a call back in.
-func (h *Handle) after(ch gw.Change, err error) {
+// host returns, and ends the undo step the caller began with Group. The
+// loop is the trampoline that makes a host's reaction a tail call
+// rather than a call back in. A reaction that cannot be completed is
+// taken back with the edit, and after returns why.
+func (h *Handle) after(ch gw.Change, err error) error {
 	if err != nil {
 		h.refused(err)
 	}
 	h.draw(ch)
-	// bound: MaxFollow follow-ups, and one more to refuse
-	for i := 0; i <= MaxFollow; i++ {
+	var back error
+	// bound: maxFollow follow-ups, and one more to refuse
+	for i := 0; i <= h.maxFollow; i++ {
 		if len(ch.Vertices) == 0 && len(ch.Edges) == 0 && !ch.Layout {
 			break
 		}
@@ -384,16 +412,16 @@ func (h *Handle) after(ch gw.Change, err error) {
 		if !ok {
 			break
 		}
-		if i == MaxFollow {
-			h.refused(errFollow)
-			break
-		}
 		if h.ed.State() != edit.Idle {
 			h.refused(errGesture)
 			break
 		}
+		if i == h.maxFollow {
+			back = h.takeBack(errFollow, nil)
+			break
+		}
 		if ch, err = h.d.Apply(next); err != nil {
-			h.refused(err)
+			back = h.takeBack(errFollowErr, err)
 			break
 		}
 		h.draw(ch)
@@ -410,6 +438,45 @@ func (h *Handle) after(ch gw.Change, err error) {
 		h.host.Selected(sv, se)
 		h.leave()
 	}
+	return back
+}
+
+// report is after for an event of the page's, whose refusals the host
+// hears through Refused alone.
+func (h *Handle) report(ch gw.Change, err error) { _ = h.after(ch, err) }
+
+// takeBack takes back the edit and the follow-ups applied so far, as the
+// host's reaction could not be completed: it reports why, with the
+// follow-up's own refusal if there was one, then the change that took
+// them back, to Changed, whose follow-up is not applied. It returns the
+// refusal reported.
+func (h *Handle) takeBack(why, cause error) error {
+	ch, ok := h.d.Discard()
+	if !ok {
+		why = errKept
+	}
+	if cause != nil {
+		why = errors.Join(why, cause)
+	}
+	h.refused(why)
+	if ok {
+		h.draw(ch)
+		_, _ = h.changed(ch)
+	}
+	return why
+}
+
+// followFor is the follow-up bound for the document: the one asked for,
+// or the default, if the document's capacities allow it.
+func followFor(asked int, d *gw.Document) (int, error) {
+	c := d.Caps()
+	if asked < 0 || asked > c.Vertices+c.Edges {
+		return 0, errMaxFollow
+	}
+	if asked == 0 {
+		return DefaultMaxFollow, nil
+	}
+	return asked, nil
 }
 
 // draw patches the drawing from a change, or redraws it.

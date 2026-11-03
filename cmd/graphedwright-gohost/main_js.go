@@ -29,6 +29,7 @@ const (
 	followNone   = iota // asks for nothing
 	followOnce          // tries to call back in, annotates, and asks once for a relabel
 	followAlways        // asks for a relabel every time
+	followBad           // asks for a relabel, then for a command the document refuses
 )
 
 // host is the test's Host: it records what it hears.
@@ -69,6 +70,13 @@ func (t *host) Changed(ch gw.Change) (gw.Command, bool) {
 		return gw.Command{Op: gw.Relabel, Vertex: t.first, Text: "moved"}, true
 	case followAlways:
 		return gw.Command{Op: gw.Relabel, Vertex: 0, Text: "x" + strconv.Itoa(t.changed)}, true
+	case followBad:
+		if t.changed == 1 {
+			return gw.Command{Op: gw.Relabel, Vertex: 0, Text: "good"}, true
+		}
+		if t.changed == 2 {
+			return gw.Command{Op: gw.Relabel, Vertex: 9999, Text: "bad"}, true
+		}
 	}
 	return gw.Command{}, false
 }
@@ -105,7 +113,10 @@ func run(page js.Value, r *report) {
 	_, e2 := dom.Mount(el, nil, dom.Options{}, t)
 	_, e3 := dom.Mount(el, d, dom.Options{}, nil)
 	_, e4 := dom.Mount(el, d, dom.Options{IDPrefix: "no spaces"}, t)
-	r.check("mount refuses a missing element, document or host, and a bad prefix", e1 != nil && e2 != nil && e3 != nil && e4 != nil, "")
+	c := d.Caps()
+	_, e5 := dom.Mount(el, d, dom.Options{MaxFollow: -1}, t)
+	_, e6 := dom.Mount(el, d, dom.Options{MaxFollow: c.Vertices + c.Edges + 1}, t)
+	r.check("mount refuses a missing element, document or host, a bad prefix, and a follow-up bound out of range", e1 != nil && e2 != nil && e3 != nil && e4 != nil && e5 != nil && e6 != nil, "")
 	h, err := dom.Mount(el, d, dom.Options{IDPrefix: "go-"}, t)
 	if err != nil {
 		r.check("mount", false, err.Error())
@@ -135,16 +146,49 @@ func run(page js.Value, r *report) {
 	t.mode = followNone
 	el.Call("dispatchEvent", js.Global().Get("KeyboardEvent").New("keydown", obj(map[string]any{"key": "z", "ctrlKey": true, "bubbles": true})))
 	r.check("one undo takes back the edit and its follow-up", d.Vertices[a].Pos == before && d.Vertices[a].Label == "a", "label "+d.Vertices[a].Label+" pos "+num(d.Vertices[a].Pos.X))
+	chains(page, el, h, t, a, r)
+	lifecycle(el, h, r)
+}
 
-	// A host that always asks for more is cut off after MaxFollow.
+// chains checks follow-ups that cannot be completed: past the bound, or
+// refused by the document, each takes back its edit; and a host's own
+// bound is the one kept.
+func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *report) {
+	d := h.Document()
+	// A host that always asks for more: past the bound, the edit and
+	// every follow-up are taken back, and the take-back is reported.
 	t.mode, t.changed, t.refusals = followAlways, 0, nil
-	_, err = h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "start"})
-	r.check("a chain is cut after MaxFollow", err == nil && t.changed == dom.MaxFollow+1 && len(t.refusals) == 1 && d.Vertices[a].Label == "x"+strconv.Itoa(dom.MaxFollow), "changes "+strconv.Itoa(t.changed)+", refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertices[a].Label)
-	t.mode = followNone
-	r.check("the chain is one undo step", h.Undo() && d.Vertices[a].Label == "a", "label "+d.Vertices[a].Label)
+	_, err := h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "start"})
+	r.check("a chain past the bound is taken back with its edit", strings.Contains(errText(err), "taken back") && t.changed == dom.DefaultMaxFollow+2 && len(t.refusals) == 1 && d.Vertices[a].Label == "a", "changes "+strconv.Itoa(t.changed)+", refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertices[a].Label+", "+errText(err))
+	drawn := el.Call("querySelector", "#a").Get("textContent").String()
+	r.check("nothing of it is drawn or left to undo or redo", !d.CanUndo() && !d.CanRedo() && drawn == "aseen by Go", "a drawn as "+strconv.Quote(drawn))
 
+	// A follow-up the document refuses takes back the edit and the
+	// follow-ups before it, and the refusal names both.
+	t.mode, t.changed, t.refusals = followBad, 0, nil
+	_, err = h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "edit"})
+	r.check("a refused follow-up takes back its edit", len(t.refusals) == 1 && strings.Contains(t.refusals[0], "refused, so the edit was taken back") && strings.Contains(t.refusals[0], "9999") && err != nil && d.Vertices[a].Label == "a" && !d.CanUndo(), "refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertices[a].Label)
+	t.mode = followNone
+
+	// A host's own bound.
+	el2 := page.Call("createElement", "div")
+	el2.Get("style").Set("cssText", "width:300px;height:200px")
+	page.Get("body").Call("appendChild", el2)
+	d3, _ := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	t3 := &host{first: gw.None, mode: followAlways}
+	h3, err := dom.Mount(el2, d3, dom.Options{IDPrefix: "go3-", MaxFollow: 2}, t3)
+	if err == nil {
+		t3.h = h3
+		_, err = h3.Apply(gw.Command{Op: gw.Relabel, Vertex: 0, Text: "start"})
+		_ = h3.Destroy()
+	}
+	r.check("a host's own bound is the one kept", strings.Contains(errText(err), "taken back") && t3.changed == 2+2, "changes "+strconv.Itoa(t3.changed)+", "+errText(err))
+}
+
+// lifecycle checks Apply from Go, Load and Destroy.
+func lifecycle(el js.Value, h *dom.Handle, r *report) {
 	// A vertex added from Go is drawn, and undone.
-	_, err = h.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "from Go"})
+	_, err := h.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "from Go"})
 	n := el.Call("querySelectorAll", "svg g.vertex").Length()
 	h.Undo()
 	r.check("Apply from Go is drawn and undone", err == nil && n == 3 && el.Call("querySelectorAll", "svg g.vertex").Length() == 2, "vertices "+strconv.Itoa(n)+" "+errText(err))

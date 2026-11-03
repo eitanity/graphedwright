@@ -64,6 +64,13 @@ layout engine or a loader, not for edits a user should be able to undo:
 code that hands the document to other code that may only read it, as
 `dom` does while a host's method runs.
 
+`Discard` takes back every command applied since the open `Group` and
+forgets them, so that they cannot be redone: for code whose reaction to
+an edit cannot be completed, so that the edit and the reaction stand or
+fall together, as `dom` does with a host's follow-ups. It does nothing,
+and reports false, when the group held more commands than the undo
+depth and its first has fallen off the log.
+
 ## layout
 
 ```go

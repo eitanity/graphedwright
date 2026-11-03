@@ -75,8 +75,8 @@ vet:
 	cd internal/lint && go vet ./...
 	GOOS=js GOARCH=wasm go vet $(PKGS)
 	@! grep -rn --include='*.go' --exclude-dir=bin --exclude-dir=.git '^//go:build' . || { echo "build constraints are not allowed"; exit 1; }
-	@bad="$$(find . -path ./bin -prune -o -name '*.go' -print | grep -E '_(js|wasm|wasip1|linux|darwin|windows|amd64|arm64)(_test)?\.go$$' | grep -v -E '^\./(dom|cmd/graphedwright-wasm|cmd/graphedwright-gohost)/')"; \
-	  if [ -n "$$bad" ]; then echo "only dom/, cmd/graphedwright-wasm/ and cmd/graphedwright-gohost/ may hold target-named files:"; echo "$$bad"; exit 1; fi
+	@bad="$$(find . -path ./bin -prune -o -name '*.go' -print | grep -E '_(js|wasm|wasip1|linux|darwin|windows|amd64|arm64)(_test)?\.go$$' | grep -v -E '^\./(dom|cmd/graphedwright-wasm|cmd/graphedwright-gohost|cmd/graphedwright-eventtree)/')"; \
+	  if [ -n "$$bad" ]; then echo "only dom/, cmd/graphedwright-wasm/, cmd/graphedwright-gohost/ and cmd/graphedwright-eventtree/ may hold target-named files:"; echo "$$bad"; exit 1; fi
 
 lint: $(BIN)/golangci-lint
 	$(BIN)/golangci-lint run $(PKGS)
@@ -146,7 +146,8 @@ vuln: $(BIN)/govulncheck
 # files or this Makefile has changed since.
 WASM_SRCS := $(shell GOOS=js GOARCH=wasm go list -deps -f '{{if not .Standard}}{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .EmbedFiles}}{{$$.Dir}}/{{.}} {{end}}{{end}}' ./cmd/graphedwright-wasm) go.mod $(wildcard go.sum) Makefile
 
-wasm: $(BIN)/graphedwright.go.wasm $(BIN)/graphedwright.tinygo.wasm $(BIN)/graphedwright-gohost.go.wasm $(BIN)/graphedwright-gohost.tinygo.wasm
+wasm: $(BIN)/graphedwright.go.wasm $(BIN)/graphedwright.tinygo.wasm $(BIN)/graphedwright-gohost.go.wasm $(BIN)/graphedwright-gohost.tinygo.wasm \
+	$(BIN)/graphedwright-eventtree.go.wasm $(BIN)/graphedwright-eventtree.tinygo.wasm
 
 $(BIN)/graphedwright.go.wasm: $(WASM_SRCS)
 	GOOS=js GOARCH=wasm go build -trimpath -o $@ ./cmd/graphedwright-wasm
@@ -163,6 +164,16 @@ $(BIN)/graphedwright-gohost.go.wasm: $(GOHOST_SRCS)
 
 $(BIN)/graphedwright-gohost.tinygo.wasm: $(GOHOST_SRCS)
 	tinygo build -o $@ -target wasm -opt=z -no-debug ./cmd/graphedwright-gohost
+
+# The example application written in Go, an event-tree editor, which the
+# smoke test drives as a user would.
+EVENTTREE_SRCS := $(WASM_SRCS) $(wildcard cmd/graphedwright-eventtree/*.go)
+
+$(BIN)/graphedwright-eventtree.go.wasm: $(EVENTTREE_SRCS)
+	GOOS=js GOARCH=wasm go build -trimpath -o $@ ./cmd/graphedwright-eventtree
+
+$(BIN)/graphedwright-eventtree.tinygo.wasm: $(EVENTTREE_SRCS)
+	tinygo build -o $@ -target wasm -opt=z -no-debug ./cmd/graphedwright-eventtree
 
 # The browser smoke test under each toolchain, in headless Firefox
 # through geckodriver: the page's export, drawing, annotation, DOM and

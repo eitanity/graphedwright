@@ -78,9 +78,9 @@ func (h *Handle) zoomBar(doc js.Value) {
 		f := b.f
 		h.listen(el, "click", func(js.Value, []js.Value) any {
 			if f == 0 {
-				h.after(h.ed.Fit(), nil)
+				h.report(h.ed.Fit(), nil)
 			} else {
-				h.after(h.ed.Zoom(f), nil)
+				h.report(h.ed.Zoom(f), nil)
 			}
 			return nil
 		})
@@ -135,11 +135,11 @@ func (h *Handle) paletteButton(doc js.Value, name, class string, kind gw.KindInd
 		if h.ed.State() == edit.EditingText {
 			ch, err := h.ed.Handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
 			h.hideInput()
-			h.after(ch, err)
+			h.report(ch, err)
 		}
 		ch, err := h.ed.Handle(edit.Event{Kind: edit.PaletteStart, Item: kind, IsEdge: isEdge})
 		h.markChosen()
-		h.after(ch, err)
+		h.report(ch, err)
 		return nil
 	})
 	return b

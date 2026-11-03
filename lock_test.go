@@ -106,6 +106,9 @@ func TestLock(t *testing.T) {
 	d.Group()
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "three"})
 	d.Lock()
+	if _, ok := d.Discard(); ok || d.Vertices[a].Label != "three" {
+		t.Error("Discard took back while locked")
+	}
 	d.EndGroup()
 	d.Unlock()
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "four"})
