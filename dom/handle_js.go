@@ -157,10 +157,10 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	h.notesE = make([]svg.Annotation, d.Caps().Edges)
 	h.selV, h.selE = make([]gw.VertexIndex, 0, d.Caps().Vertices), make([]gw.EdgeIndex, 0, d.Caps().Edges)
 	h.mount()
-	if d.LiveVertices() > 0 {
-		h.fitView()
-		h.renderAll()
-	}
+	// An empty document is shown one unit to a pixel, as Load shows it,
+	// so that a vertex added to it is drawn at its size.
+	h.fitView()
+	h.renderAll()
 	return h, nil
 }
 

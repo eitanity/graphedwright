@@ -264,6 +264,27 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	errAdd = errors.Join(errLoad4, errAdd)
 	r.check("an empty document loaded is shown one unit to a pixel", errAdd == nil && math.Abs(scale-1) < 0.01, "pixels to a unit "+num(scale)+" "+errText(errAdd))
 	_ = h4.Destroy()
+
+	// And one mounted empty.
+	empty5, errEmpty5 := doc.Decode([]byte(`{"schema":"basic"}`), doc.Options{Schemas: doc.Builtin()})
+	h5, errMount5 := dom.Mount(el, empty5, dom.Options{}, &host{first: gw.None})
+	if err := errors.Join(errEmpty5, errMount5); err != nil {
+		r.check("mount an empty document", false, err.Error())
+		return
+	}
+	_, errAdd5 := h5.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "box", Pos: gw.Point{X: 200, Y: 100}})
+	r.check("an empty document mounted is shown one unit to a pixel", errAdd5 == nil && math.Abs(screenScale(el)-1) < 0.01, "pixels to a unit "+num(screenScale(el))+" "+errText(errAdd5))
+	_ = h5.Destroy()
+}
+
+// screenScale is the drawing's pixels to a document unit, once it shows
+// a vertex, or 0.
+func screenScale(el js.Value) float64 {
+	s := el.Call("querySelector", "svg")
+	if s.IsNull() || !el.Call("querySelector", "svg g.vertex").Truthy() {
+		return 0
+	}
+	return s.Call("getScreenCTM").Get("a").Float()
 }
 
 // marquee drags the main button from one corner of the drawing to the
