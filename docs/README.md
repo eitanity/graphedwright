@@ -10,6 +10,8 @@
 - **[In the browser](browser.md):** building and serving, the
   JavaScript API, using the editor, and styling.
 - **[The Go API](go.md):** the packages and how they fit together.
+- **[Upgrading to v0.2.0](upgrading.md):** what each read and write of
+  v0.1 becomes.
 - **[Document format](format.md):** the JSON a document is saved as.
 - **[The command line](cli.md):** drawing and checking documents from a
   shell.

@@ -258,13 +258,18 @@ does.
 ## Coding rules
 
 The packages keep to rules that let them run in TinyGo and in a browser
-without pauses:
+without pauses, and that keep each package's state its own:
 - **No allocation once made:** capacities are fixed when a document is
   made, and nothing allocates afterwards.
 - **Bounded work:** no recursion, and every loop has a stated bound.
 - **No `fmt`, `reflect` or `unsafe`.**
 - **Allocation-free hot paths:** the render path and the editor's event
   path don't allocate.
+- **Sealed state:** a document, its kinds, an editor, a handle, a
+  layouter and a renderer have no exported field, and no exported
+  method returns a slice, a map or an open pointer into its state; reads
+  are values and read-only lists, and changes are commands or checked
+  methods.
 
 `make ci` checks all of these, with the linters and the project's own
 analyzers in `internal/lint`, and it checks the TinyGo build stays under

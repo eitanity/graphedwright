@@ -25,6 +25,10 @@ func TestUnordered(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), analyzers.Unordered, mod+"/um")
 }
 
+func TestSealed(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), analyzers.Sealed, mod+"/edit")
+}
+
 func TestStmts(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), analyzers.Stmts, mod+"/st", mod+"/dom")
 }
