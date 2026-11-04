@@ -28,7 +28,7 @@ func port(name string, side gw.Side) gw.Port { return gw.Port{Name: name, Side: 
 // named once on it, within the capacity, and undo and redo take them
 // away and give them back.
 func TestAddPort(t *testing.T) {
-	d, err := gw.New(portSchema(), gw.Caps{PortsPerVertex: 3})
+	d, err := makeDoc(portSchema(), gw.Caps{PortsPerVertex: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestAddPort(t *testing.T) {
 // ports after it follow them, and undo puts all back, a deleted edge's
 // end at the port included.
 func TestDeletePort(t *testing.T) {
-	d, err := gw.New(portSchema(), gw.Caps{})
+	d, err := makeDoc(portSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestDeletePort(t *testing.T) {
 // container keeps that room around what it holds; and a saved document
 // loads with the ports, the edges at them and the sizes it had.
 func TestPortRoom(t *testing.T) {
-	d, err := gw.New(portSchema(), gw.Caps{PortsPerVertex: 16})
+	d, err := makeDoc(portSchema(), gw.Caps{PortsPerVertex: 16})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestPortRoom(t *testing.T) {
 	if !strings.Contains(text.String(), `"ports":[{"name":"l1","side":"left"}`) {
 		t.Errorf("no ports saved: %s", text.String())
 	}
-	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "ports", Schema: portSchema()}}, Caps: gw.Caps{PortsPerVertex: 16}})
+	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "ports", Kinds: d.Kinds()}}, Caps: gw.Caps{PortsPerVertex: 16}})
 	if err != nil {
 		t.Fatal(err)
 	}

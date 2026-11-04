@@ -160,10 +160,10 @@ async function main() {
   // names an undeclared attribute or bounds a text is refused.
   const bounded = {};
   bounded.registered = graphedwright.registerSchema("bounded", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, labelFormat: "{share}", editAttr: "share", attrs: [{ key: "share", kind: "number", min: 0, max: 1 }, { key: "rate", kind: "number", min: 0 }] }], edgeKinds: [] });
-  graphedwright.registerSchema("bounded-bad-edit", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, editAttr: "nope" }], edgeKinds: [] });
-  graphedwright.registerSchema("bounded-bad-bound", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, attrs: [{ key: "note", kind: "text", max: 3 }] }], edgeKinds: [] });
-  bounded.badEdit = graphedwright.create(clash, { schema: "bounded-bad-edit" });
-  bounded.badBound = graphedwright.create(clash, { schema: "bounded-bad-bound" });
+  // A schema is checked when it is registered: one refused is not known.
+  bounded.badEdit = graphedwright.registerSchema("bounded-bad-edit", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, editAttr: "nope" }], edgeKinds: [] });
+  bounded.badBound = graphedwright.registerSchema("bounded-bad-bound", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, attrs: [{ key: "note", kind: "text", max: 3 }] }], edgeKinds: [] });
+  bounded.badUnknown = graphedwright.create(clash, { schema: "bounded-bad-edit" });
   const hb = graphedwright.create(clash, { schema: "bounded" }).ok;
   graphedwright.load(hb, { schema: "bounded", vertices: [{ id: "x", kind: "box", attrs: { share: "0.5" } }], edges: [] });
   const xb = clash.querySelector("svg #x").getBoundingClientRect();

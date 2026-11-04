@@ -40,10 +40,10 @@ func HitTest(d *gw.Document, p gw.Point) Hit {
 	}
 	for i := len(d.Vertices) - 1; i >= 0; i-- {
 		v := &d.Vertices[i]
-		if !v.Live || d.Schema.VertexKinds[v.Kind].Container {
+		if !v.Live || d.Kinds().Vertex(v.Kind).Container() {
 			continue
 		}
-		if len(v.Ports) == 0 && math.Abs(outlineDistance(d.Schema.VertexKinds[v.Kind].Shape, v, p)) <= band(v) {
+		if len(v.Ports) == 0 && math.Abs(outlineDistance(d.Kinds().Vertex(v.Kind).Shape(), v, p)) <= band(v) {
 			return Hit{Kind: OutlineHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
 		}
 		if inBox(v, p) {
@@ -96,25 +96,11 @@ func ContainerAt(d *gw.Document, p gw.Point, v gw.VertexIndex) gw.VertexIndex {
 		if !inBox(&d.Vertices[c], p) {
 			continue
 		}
-		if v == gw.None || (!d.Within(c, v) && holds(d.Schema.VertexKinds[d.Vertices[c].Kind].Contains, d.Vertices[v].Kind)) {
+		if v == gw.None || (!d.Within(c, v) && d.Kinds().Vertex(d.Vertices[c].Kind).Holds(d.Vertices[v].Kind)) {
 			return c
 		}
 	}
 	return gw.None
-}
-
-// holds reports whether a container's list of kinds takes the kind, an
-// empty list taking any.
-func holds(kinds []gw.KindIndex, k gw.KindIndex) bool {
-	if len(kinds) == 0 {
-		return true
-	}
-	for _, x := range kinds {
-		if x == k {
-			return true
-		}
-	}
-	return false
 }
 
 // HandleSize is the side of the square the overlay draws on a selected

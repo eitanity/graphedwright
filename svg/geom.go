@@ -64,7 +64,7 @@ func portAt(v *gw.Vertex, p gw.PortIndex) gw.Point {
 // bottom.
 func ends(d *gw.Document, e *gw.Edge, through []gw.Point) (a, b gw.Point) {
 	from, to := &d.Vertices[e.From], &d.Vertices[e.To]
-	if d.Schema.EdgeKinds[e.Kind].Route == gw.Straight && e.From != e.To {
+	if d.Kinds().Edge(e.Kind).Route() == gw.Straight && e.From != e.To {
 		a, b = from.Pos, to.Pos
 		if e.FromPort != gw.None {
 			a = portAt(from, e.FromPort)
@@ -78,10 +78,10 @@ func ends(d *gw.Document, e *gw.Edge, through []gw.Point) (a, b gw.Point) {
 		}
 		ca, cb := a, b
 		if e.FromPort == gw.None {
-			ca = clip(d.Schema.VertexKinds[from.Kind].Shape, from, ta)
+			ca = clip(d.Kinds().Vertex(from.Kind).Shape(), from, ta)
 		}
 		if e.ToPort == gw.None {
-			cb = clip(d.Schema.VertexKinds[to.Kind].Shape, to, tb)
+			cb = clip(d.Kinds().Vertex(to.Kind).Shape(), to, tb)
 		}
 		return ca, cb
 	}
@@ -234,7 +234,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	if run <= 0 {
 		return w // it loops, and its lane would only add a turn
 	}
-	if d.Schema.EdgeKinds[e.Kind].Route == gw.Straight {
+	if d.Kinds().Edge(e.Kind).Route() == gw.Straight {
 		p, q = w.f.t(d.Vertices[e.From].Pos), w.f.t(d.Vertices[e.To].Pos)
 	}
 	off := float64((float64(k) - float64(float64(n-1)/2)) * laneGap)
@@ -336,14 +336,14 @@ func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }
 // beside into the same target.
 func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
 	e := &d.Edges[i]
-	if d.Schema.EdgeKinds[e.Kind].Route != gw.Orthogonal || len(w.through) > 0 {
+	if d.Kinds().Edge(e.Kind).Route() != gw.Orthogonal || len(w.through) > 0 {
 		return false
 	}
 	turn := turnAt(w.f.t(w.a), w.f.t(w.b))
 	// bound: the out list visits each edge of the vertex once
 	for o := d.FirstOut(e.From); o != gw.None; o = d.NextOut(o) {
 		x := &d.Edges[o]
-		if o == i || d.Schema.EdgeKinds[x.Kind].Route != gw.Orthogonal || len(x.Bends) > 0 {
+		if o == i || d.Kinds().Edge(x.Kind).Route() != gw.Orthogonal || len(x.Bends) > 0 {
 			continue
 		}
 		if _, n := d.Parallel(o); n > 1 {
@@ -390,8 +390,8 @@ func tailLength(t gw.Tail) float64 {
 // the tail's length on from the start along the first leg, as it is
 // drawn, so that the tail sits between the stroke and the source. A leg
 // shorter than the tail is left as it is.
-func (w *way) started(kind gw.EdgeKind) gw.Point {
-	if kind.Tail == gw.NoTail {
+func (w *way) started(kind gw.EdgeKindView) gw.Point {
+	if kind.Tail() == gw.NoTail {
 		return w.a
 	}
 	f := w.f
@@ -401,7 +401,7 @@ func (w *way) started(kind gw.EdgeKind) gw.Point {
 	}
 	a, b := f.t(w.a), f.t(next)
 	var dx, dy float64
-	switch legRoute(kind.Route, len(w.through) > 0, a, b) {
+	switch legRoute(kind.Route(), len(w.through) > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -410,7 +410,7 @@ func (w *way) started(kind gw.EdgeKind) gw.Point {
 	case gw.Orthogonal:
 		dx, dy = float64((a.X+b.X)/2)-a.X, 0
 	}
-	tl := tailLength(kind.Tail)
+	tl := tailLength(kind.Tail())
 	l := math.Sqrt(float64(dx*dx) + float64(dy*dy))
 	if l <= tl {
 		return w.a
@@ -423,14 +423,14 @@ func (w *way) started(kind gw.EdgeKind) gw.Point {
 // it is drawn, so that a thick stroke never shows past the head's tip.
 // An open head is two strokes the edge runs up to; a leg shorter than
 // the head is left as it is.
-func (w *way) shortened(kind gw.EdgeKind) gw.Point {
+func (w *way) shortened(kind gw.EdgeKindView) gw.Point {
 	f := w.f
-	if !kind.Arrow || kind.Head == gw.OpenHead {
+	if !kind.Arrow() || kind.Head() == gw.OpenHead {
 		return w.b
 	}
 	a, b := f.t(lastFrom(w.a, w.through)), f.t(w.b)
 	var dx, dy float64
-	switch legRoute(kind.Route, len(w.through) > 0, a, b) {
+	switch legRoute(kind.Route(), len(w.through) > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -516,8 +516,8 @@ func segmentDistance(p, a, b gw.Point) float64 {
 func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	kind := d.Schema.EdgeKinds[d.Edges[i].Kind]
-	route := kind.Route
+	kind := d.Kinds().Edge(d.Edges[i].Kind)
+	route := kind.Route()
 	f := wy.f
 	// A tail lies between the source and the stroke's start, along the
 	// first leg as it leaves.
@@ -576,14 +576,14 @@ func bounds(d *gw.Document) gw.Viewport {
 			continue
 		}
 		half := v.Size.W / 2
-		if d.Schema.VertexKinds[v.Kind].Shape == gw.Actor {
+		if d.Kinds().Vertex(v.Kind).Shape() == gw.Actor {
 			half = math.Max(half, float64(d.VertexLabelRunes(gw.VertexIndex(i)))*defaultCharWidth/2) //nolint:gosec // bounded by the capacity
 		}
 		x0 = math.Min(x0, v.Pos.X-half)
 		y0 = math.Min(y0, v.Pos.Y-float64(v.Size.H/2))
 		x1 = math.Max(x1, v.Pos.X+half)
 		y1 = math.Max(y1, v.Pos.Y+float64(v.Size.H/2))
-		for p := len(d.Schema.VertexKinds[v.Kind].Ports); p < len(v.Ports); p++ {
+		for p := d.Kinds().Vertex(v.Kind).PortCount(); p < len(v.Ports); p++ {
 			_, _, _, b := portLabel(d, gw.VertexIndex(i), gw.PortIndex(p)) //nolint:gosec // bounded by the capacities
 			x0, y0, x1, y1 = math.Min(x0, b.X), math.Min(y0, b.Y), math.Max(x1, b.X+b.W), math.Max(y1, b.Y+b.H)
 		}

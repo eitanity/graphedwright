@@ -86,7 +86,7 @@ func (d *Document) Unreachable(dst []VertexIndex) []VertexIndex {
 	}
 	top := 0
 	for i := range d.Vertices {
-		if v := &d.Vertices[i]; v.Live && d.Schema.VertexKinds[v.Kind].Root {
+		if v := &d.Vertices[i]; v.Live && d.kinds.vertex[v.Kind].Root {
 			d.mark[i] = d.gen
 			d.stack[top] = int32(i) //nolint:gosec // bounded by the capacity
 			top++

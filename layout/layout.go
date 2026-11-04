@@ -109,7 +109,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	for s := range l.s {
 		e := l.segE[s]
 		a, b := l.layer[l.segF[s]], l.layer[l.segT[s]]
-		if l.dN[e] == 0 && (a-b == 1 || b-a == 1) && d.Schema.EdgeKinds[d.Edges[e].Kind].Route == gw.Orthogonal {
+		if l.dN[e] == 0 && (a-b == 1 || b-a == 1) && d.Kinds().Edge(d.Edges[e].Kind).Route() == gw.Orthogonal {
 			l.bary[l.eFrom[e]]++
 		}
 	}
@@ -120,10 +120,10 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 			continue
 		}
 		k := max(a, b)
-		kind := d.Schema.EdgeKinds[d.Edges[e].Kind]
-		chars := max(d.EdgeLabelRunes(gw.EdgeIndex(e)), utf8.RuneCountInString(kind.Stereotype))
+		kind := d.Kinds().Edge(d.Edges[e].Kind)
+		chars := max(d.EdgeLabelRunes(gw.EdgeIndex(e)), utf8.RuneCountInString(kind.Stereotype()))
 		w := float64(float64(chars)*labelChar) + 2*labelPad
-		if kind.Route == gw.Orthogonal && l.bary[l.eFrom[e]] > 1 {
+		if kind.Route() == gw.Orthogonal && l.bary[l.eFrom[e]] > 1 {
 			// Its text is drawn on its last leg, the half of the gap
 			// past its turn, which it shares with the others.
 			w *= 2
@@ -282,7 +282,7 @@ func (l *Layouter) contents(d *gw.Document, opts Options, deepest int) (int64, e
 	for k := deepest; k >= 0; k-- {
 		for i := range d.Vertices {
 			c := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
-			if !d.Vertices[i].Live || int(l.depth[i]) != k || !d.Schema.VertexKinds[d.Vertices[i].Kind].Container {
+			if !d.Vertices[i].Live || int(l.depth[i]) != k || !d.Kinds().Vertex(d.Vertices[i].Kind).Container() {
 				continue
 			}
 			n, cr, err := l.level(d, opts, c)
@@ -401,7 +401,7 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		}
 		e := &d.Edges[i]
 		src, dst := 4*crossed(d, e.From, c), 4*crossed(d, e.To, c)
-		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Schema.EdgeKinds[e.Kind].Route)
+		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Kinds().Edge(e.Kind).Route())
 		ns, nt := 0, 0
 		if sOK {
 			ns = 2

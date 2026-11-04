@@ -220,17 +220,17 @@ func (b *binding) create(args []js.Value) any {
 	return result(id, nil)
 }
 
-// registerSchema(name, schemaObject) adds a schema described from
-// JavaScript.
+// registerSchema(name, schemaObject) compiles a schema described from
+// JavaScript and adds it, or refuses it, naming the kind at fault.
 func (b *binding) registerSchema(args []js.Value) any {
 	if len(args) < 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeObject {
 		return fail("registerSchema(name, schema)")
 	}
-	s, err := schemaFromJS(args[1])
+	k, err := kindsFromJS(args[1])
 	if err != nil {
 		return result(nil, err)
 	}
-	b.schemas = append(b.schemas, doc.Named{Name: args[0].String(), Schema: s})
+	b.schemas = append(b.schemas, doc.Named{Name: args[0].String(), Kinds: k})
 	return result(true, nil)
 }
 
@@ -248,7 +248,7 @@ func (b *binding) schemaOption(opts js.Value) ([]doc.Named, string, error) {
 		}
 		return nil, "", errors.New("schema " + strconv.Quote(v.String()) + " not known; registerSchema it or pass an object")
 	case js.TypeObject:
-		s, err := schemaFromJS(v)
+		k, err := kindsFromJS(v)
 		if err != nil {
 			return nil, "", err
 		}
@@ -256,7 +256,7 @@ func (b *binding) schemaOption(opts js.Value) ([]doc.Named, string, error) {
 		if name == "" {
 			name = "custom"
 		}
-		return append([]doc.Named{{Name: name, Schema: s}}, b.schemas...), name, nil
+		return append([]doc.Named{{Name: name, Kinds: k}}, b.schemas...), name, nil
 	case js.TypeUndefined, js.TypeNull, js.TypeBoolean, js.TypeNumber, js.TypeSymbol, js.TypeFunction:
 	}
 	return b.schemas, "basic", nil

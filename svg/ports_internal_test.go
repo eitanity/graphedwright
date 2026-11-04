@@ -14,7 +14,7 @@ import (
 func TestPortLabelsClear(t *testing.T) {
 	for _, route := range []gw.Route{gw.Straight, gw.Curve, gw.Orthogonal} {
 		for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
-			d, err := gw.New(gw.Schema{
+			d, err := makeDoc(gw.Schema{
 				VertexKinds: []gw.VertexKind{
 					{Name: "part", Shape: gw.Rect, Size: gw.Size{W: 100, H: 40}},
 					{Name: "system", Size: gw.Size{W: 160, H: 100}, Container: true},
@@ -84,7 +84,7 @@ func crossesBox(d *gw.Document, i gw.EdgeIndex, box gw.Viewport) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
-	route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+	route := d.Kinds().Edge(d.Edges[i].Kind).Route()
 	grown := gw.Viewport{X: box.X - 1, Y: box.Y - 1, W: box.W + 2, H: box.H + 2}
 	for k := range len(wy.through) + 1 {
 		u, w := leg(wy.a, wy.through, wy.b, k)

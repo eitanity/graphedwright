@@ -19,7 +19,7 @@ func nested(t *testing.T, seed uint64, n, m, zones int) *gw.Document {
 	t.Helper()
 	s := schema(true)
 	s.VertexKinds = append(s.VertexKinds, gw.VertexKind{Name: "zone", Size: gw.Size{W: 60, H: 40}, Container: true})
-	d, err := gw.New(s, gw.Caps{})
+	d, err := makeDoc(s, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestContainerArrowRoom(t *testing.T) {
 	s := schema(true)
 	s.VertexKinds = append(s.VertexKinds, gw.VertexKind{Name: "zone", Size: gw.Size{W: 60, H: 40}, Container: true})
 	for _, flow := range []string{"left-to-right", "top-to-bottom"} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}

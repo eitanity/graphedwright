@@ -95,12 +95,12 @@ func TestSchemaRefusals(t *testing.T) {
 	} {
 		s := testSchema()
 		tc.mod(&s)
-		_, err := gw.New(s, gw.Caps{})
+		_, err := makeDoc(s, gw.Caps{})
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: got %v, want %q", tc.name, err, tc.want)
 		}
 	}
-	if _, err := gw.New(testSchema(), gw.Caps{Vertices: -1}); err == nil || !strings.Contains(err.Error(), "capacity vertices -1") {
+	if _, err := makeDoc(testSchema(), gw.Caps{Vertices: -1}); err == nil || !strings.Contains(err.Error(), "capacity vertices -1") {
 		t.Errorf("negative capacity: %v", err)
 	}
 	// Each capacity within its range, but together too much memory.
@@ -114,12 +114,12 @@ func TestSchemaRefusals(t *testing.T) {
 		{gw.Caps{UndoDepth: 1 << 24, PortsPerVertex: 1 << 10}, "the largest part is undo depth × ports per vertex"},
 		{gw.Caps{Edges: 1 << 24}, "over the limit of 1024 MiB; the largest part is edges"},
 	} {
-		if _, err := gw.New(testSchema(), tc.caps); err == nil || !strings.Contains(err.Error(), tc.want) {
+		if _, err := makeDoc(testSchema(), tc.caps); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%+v: got %v, want %q", tc.caps, err, tc.want)
 		}
 	}
 	// A large document within the memory is still accepted.
-	if _, err := gw.New(testSchema(), gw.Caps{Vertices: 1 << 18, Edges: 1 << 18}); err != nil {
+	if _, err := makeDoc(testSchema(), gw.Caps{Vertices: 1 << 18, Edges: 1 << 18}); err != nil {
 		t.Errorf("a quarter of a million vertices and edges: %v", err)
 	}
 }

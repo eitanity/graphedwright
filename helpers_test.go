@@ -52,7 +52,7 @@ func testSchema() gw.Schema {
 
 func newDoc(t *testing.T, caps gw.Caps) *gw.Document {
 	t.Helper()
-	d, err := gw.New(testSchema(), caps)
+	d, err := makeDoc(testSchema(), caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,3 +151,13 @@ func writeAttrs(b *strings.Builder, attrs []gw.Attr) {
 }
 
 func ftoa(x float64) string { return strconv.FormatFloat(x, 'g', -1, 64) }
+
+// makeDoc compiles the schema and makes a document of it: the refusal of
+// either.
+func makeDoc(s gw.Schema, caps gw.Caps) (*gw.Document, error) {
+	k, err := gw.Compile(s)
+	if err != nil {
+		return nil, err
+	}
+	return gw.New(k, caps)
+}

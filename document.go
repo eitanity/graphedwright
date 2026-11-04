@@ -85,7 +85,7 @@ type Attr struct{ Key, Value string }
 // Vertex is one vertex of a document.
 type Vertex struct {
 	ID     ID
-	Kind   KindIndex // into Schema.VertexKinds
+	Kind   KindIndex // into the document's Kinds: Kinds().Vertex
 	Label  string
 	Pos    Point
 	Size   Size   // from the kind, overridable
@@ -101,7 +101,7 @@ type Vertex struct {
 // Edge is one edge of a document.
 type Edge struct {
 	ID       ID
-	Kind     KindIndex // into Schema.EdgeKinds
+	Kind     KindIndex // into the document's Kinds: Kinds().Edge
 	From, To VertexIndex
 	FromPort PortIndex
 	ToPort   PortIndex
@@ -139,7 +139,7 @@ func DefaultCaps() Caps {
 // Compact. Every change goes through Apply, but for the viewport, the
 // flow, the positions and the bends, which have methods of their own.
 type Document struct {
-	Schema   Schema
+	kinds    *Kinds
 	Vertices []Vertex
 	Edges    []Edge
 	view     Viewport
@@ -201,18 +201,22 @@ type Document struct {
 	kid, sib []VertexIndex
 }
 
-// New makes an empty document for the schema with the capacities,
+// New makes an empty document of the kinds with the capacities,
 // allocating everything it will ever hold. A zero capacity takes its
-// default.
-func New(schema Schema, caps Caps) (*Document, error) {
+// default. It refuses nil kinds, and kinds with more ports or attributes
+// than the capacities allow.
+func New(kinds *Kinds, caps Caps) (*Document, error) {
+	if kinds == nil {
+		return nil, errNoKinds
+	}
 	caps = caps.filled()
 	if err := caps.check(); err != nil {
 		return nil, err
 	}
-	if err := checkSchema(schema, caps); err != nil {
+	if err := kinds.fits(caps); err != nil {
 		return nil, err
 	}
-	d := &Document{Schema: schema, caps: caps}
+	d := &Document{kinds: kinds, caps: caps}
 	d.Vertices = make([]Vertex, 0, caps.Vertices)
 	d.Edges = make([]Edge, 0, caps.Edges)
 	d.portSlab = make([]Port, caps.Vertices*caps.PortsPerVertex)
@@ -223,7 +227,7 @@ func New(schema Schema, caps Caps) (*Document, error) {
 	d.inHead = make([]int32, caps.Vertices)
 	d.nextOut = make([]int32, caps.Edges)
 	d.nextIn = make([]int32, caps.Edges)
-	d.kindCount = make([]int32, len(schema.VertexKinds))
+	d.kindCount = make([]int32, len(kinds.vertex))
 	d.mark = make([]uint32, caps.Vertices)
 	d.stack = make([]int32, caps.Vertices)
 	d.parent = make([]int32, caps.Vertices)
@@ -247,6 +251,10 @@ func New(schema Schema, caps Caps) (*Document, error) {
 
 // Caps are the document's capacities.
 func (d *Document) Caps() Caps { return d.caps }
+
+// Kinds is the compiled schema the document was made with, which other
+// documents may share.
+func (d *Document) Kinds() *Kinds { return d.kinds }
 
 // filled puts the default in every zero capacity.
 func (c Caps) filled() Caps {

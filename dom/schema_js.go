@@ -26,6 +26,15 @@ import (
 // with min or max, or both, is bounded by them. The kinds an edge joins
 // and a container holds are named, and resolved here, once every vertex
 // kind is read.
+// kindsFromJS is a schema described from JavaScript, compiled.
+func kindsFromJS(v js.Value) (*gw.Kinds, error) {
+	s, err := schemaFromJS(v)
+	if err != nil {
+		return nil, err
+	}
+	return gw.Compile(s)
+}
+
 func schemaFromJS(v js.Value) (gw.Schema, error) {
 	s := gw.Schema{Acyclic: get(v, "acyclic").Truthy(), Connected: get(v, "connected").Truthy()}
 	vks := get(v, "vertexKinds")

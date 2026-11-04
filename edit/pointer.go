@@ -264,32 +264,21 @@ func (e *Editor) joins(from, to gw.VertexIndex) bool {
 	if e.connKind == gw.None {
 		return e.edgeKindFor(from, to) != gw.None
 	}
-	k := e.d.Schema.EdgeKinds[e.connKind]
-	return kindIn(k.From, e.d.Vertices[from].Kind) && kindIn(k.To, e.d.Vertices[to].Kind)
+	return e.d.Kinds().Edge(e.connKind).Allows(e.d.Vertices[from].Kind, e.d.Vertices[to].Kind)
 }
 
 // edgeKindFor is the first edge kind the schema allows between two
 // vertices' kinds, or None.
 func (e *Editor) edgeKindFor(from, to gw.VertexIndex) gw.KindIndex {
 	fk, tk := e.d.Vertices[from].Kind, e.d.Vertices[to].Kind
-	for i, k := range e.d.Schema.EdgeKinds {
-		if kindIn(k.From, fk) && kindIn(k.To, tk) {
-			return gw.KindIndex(i) //nolint:gosec // bounded by the schema
+	kinds := e.d.Kinds()
+	// bound: the edge kinds
+	for i := range kinds.EdgeKinds() {
+		if kinds.Edge(gw.KindIndex(i)).Allows(fk, tk) { //nolint:gosec // bounded by the kinds
+			return gw.KindIndex(i) //nolint:gosec // bounded by the kinds
 		}
 	}
 	return gw.None
-}
-
-func kindIn(list []gw.KindIndex, k gw.KindIndex) bool {
-	if len(list) == 0 {
-		return true
-	}
-	for _, x := range list {
-		if x == k {
-			return true
-		}
-	}
-	return false
 }
 
 // place drops a vertex kind from the palette at the snapped point, in
@@ -316,7 +305,7 @@ func (e *Editor) place(p gw.Point) error {
 // wholly inside the viewport, when there is one.
 func (e *Editor) inView(p gw.Point, kind gw.KindIndex) gw.Point {
 	v := e.d.View()
-	size := e.d.Schema.VertexKinds[kind].Size
+	size := e.d.Kinds().Vertex(kind).Size()
 	if v.W <= 0 || v.H <= 0 || size.W > v.W || size.H > v.H {
 		return p
 	}

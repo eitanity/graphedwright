@@ -36,7 +36,8 @@ func schemas() []doc.Named {
 		},
 		Acyclic: true,
 	}
-	return append(doc.Builtin(), doc.Named{Name: "model", Schema: model})
+	k, _ := gw.Compile(model) // nil if refused, which every decode then refuses
+	return append(doc.Builtin(), doc.Named{Name: "model", Kinds: k})
 }
 
 const example = `{
@@ -290,8 +291,8 @@ func TestDecodeRefusals(t *testing.T) {
 	if _, err := doc.Decode(make([]byte, doc.MaxInput+1), doc.Options{}); err == nil || !strings.Contains(err.Error(), "exceeds the limit") {
 		t.Errorf("over the input limit: %v", err)
 	}
-	if _, err := doc.Decode([]byte(`{"schema":"broken"}`), doc.Options{Schemas: []doc.Named{{Name: "broken"}}}); err == nil || !strings.Contains(err.Error(), "document.schema: schema: no vertex kinds") {
-		t.Errorf("broken schema: %v", err)
+	if _, err := doc.Decode([]byte(`{"schema":"broken"}`), doc.Options{Schemas: []doc.Named{{Name: "broken"}}}); err == nil || !strings.Contains(err.Error(), "document.schema: no kinds") {
+		t.Errorf("a schema without kinds: %v", err)
 	}
 	// A layout on load can fail on the dummy budget: a placed edge
 	// spanning ten layers with room for eight dummies per edge capacity.

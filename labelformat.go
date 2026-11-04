@@ -132,12 +132,12 @@ func indexByte(s string, c byte) int {
 // its kind's format draws it.
 func (d *Document) VertexLabelRunes(v VertexIndex) int {
 	x := &d.Vertices[v]
-	return LabelRunes(d.Schema.VertexKinds[x.Kind].LabelFormat, x.Label, x.Attrs)
+	return LabelRunes(d.kinds.vertex[x.Kind].LabelFormat, x.Label, x.Attrs)
 }
 
 // EdgeLabelRunes is the number of characters of an edge's label as its
 // kind's format draws it.
 func (d *Document) EdgeLabelRunes(e EdgeIndex) int {
 	x := &d.Edges[e]
-	return LabelRunes(d.Schema.EdgeKinds[x.Kind].LabelFormat, x.Label, x.Attrs)
+	return LabelRunes(d.kinds.edge[x.Kind].LabelFormat, x.Label, x.Attrs)
 }

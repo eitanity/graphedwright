@@ -25,7 +25,7 @@ func TestSelection(t *testing.T) {
 	if s.SelectedVertex(-1) != gw.None || s.SelectedVertex(1) != gw.None || s.SelectedEdge(-1) != gw.None || s.SelectedEdge(1) != gw.None || s.SelectedVertex(0) != 1 || s.SelectedEdge(0) != 0 {
 		t.Error("Selected reads out of range")
 	}
-	d, err := gw.New(gw.Schema{VertexKinds: []gw.VertexKind{{Name: "box", Size: gw.Size{W: 40, H: 20}}}, EdgeKinds: []gw.EdgeKind{{Name: "to"}}}, gw.Caps{Vertices: 2, Edges: 1})
+	d, err := makeDoc(gw.Schema{VertexKinds: []gw.VertexKind{{Name: "box", Size: gw.Size{W: 40, H: 20}}}, EdgeKinds: []gw.EdgeKind{{Name: "to"}}}, gw.Caps{Vertices: 2, Edges: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

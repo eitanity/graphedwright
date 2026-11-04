@@ -46,7 +46,7 @@ func TestSetBends(t *testing.T) {
 		t.Error("no bends refused")
 	}
 
-	small, err := gw.New(d.Schema, gw.Caps{Edges: 2, BendsPerEdge: 2})
+	small, err := gw.New(d.Kinds(), gw.Caps{Edges: 2, BendsPerEdge: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

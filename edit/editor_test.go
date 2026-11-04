@@ -50,7 +50,7 @@ func schema() gw.Schema {
 // (420,100), c at (620,100); a's in port at (160,100), out at (280,100).
 func fixture(t *testing.T, caps gw.Caps) (*gw.Document, *edit.Editor) {
 	t.Helper()
-	d, err := gw.New(schema(), caps)
+	d, err := makeDoc(schema(), caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,6 +443,20 @@ func TestPalette(t *testing.T) {
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: 99, IsEdge: true})
 	if e.EdgeKind() != gw.None {
 		t.Errorf("a kind out of range was chosen: %d", e.EdgeKind())
+	}
+	// With to chosen, which joins a source to a node, the leaf c is no
+	// target and the node b's in port is.
+	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: eTo, IsEdge: true}, down(108, 100, 0), move(620, 100))
+	if v, ok := e.Target(); ok {
+		t.Errorf("with to chosen, %q is a target", d.Vertices[v].ID)
+	}
+	send(t, e, move(360, 100))
+	if v, ok := e.Target(); !ok || d.Vertices[v].ID != "b" {
+		t.Errorf("with to chosen, b is not the target: %d %v", v, ok)
+	}
+	send(t, e, key("Escape", 0))
+	if e.EdgeKind() == eTo {
+		send(t, e, edit.Event{Kind: edit.PaletteStart, Item: eTo, IsEdge: true})
 	}
 	// A drop at the edge of the view keeps the vertex inside it.
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: kLeaf}, up(795, 3))

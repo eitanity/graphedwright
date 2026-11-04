@@ -36,7 +36,7 @@ func TestCompartmentsInside(t *testing.T) {
 		{"", ""},
 	}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}

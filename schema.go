@@ -149,28 +149,27 @@ type Schema struct {
 	Connected   bool // every vertex reachable from a root kind: a warning, not a refusal
 }
 
-// checkSchema validates a schema against the capacities: at least one
-// kind, unique names, kind and port references in range, ports and
-// attributes within the capacities, and every required attribute with
-// a default.
-func checkSchema(s Schema, caps Caps) error {
+// checkSchema validates a schema: at least one kind, unique names, kind
+// and port references in range, and every required attribute with a
+// default. The capacities are checked by Kinds.fits.
+func checkSchema(s Schema) error {
 	if len(s.VertexKinds) == 0 {
 		return schemaError("", "no vertex kinds")
 	}
 	for i, k := range s.VertexKinds {
-		if err := checkVertexKind(s, i, k, caps); err != nil {
+		if err := checkVertexKind(s, i, k); err != nil {
 			return err
 		}
 	}
 	for i, k := range s.EdgeKinds {
-		if err := checkEdgeKind(s, i, k, caps); err != nil {
+		if err := checkEdgeKind(s, i, k); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
+func checkVertexKind(s Schema, i int, k VertexKind) error {
 	where := "vertex kind " + strconv.Quote(k.Name)
 	if k.Name == "" {
 		return schemaError("vertex kind "+itoa(i), "empty name")
@@ -183,7 +182,7 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 			return schemaError(where, "duplicate name")
 		}
 	}
-	if err := checkPorts(where, k.Ports, caps); err != nil {
+	if err := checkPorts(where, k.Ports); err != nil {
 		return err
 	}
 	if err := checkText("keyword", k.Keyword); err != nil {
@@ -212,7 +211,7 @@ func checkVertexKind(s Schema, i int, k VertexKind, caps Caps) error {
 	if k.Max < 0 || k.Shape > DataStore || !(k.Size.W >= 0) || !(k.Size.H >= 0) || math.IsInf(k.Size.W, 1) || math.IsInf(k.Size.H, 1) {
 		return schemaError(where, "max, shape and size must be in range")
 	}
-	return checkAttrSpecs(where, k.Attrs, caps)
+	return checkAttrSpecs(where, k.Attrs)
 }
 
 // checkCompartments refuses compartments on a shape that cannot hold
@@ -241,12 +240,9 @@ func checkCompartments(k VertexKind) error {
 	return nil
 }
 
-// checkPorts validates a kind's ports: within the capacity, each named,
-// on a side, with a non-negative max, and no name twice.
-func checkPorts(where string, ports []Port, caps Caps) error {
-	if len(ports) > caps.PortsPerVertex {
-		return schemaError(where, itoa(len(ports))+" ports exceed the limit of "+itoa(caps.PortsPerVertex))
-	}
+// checkPorts validates a kind's ports: each named, on a side, with a
+// non-negative max, and no name twice.
+func checkPorts(where string, ports []Port) error {
 	for p, port := range ports {
 		if port.Name == "" || port.Max < 0 || port.Side > Bottom {
 			return schemaError(where, "port "+itoa(p)+" needs a name, a side and a non-negative max")
@@ -263,7 +259,7 @@ func checkPorts(where string, ports []Port, caps Caps) error {
 	return nil
 }
 
-func checkEdgeKind(s Schema, i int, k EdgeKind, caps Caps) error {
+func checkEdgeKind(s Schema, i int, k EdgeKind) error {
 	where := "edge kind " + strconv.Quote(k.Name)
 	if k.Name == "" {
 		return schemaError("edge kind "+itoa(i), "empty name")
@@ -295,16 +291,13 @@ func checkEdgeKind(s Schema, i int, k EdgeKind, caps Caps) error {
 			}
 		}
 	}
-	return checkAttrSpecs(where, k.Attrs, caps)
+	return checkAttrSpecs(where, k.Attrs)
 }
 
 // checkAttrSpecs validates a kind's attribute specifications: unique
-// keys within the capacity, choices for a choice, a default that fits
-// its own kind, and a default for every required attribute.
-func checkAttrSpecs(where string, specs []AttrSpec, caps Caps) error {
-	if len(specs) > caps.AttrsPerElement {
-		return schemaError(where, itoa(len(specs))+" attributes exceed the limit of "+itoa(caps.AttrsPerElement))
-	}
+// keys, choices for a choice, a default that fits its own kind, and a
+// default for every required attribute.
+func checkAttrSpecs(where string, specs []AttrSpec) error {
 	for i, a := range specs {
 		if err := checkSpecText(i, a); err != nil {
 			return schemaError(where, err.Error())

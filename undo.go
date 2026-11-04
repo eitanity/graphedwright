@@ -328,7 +328,7 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 		d.redoAttr(en)
 	case SetPorts:
 		v := &d.Vertices[en.vertex]
-		kind := d.Schema.VertexKinds[v.Kind]
+		kind := d.kinds.vertex[v.Kind]
 		v.Ports = v.Ports[:len(kind.Ports)]
 		copy(v.Ports, kind.Ports)
 		d.portsChanged(en.vertex)

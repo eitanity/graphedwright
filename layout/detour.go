@@ -106,7 +106,7 @@ func (l *Layouter) index(d *gw.Document) {
 		}
 		b := l.frame(v)
 		dt.boxes[i] = b
-		if d.Schema.VertexKinds[v.Kind].Container {
+		if d.Kinds().Vertex(v.Kind).Container() {
 			dt.wide = append(dt.wide, int32(i)) //nolint:gosec // bounded by the capacity
 			continue
 		}
@@ -190,7 +190,7 @@ func sameEnds(d *gw.Document, e, o gw.EdgeIndex) bool {
 
 func hasContainer(d *gw.Document) bool {
 	for i := range d.Vertices {
-		if d.Vertices[i].Live && d.Schema.VertexKinds[d.Vertices[i].Kind].Container {
+		if d.Vertices[i].Live && d.Kinds().Vertex(d.Vertices[i].Kind).Container() {
 			return true
 		}
 	}
@@ -208,7 +208,7 @@ type drawn struct {
 func (l *Layouter) drawnOf(d *gw.Document, e *gw.Edge) drawn {
 	fb, tb := l.frame(&d.Vertices[e.From]), l.frame(&d.Vertices[e.To])
 	fx, tx := (fb.x0+fb.x1)/2, (tb.x0+tb.x1)/2
-	w := drawn{route: d.Schema.EdgeKinds[e.Kind].Route, back: tx < fx}
+	w := drawn{route: d.Kinds().Edge(e.Kind).Route(), back: tx < fx}
 	w.a, w.b = gw.Point{X: fx, Y: fb.cy}, gw.Point{X: tx, Y: tb.cy}
 	if w.route != gw.Straight {
 		w.a.X, w.b.X = fb.x1, tb.x0

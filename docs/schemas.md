@@ -115,13 +115,18 @@ schema := gw.Schema{
 	},
 	Acyclic: true,
 }
-d, err := gw.New(schema, gw.Caps{})
+kinds, err := gw.Compile(schema)
+d, err := gw.New(kinds, gw.Caps{})
 ```
 
-`gw.New` checks the schema and refuses one that is inconsistent: no
+`gw.Compile` checks the schema and refuses one that is inconsistent: no
 vertex kinds, two kinds with one name, a kind index out of range, a
 required attribute without a default, a default its own kind refuses,
-and so on. The error names the kind and the problem.
+and so on. The error names the kind and the problem. It copies the
+schema, so changing the `gw.Schema` afterwards changes nothing, and any
+number of documents share the `*Kinds` it returns. `gw.New` refuses
+kinds with more ports or attributes than the document's capacities
+allow.
 
 Kinds are referred to by index (`gw.KindIndex`) in the schema and in
 commands.
@@ -189,7 +194,9 @@ kept, written to the document and shown as text in a properties panel.
 ## Defining a schema in a web page
 
 The browser build takes the same schema as a plain object, either
-passed straight to `create` or registered by name first:
+passed straight to `create` or registered by name first. Either way it
+is checked when it is given: `registerSchema` refuses an inconsistent
+one, which is then not known.
 
 ```js
 graphedwright.registerSchema("pipeline", {
@@ -231,4 +238,5 @@ A missing field takes the first value in each list.
 
 A Go program built for the browser can also add schemas before the
 page starts, by passing them to `dom.Main`, as
-`dom.Main(doc.Named{Name: name, Schema: schema})`.
+`dom.Main(doc.Named{Name: name, Kinds: kinds})`, with `kinds` from
+`gw.Compile`.

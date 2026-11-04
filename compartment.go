@@ -21,8 +21,8 @@ const (
 
 // TitleRoom is the height of what is above a vertex's compartments: its
 // label, and the keyword line above that when the kind has one.
-func TitleRoom(k *VertexKind) float64 {
-	if k.Keyword != "" {
+func TitleRoom(k VertexKindView) float64 {
+	if k.Keyword() != "" {
 		return CompartmentTitle + CompartmentLine
 	}
 	return CompartmentTitle
@@ -60,7 +60,7 @@ func AttrValue(attrs []Attr, key string) string {
 // hasCompartments reports whether a live vertex is of a kind with
 // compartments, whose size its attributes then set.
 func (d *Document) hasCompartments() bool {
-	for i, k := range d.Schema.VertexKinds {
+	for i, k := range d.kinds.vertex {
 		if len(k.Compartments) > 0 && d.kindCount[i] > 0 {
 			return true
 		}
@@ -70,7 +70,7 @@ func (d *Document) hasCompartments() bool {
 
 // holdsCompartments reports whether a vertex's kind has compartments.
 func (d *Document) holdsCompartments(v VertexIndex) bool {
-	return len(d.Schema.VertexKinds[d.Vertices[v].Kind].Compartments) > 0
+	return len(d.kinds.vertex[d.Vertices[v].Kind].Compartments) > 0
 }
 
 // refits reports whether a command, applied or undone, can change what
@@ -93,8 +93,8 @@ func (d *Document) refits(op Op) bool {
 // widest line up to the kind's MaxWidth.
 func (d *Document) fitted(i VertexIndex, own Size) Size {
 	v := &d.Vertices[i]
-	kind := &d.Schema.VertexKinds[v.Kind]
-	h, w, shown := TitleRoom(kind), 0.0, false
+	kind := &d.kinds.vertex[v.Kind]
+	h, w, shown := TitleRoom(VertexKindView{kind}), 0.0, false
 	for _, key := range kind.Compartments {
 		val := AttrValue(v.Attrs, key)
 		if val == "" {
@@ -152,7 +152,7 @@ func runes(s string) int {
 // its top, above them.
 func (d *Document) ShowsCompartments(v VertexIndex) bool {
 	x := &d.Vertices[v]
-	for _, key := range d.Schema.VertexKinds[x.Kind].Compartments {
+	for _, key := range d.kinds.vertex[x.Kind].Compartments {
 		if AttrValue(x.Attrs, key) != "" {
 			return true
 		}

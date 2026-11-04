@@ -50,21 +50,30 @@ func (e *Editor) Properties() (Properties, bool) {
 		return Properties{}, false
 	}
 	p := Properties{Vertex: v, Edge: x}
-	var specs []gw.AttrSpec
+	var specs attrSpecs
 	var attrs []gw.Attr
 	if v != gw.None {
 		vx := &e.d.Vertices[v]
-		kind := e.d.Schema.VertexKinds[vx.Kind]
-		p.ID, p.Kind, p.Label, specs, attrs = vx.ID, kind.Name, vx.Label, kind.Attrs, vx.Attrs
+		kind := e.d.Kinds().Vertex(vx.Kind)
+		p.ID, p.Kind, p.Label, specs, attrs = vx.ID, kind.Name(), vx.Label, kind, vx.Attrs
 	} else {
 		ed := &e.d.Edges[x]
-		kind := e.d.Schema.EdgeKinds[ed.Kind]
-		p.ID, p.Kind, p.Label, specs, attrs = ed.ID, kind.Name, ed.Label, kind.Attrs, ed.Attrs
+		kind := e.d.Kinds().Edge(ed.Kind)
+		p.ID, p.Kind, p.Label, specs, attrs = ed.ID, kind.Name(), ed.Label, kind, ed.Attrs
 		p.From, p.To = e.d.Vertices[ed.From].ID, e.d.Vertices[ed.To].ID
 	}
-	p.Attrs = make([]Property, 0, len(specs)+len(attrs))
-	for _, s := range specs {
-		p.Attrs = append(p.Attrs, Property{Key: s.Key, Value: value(attrs, s.Key), Kind: s.Kind, Choices: s.Choices, Required: s.Required, Known: true, Bounded: s.Bounded, Min: s.Min, Max: s.Max})
+	p.Attrs = make([]Property, 0, specs.AttrCount()+len(attrs))
+	// bound: the kind's attributes
+	for i := range specs.AttrCount() {
+		s := specs.Attr(i)
+		choices := make([]string, s.ChoiceCount())
+		for c := range choices {
+			choices[c] = s.Choice(c)
+		}
+		if len(choices) == 0 {
+			choices = nil
+		}
+		p.Attrs = append(p.Attrs, Property{Key: s.Key(), Value: value(attrs, s.Key()), Kind: s.Kind(), Choices: choices, Required: s.Required(), Known: true, Bounded: s.Bounded(), Min: s.Min(), Max: s.Max()})
 	}
 	for _, a := range attrs {
 		if !named(specs, a.Key) {
@@ -140,10 +149,17 @@ func value(attrs []gw.Attr, key string) string {
 	return ""
 }
 
+// attrSpecs are a vertex or an edge kind's attribute specifications.
+type attrSpecs interface {
+	AttrCount() int
+	Attr(i int) gw.AttrSpecView
+}
+
 // named reports whether the specifications name the key.
-func named(specs []gw.AttrSpec, key string) bool {
-	for _, s := range specs {
-		if s.Key == key {
+func named(specs attrSpecs, key string) bool {
+	// bound: the kind's attributes
+	for i := range specs.AttrCount() {
+		if specs.Attr(i).Key() == key {
 			return true
 		}
 	}

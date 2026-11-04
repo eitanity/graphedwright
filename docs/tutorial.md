@@ -66,12 +66,18 @@ import (
 
 ### 2. Make a document and fill it with commands
 
-`gw.New` makes an empty document for the schema. Every change to a
+`gw.Compile` checks the schema once and makes the `*Kinds` that
+documents of it share, and `gw.New` makes an empty document of them.
+Every change to a
 document is a **command** passed to `Apply`, which either applies it or
 refuses it with an error and leaves the document as it was.
 
 ```go
-d, err := gw.New(schema, gw.Caps{})
+kinds, err := gw.Compile(schema)
+if err != nil {
+	return err
+}
+d, err := gw.New(kinds, gw.Caps{})
 if err != nil {
 	return err
 }
@@ -193,7 +199,7 @@ var text bytes.Buffer
 if err := doc.Encode(d, "deps", &text); err != nil {
 	return err
 }
-again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "deps", Schema: schema}}})
+again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "deps", Kinds: kinds}}})
 ```
 
 The text looks like this, shortened:

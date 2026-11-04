@@ -135,7 +135,7 @@ func num(f float64) string {
 // cutTextsDoc is the cut texts example with IDs to name the vertices by.
 func cutTextsDoc(t *testing.T) (*gw.Document, Options) {
 	t.Helper()
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{
 				Name: "part", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part definition of a kind»",

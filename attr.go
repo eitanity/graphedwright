@@ -28,7 +28,7 @@ func (d *Document) setAttr(c Command) error {
 			return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 		}
 		v := &d.Vertices[c.Vertex]
-		if err := d.checkAttr(c, d.Schema.VertexKinds[v.Kind].Attrs); err != nil {
+		if err := d.checkAttr(c, d.kinds.vertex[v.Kind].Attrs); err != nil {
 			return err
 		}
 		attrs, en, err := d.writeAttr(v.Attrs, c)
@@ -47,7 +47,7 @@ func (d *Document) setAttr(c Command) error {
 		return refusal("edge " + itoa(int(c.Edge)) + " is not live")
 	}
 	e := &d.Edges[c.Edge]
-	if err := d.checkAttr(c, d.Schema.EdgeKinds[e.Kind].Attrs); err != nil {
+	if err := d.checkAttr(c, d.kinds.edge[e.Kind].Attrs); err != nil {
 		return err
 	}
 	attrs, en, err := d.writeAttr(e.Attrs, c)

@@ -150,7 +150,7 @@ func TestBendsOnRandomDAGs(t *testing.T) {
 // adding to the slab, and an edge whose ends come to adjacent layers
 // loses them.
 func TestBendsCleared(t *testing.T) {
-	d, err := gw.New(schema(true), gw.Caps{Edges: 4, BendsPerEdge: 2})
+	d, err := makeDoc(schema(true), gw.Caps{Edges: 4, BendsPerEdge: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestTopToBottom(t *testing.T) {
 func TestContainerEdgeKeepsRoute(t *testing.T) {
 	s := schema(false)
 	s.VertexKinds = append(s.VertexKinds, gw.VertexKind{Name: "group", Shape: gw.RoundRect, Size: gw.Size{W: 200, H: 120}, Container: true})
-	d, err := gw.New(s, gw.Caps{})
+	d, err := makeDoc(s, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}

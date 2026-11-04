@@ -22,16 +22,28 @@ The [tutorial](tutorial.md) walks through a whole program, and
 ## graphedwright
 
 ```go
-d, err := gw.New(schema, gw.Caps{})   // check the schema, allocate everything
+kinds, err := gw.Compile(schema)      // check the schema once, and copy it
+d, err := gw.New(kinds, gw.Caps{})    // allocate everything
 ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "a"})
 v := ch.Vertices[0]                    // copy out at once: valid until the next Apply
 d.Undo()
 d.Redo()
 ```
 
-- **`New(schema, caps)`** makes an empty document and refuses an
-  inconsistent schema. [Schemas](schemas.md) describes the schema, and
-  [Concepts](concepts.md#capacities) the capacities.
+- **`Compile(schema)`** checks a schema and refuses an inconsistent
+  one, naming the kind. It copies the schema into a `*Kinds` that
+  nothing can change afterwards, so any number of documents can share
+  it. [Schemas](schemas.md) describes the schema.
+- **`New(kinds, caps)`** makes an empty document of the kinds. It
+  refuses nil kinds, and kinds with more ports or attributes than the
+  capacities allow. [Concepts](concepts.md#capacities) describes the
+  capacities.
+- **`Kinds()`** is the document's kinds. They are read by index, as
+  values: `k.Vertex(i)` and `k.Edge(i)`, with `VertexKinds()` and
+  `EdgeKinds()` their numbers and `VertexNamed` and `EdgeNamed` an
+  index by name. A kind's lists are read by position, such as
+  `PortCount()` and `Port(j)`, or `AttrCount()` and `Attr(j)`. Out of
+  range, a read is the zero value, or `None` for an index.
 - **`Apply(cmd)`** applies a command or refuses it, leaving the document
   as it was. It returns the `Change`: the vertices and edges touched,
   and whether the layout is stale. The commands are listed in
@@ -177,7 +189,8 @@ without positions is laid out unless `NoLayout` is set.
 - **Schemas:** `Options.Schemas` lists the schemas the reader knows by
   name. `doc.Builtin()` gives `basic`, `use-case`, `threat-model` and
   `state-machine`;
-  append your own as `doc.Named{Name, Schema}`.
+  append your own as `doc.Named{Name, Kinds}`. Every document decoded
+  with one shares its `Kinds`.
 - **Capacities:** `Options.Caps` gives the capacities of the document
   made.
 

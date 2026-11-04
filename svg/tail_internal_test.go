@@ -27,7 +27,7 @@ func TestTails(t *testing.T) {
 		},
 	}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,16 +60,16 @@ func TestTails(t *testing.T) {
 		for _, m := range pathStartRE.FindAllStringSubmatch(buf.String(), -1) {
 			e := d.EdgeByID(gw.ID(m[1]))
 			ed := &d.Edges[e]
-			kind := d.Schema.EdgeKinds[ed.Kind]
+			kind := d.Kinds().Edge(ed.Kind)
 			x, _ := strconv.ParseFloat(m[2], 64)
 			y, _ := strconv.ParseFloat(m[3], 64)
 			var lane [1]gw.Point
 			w := wayOf(d, e, &lane)
 			from := &d.Vertices[ed.From]
-			if od := outlineDistance(d.Schema.VertexKinds[from.Kind].Shape, from, w.a); math.Abs(od) > 0.5 {
+			if od := outlineDistance(d.Kinds().Vertex(from.Kind).Shape(), from, w.a); math.Abs(od) > 0.5 {
 				t.Errorf("flow %d: %s leaves %g off its source's outline", flow, ed.ID, od)
 			}
-			tl := tailLength(kind.Tail)
+			tl := tailLength(kind.Tail())
 			if got := math.Hypot(x-w.a.X, y-w.a.Y); math.Abs(got-tl) > 0.5 {
 				t.Errorf("flow %d: %s's stroke starts %g from its source, want the tail's %g", flow, ed.ID, got, tl)
 			}

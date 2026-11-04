@@ -144,6 +144,8 @@ def check(out, native, example):
         raise SystemExit(f"bounded schema: {b['registered']}")
     if "edits attribute \"nope\", which is not an attribute of the kind" not in b["badEdit"].get("error", "") or "attribute \"note\" is bounded and not a number" not in b["badBound"].get("error", ""):
         raise SystemExit(f"bounded schema refusals: {b['badEdit']} {b['badBound']}")
+    if "not known" not in b["badUnknown"].get("error", ""):
+        raise SystemExit(f"a refused schema was registered: {b['badUnknown']}")
     if b["bounds"] != {"shareMin": 0, "shareMax": 1, "rateMin": 0, "rateMaxInfinite": True}:
         raise SystemExit(f"bounds in properties: {b['bounds']}")
     if "must be a number from 0 to 1" not in b["outside"].get("error", "") or "must be a number at least 0" not in b["below"].get("error", ""):

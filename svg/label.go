@@ -27,16 +27,16 @@ const minLabelWidth = 80
 // container's title at its top.
 func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 	x := &d.Vertices[v]
-	kind := d.Schema.VertexKinds[x.Kind]
+	kind := d.Kinds().Vertex(x.Kind)
 	textW := float64(float64(d.VertexLabelRunes(v)) * defaultCharWidth)
 	switch {
-	case kind.Container:
+	case kind.Container():
 		top := x.Pos.Y - float64(x.Size.H/2)
 		return gw.Viewport{X: x.Pos.X - float64(x.Size.W/2) + 4, Y: top + gw.ContainerTitle/2 - labelHeight/2 + 1, W: math.Max(x.Size.W-8, minLabelWidth), H: labelHeight}
 	case d.ShowsCompartments(v):
 		top := x.Pos.Y - float64(x.Size.H/2)
-		return centred(x.Pos.X, top+gw.TitleRoom(&kind)-8-defaultFontSize/3, math.Max(x.Size.W, minLabelWidth))
-	case kind.Shape == gw.Actor:
+		return centred(x.Pos.X, top+gw.TitleRoom(kind)-8-defaultFontSize/3, math.Max(x.Size.W, minLabelWidth))
+	case kind.Shape() == gw.Actor:
 		w := math.Max(textW+16, minLabelWidth)
 		return centred(x.Pos.X, x.Pos.Y+float64(x.Size.H/2)-4-defaultFontSize/3, w)
 	}
@@ -55,11 +55,11 @@ func EdgeLabelBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
 // edgeLabelBox is EdgeLabelBox and the side of its lane it is on.
 func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	e := &d.Edges[i]
-	kind := d.Schema.EdgeKinds[e.Kind]
+	kind := d.Kinds().Edge(e.Kind)
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
-	mid := wy.middle(kind.Route)
+	mid := wy.middle(kind.Route())
 	side := wy.side()
 	// Wide enough for the label as drawn and as typed in.
 	w := math.Max(float64(float64(max(d.EdgeLabelRunes(i), runeCount(e.Label)))*defaultCharWidth)+16, minLabelWidth)
@@ -73,7 +73,7 @@ func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	if side < 0 {
 		base, step = mid.Y+defaultStroke/2+defaultFontSize, defaultFontSize
 	}
-	if kind.Stereotype != "" {
+	if kind.Stereotype() != "" {
 		base += step
 	}
 	return centred(mid.X, base-defaultFontSize/3, w), side
@@ -175,7 +175,7 @@ func edgeHeads(d *gw.Document, i gw.EdgeIndex, from bool, at gw.Point, reach flo
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
-	route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+	route := d.Kinds().Edge(d.Edges[i].Kind).Route()
 	legs := len(wy.through) + 1
 	// bound: the legs, at most the bends per edge and one
 	for n := range legs {

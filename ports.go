@@ -24,7 +24,7 @@ func portSlot(p Port) float64 {
 // AddPort after its kind's.
 func (d *Document) OwnPorts(v VertexIndex) int {
 	x := &d.Vertices[v]
-	return len(x.Ports) - len(d.Schema.VertexKinds[x.Kind].Ports)
+	return len(x.Ports) - len(d.kinds.vertex[x.Kind].Ports)
 }
 
 // selfSized reports whether a vertex's size follows from what it holds
@@ -95,7 +95,7 @@ func (d *Document) deletePort(c Command) error {
 	switch {
 	case i == None:
 		return refusal("vertex " + d.vertexName(c.Vertex) + " has no port " + strconv.Quote(c.Text))
-	case int(i) < len(d.Schema.VertexKinds[d.Vertices[c.Vertex].Kind].Ports):
+	case int(i) < len(d.kinds.vertex[d.Vertices[c.Vertex].Kind].Ports):
 		return refusal("port " + strconv.Quote(c.Text) + " is the kind's, not the vertex's own")
 	}
 	if used := d.portUsers(c.Vertex, i); used != "" {

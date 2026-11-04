@@ -43,12 +43,12 @@ func (d *Document) Within(v, c VertexIndex) bool {
 
 // isContainer reports whether the vertex's kind is a container.
 func (d *Document) isContainer(v VertexIndex) bool {
-	return d.Schema.VertexKinds[d.Vertices[v].Kind].Container
+	return d.kinds.vertex[d.Vertices[v].Kind].Container
 }
 
 // hasContainers reports whether the document holds a live container.
 func (d *Document) hasContainers() bool {
-	for i, k := range d.Schema.VertexKinds {
+	for i, k := range d.kinds.vertex {
 		if k.Container && d.kindCount[i] > 0 {
 			return true
 		}
@@ -67,7 +67,7 @@ func (d *Document) setParent(c Command) error {
 		if !d.vertexLive(c.To) {
 			return refusal("vertex " + itoa(int(c.To)) + " is not live")
 		}
-		k := d.Schema.VertexKinds[d.Vertices[c.To].Kind]
+		k := d.kinds.vertex[d.Vertices[c.To].Kind]
 		if !k.Container {
 			return refusal("vertex " + d.vertexName(c.To) + " of kind " + d.kindName(d.Vertices[c.To].Kind) + " is not a container")
 		}
@@ -209,7 +209,7 @@ func (d *Document) ownSize(c VertexIndex) Size {
 	if m := d.Vertices[c].Min; m != (Size{}) {
 		return m
 	}
-	return d.Schema.VertexKinds[d.Vertices[c].Kind].Size
+	return d.kinds.vertex[d.Vertices[c].Kind].Size
 }
 
 // Containers lists the live containers in the order they are drawn,

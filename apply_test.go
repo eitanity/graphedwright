@@ -184,7 +184,7 @@ func TestCycleNames(t *testing.T) {
 // an edge with bends are alone; and adding one reports the others as
 // changed, since their lanes move.
 func TestParallel(t *testing.T) {
-	d, err := gw.New(gw.Schema{VertexKinds: []gw.VertexKind{{Name: "v", Size: gw.Size{W: 40, H: 20}}}, EdgeKinds: []gw.EdgeKind{{Name: "e"}}}, gw.Caps{})
+	d, err := makeDoc(gw.Schema{VertexKinds: []gw.VertexKind{{Name: "v", Size: gw.Size{W: 40, H: 20}}}, EdgeKinds: []gw.EdgeKind{{Name: "e"}}}, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}

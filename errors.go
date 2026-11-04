@@ -9,6 +9,9 @@ func itoa(v int) string { return strconv.Itoa(v) }
 
 func utoa(v uint64) string { return strconv.FormatUint(v, 10) }
 
+// errNoKinds refuses a document without kinds.
+var errNoKinds = errors.New("no kinds: compile a schema with Compile")
+
 // schemaError names the kind at fault, or the schema as a whole.
 func schemaError(where, msg string) error {
 	if where == "" {
@@ -37,5 +40,5 @@ func (d *Document) vertexName(v VertexIndex) string {
 
 // kindName is the quoted name of a vertex kind.
 func (d *Document) kindName(k KindIndex) string {
-	return strconv.Quote(d.Schema.VertexKinds[k].Name)
+	return strconv.Quote(d.kinds.vertex[k].Name)
 }

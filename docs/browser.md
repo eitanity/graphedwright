@@ -92,7 +92,7 @@ throws. The first argument of every call after `create` is the handle
 | `annotate(g, {id: {text, class, weight}})` | draws a figure on each element named, replacing the last set: text under a vertex's label or at an edge's middle, a class added to it, and on an edge a weight that sets its stroke width |
 | `on(g, event, callback)` | listens for an event (below) |
 | `destroy(g)` | removes the editor and frees what it holds |
-| `registerSchema(name, schema)` | adds a schema described as an object ([Schemas](schemas.md#defining-a-schema-in-a-web-page)) |
+| `registerSchema(name, schema)` | checks a schema described as an object and adds it, or refuses it ([Schemas](schemas.md#defining-a-schema-in-a-web-page)) |
 
 ### `create` options
 

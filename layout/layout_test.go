@@ -32,7 +32,7 @@ func schema(acyclic bool) gw.Schema {
 // from a lower index to a higher one, from a seed.
 func randomDAG(t testing.TB, seed uint64, n, m int, caps gw.Caps) *gw.Document {
 	t.Helper()
-	d, err := gw.New(schema(true), caps)
+	d, err := makeDoc(schema(true), caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestPlacedStay(t *testing.T) {
 // TestCycleReversed: a document that may hold cycles has the edge that
 // closes one reversed for the layout, and the rest laid out forward.
 func TestCycleReversed(t *testing.T) {
-	d, err := gw.New(schema(false), gw.Caps{})
+	d, err := makeDoc(schema(false), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestCycleReversed(t *testing.T) {
 func TestCrossingsCounted(t *testing.T) {
 	bipartite := func(edges [][2]gw.VertexIndex, n int) (*gw.Document, layout.Result) {
 		t.Helper()
-		d, err := gw.New(schema(true), gw.Caps{})
+		d, err := makeDoc(schema(true), gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -278,7 +278,7 @@ func TestCrossingsCounted(t *testing.T) {
 // TestDummyBudget: an edge spanning more layers than the budget allows
 // is refused with the numbers.
 func TestDummyBudget(t *testing.T) {
-	d, err := gw.New(schema(true), gw.Caps{Vertices: 16, Edges: 1})
+	d, err := makeDoc(schema(true), gw.Caps{Vertices: 16, Edges: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestOutOfRange(t *testing.T) {
 // the layout is refused with the whole count, where an int has 32 bits
 // too.
 func TestDummyBudgetWide(t *testing.T) {
-	d, err := gw.New(schema(true), gw.Caps{Edges: 65536})
+	d, err := makeDoc(schema(true), gw.Caps{Edges: 65536})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +372,7 @@ func TestDummyBudgetWide(t *testing.T) {
 // edge between them, lie 2^20 layers apart, beyond the arrays by layer;
 // the layout is refused with both numbers.
 func TestLayerBudget(t *testing.T) {
-	d, err := gw.New(schema(true), gw.Caps{})
+	d, err := makeDoc(schema(true), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +434,7 @@ func TestAllocLayout(t *testing.T) {
 func TestLabelRoom(t *testing.T) {
 	const label = "a label of thirty characters.."
 	for _, flow := range []string{"left-to-right", "top-to-bottom"} {
-		d, err := gw.New(schema(false), gw.Caps{})
+		d, err := makeDoc(schema(false), gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -473,7 +473,7 @@ func TestStereotypeRoom(t *testing.T) {
 		EdgeKinds:   []gw.EdgeKind{{Name: "include", Arrow: true, Stereotype: stereotype}},
 	}
 	for _, label := range []string{"", "short", "a label of thirty-two characters"} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -510,7 +510,7 @@ func TestFormattedLabelRoom(t *testing.T) {
 		{"speed > 0", "", "go [speed > 0]"},
 		{"speed > 0", "start the engine", "go [speed > 0] / start the engine"},
 	} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}

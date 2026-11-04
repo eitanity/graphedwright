@@ -28,7 +28,7 @@ func TestKeywordClear(t *testing.T) {
 		EdgeKinds: []gw.EdgeKind{{Name: "flow", Arrow: true}},
 	}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,7 +61,7 @@ func TestKeywordClear(t *testing.T) {
 		checked := 0
 		for _, m := range vertexRE.FindAllStringSubmatch(buf.String(), -1) {
 			v := d.VertexByID(gw.ID(m[1]))
-			kind := d.Schema.VertexKinds[d.Vertices[v].Kind]
+			kind := d.Kinds().Vertex(d.Vertices[v].Kind)
 			var kw, label gw.Viewport
 			found := 0
 			for _, tm := range kwRE.FindAllStringSubmatch(m[4], -1) {
@@ -94,11 +94,11 @@ func TestKeywordClear(t *testing.T) {
 				t.Errorf("flow %d: %s's keyword %v overlaps its label %v", flow, m[1], kw, label)
 			}
 			switch {
-			case kind.Shape == gw.Actor:
+			case kind.Shape() == gw.Actor:
 				if kw.Y+kw.H > -size.H/2 {
 					t.Errorf("flow %d: %s's keyword %v reaches its figure, top %g", flow, m[1], kw, -size.H/2)
 				}
-			case !kind.Container:
+			case !kind.Container():
 				if kw.X < -size.W/2 || kw.X+kw.W > size.W/2 || kw.Y < -size.H/2 || kw.Y+kw.H > size.H/2 {
 					t.Errorf("flow %d: %s's keyword %v outside its %v box", flow, m[1], kw, size)
 				}

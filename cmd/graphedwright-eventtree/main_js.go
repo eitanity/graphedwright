@@ -98,6 +98,7 @@ const example = `{"schema":"event-tree","vertices":[
 type app struct {
 	dom.NoHost
 	h                   *dom.Handle
+	kinds               *gw.Kinds // the schema, compiled once: every document opened shares it
 	panel, status, file js.Value
 
 	prob   []float64        // by vertex: the probability of reaching it
@@ -118,7 +119,13 @@ func main() {
 		order:  make([]gw.VertexIndex, 0, maxVertices),
 		notesV: make([]svg.Annotation, maxVertices),
 	}
-	d, err := decode(example)
+	kinds, err := gw.Compile(schema())
+	if err != nil {
+		a.say(err)
+		return
+	}
+	a.kinds = kinds
+	d, err := a.decode(example)
 	if err != nil {
 		a.say(err)
 		return
@@ -136,8 +143,8 @@ func main() {
 	select {}
 }
 
-func decode(text string) (*gw.Document, error) {
-	return doc.Decode([]byte(text), doc.Options{Schemas: []doc.Named{{Name: schemaName, Schema: schema()}}, Caps: gw.Caps{Vertices: maxVertices, Edges: maxEdges, UndoDepth: undoDepth}})
+func (a *app) decode(text string) (*gw.Document, error) {
+	return doc.Decode([]byte(text), doc.Options{Schemas: []doc.Named{{Name: schemaName, Kinds: a.kinds}}, Caps: gw.Caps{Vertices: maxVertices, Edges: maxEdges, UndoDepth: undoDepth}})
 }
 
 // button calls f when the page's button is clicked.
@@ -280,7 +287,7 @@ func steps(n int) string {
 
 // open replaces the document with the JSON in the file box.
 func (a *app) open() {
-	d, err := decode(a.file.Get("value").String())
+	d, err := a.decode(a.file.Get("value").String())
 	if err != nil {
 		a.say(err)
 		return

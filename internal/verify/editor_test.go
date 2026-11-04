@@ -187,7 +187,7 @@ func newWorld(t testing.TB) *world {
 // element, a nudge one per selected vertex, so a fuzz session of 40 steps
 // over 8 vertices and 8 edges needs 640.
 func fixture() (*gw.Document, error) {
-	d, err := gw.New(schema(), gw.Caps{Vertices: 8, Edges: 8, UndoDepth: 1024})
+	d, err := makeDoc(schema(), gw.Caps{Vertices: 8, Edges: 8, UndoDepth: 1024})
 	if err != nil {
 		return nil, err
 	}

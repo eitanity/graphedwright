@@ -21,13 +21,22 @@ import (
 //     states and composite states that hold others, choices and final
 //     states, joined by transitions that carry their event, guard and
 //     actions; a state carries its entry, exit and internal behaviour.
+//
+// Each is compiled afresh; one that did not compile would have nil
+// Kinds, which Decode refuses by name.
 func Builtin() []Named {
 	return []Named{
-		{Name: "basic", Schema: basic()},
-		{Name: "use-case", Schema: useCase()},
-		{Name: "threat-model", Schema: threatModel()},
-		{Name: "state-machine", Schema: stateMachine()},
+		named("basic", basic()),
+		named("use-case", useCase()),
+		named("threat-model", threatModel()),
+		named("state-machine", stateMachine()),
 	}
+}
+
+// named compiles a schema under its name.
+func named(name string, s gw.Schema) Named {
+	k, _ := gw.Compile(s)
+	return Named{Name: name, Kinds: k}
 }
 
 func basic() gw.Schema {

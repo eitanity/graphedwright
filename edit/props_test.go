@@ -146,7 +146,7 @@ func TestAttrEditing(t *testing.T) {
 	s.VertexKinds[kNode].EditAttr = "p"
 	s.EdgeKinds[1].Attrs = []gw.AttrSpec{{Key: "share", Kind: gw.Number, Bounded: true, Min: 0, Max: 1}}
 	s.EdgeKinds[1].LabelFormat, s.EdgeKinds[1].EditAttr = "{share = |share}", "share"
-	d, err := gw.New(s, gw.Caps{})
+	d, err := makeDoc(s, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}

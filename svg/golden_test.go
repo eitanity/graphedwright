@@ -199,7 +199,7 @@ func TestKindClasses(t *testing.T) {
 		vks = append(vks, gw.VertexKind{Name: n, Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 36}})
 	}
 	s := gw.Schema{VertexKinds: vks, EdgeKinds: []gw.EdgeKind{{Name: "label", Arrow: true}, {Name: "dashed", Arrow: true, Head: gw.OpenHead}}}
-	d, err := gw.New(s, gw.Caps{})
+	d, err := makeDoc(s, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +451,7 @@ func TestOutOfRange(t *testing.T) {
 // and the hit test takes the one drawn over: a zone a holding a zone c,
 // and a zone b, of no depth, over c.
 func TestContainerStacking(t *testing.T) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{Name: "box", Size: gw.Size{W: 40, H: 20}},
 			{Name: "zone", Size: gw.Size{W: 100, H: 60}, Container: true},

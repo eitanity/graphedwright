@@ -50,7 +50,7 @@ func testSchema() gw.Schema {
 
 func newDoc(t testing.TB, caps gw.Caps) *gw.Document {
 	t.Helper()
-	d, err := gw.New(testSchema(), caps)
+	d, err := makeDoc(testSchema(), caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func big(t testing.TB, n, m int) *gw.Document {
 // head; and straight edges between shapes without ports at every
 // angle, each clipped where it leaves its shape.
 func notation(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{Name: "actor", Shape: gw.Actor, Size: gw.Size{W: 40, H: 76}},
 			{Name: "use case", Shape: gw.Circle, Size: gw.Size{W: 140, H: 44}},
@@ -242,7 +242,7 @@ func bent(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
 // one whose label is cut, an actor, and a container, whose keyword
 // comes before its title; beside a kind without one.
 func keywords(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{Name: "block", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part def»"},
 			{Name: "actor", Shape: gw.Actor, Size: gw.Size{W: 40, H: 76}, Keyword: "«actor»"},
@@ -287,7 +287,7 @@ func decorationSchema() gw.Schema {
 // vertex of its own, since edges that leave one side of a vertex share
 // their start.
 func decorated(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
-	d, err := gw.New(decorationSchema(), gw.Caps{})
+	d, err := makeDoc(decorationSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +337,7 @@ func compartmentSchema() gw.Schema {
 // empty one left out, and a line too long for its widest; a part with
 // none, drawn as a plain box; a state with one line; and a plain kind.
 func compartments(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(compartmentSchema(), gw.Caps{})
+	d, err := makeDoc(compartmentSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func compartments(t testing.TB) (*gw.Document, svg.Options) {
 // one too long for its box and cut, and transitions as
 // trigger [guard] / effect.
 func formats(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{{
 			Name: "usage", Shape: gw.Rect, Size: gw.Size{W: 150, H: 36},
 			Attrs: []gw.AttrSpec{{Key: "type"}, {Key: "mult"}}, LabelFormat: "{label}{ : |type}{ [|mult|]}",
@@ -409,7 +409,7 @@ func ownPortSchema() gw.Schema {
 // container with ports on its border, and a block with only its kind's,
 // whose ports are not named, joined at the ports.
 func ownPorts(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(ownPortSchema(), gw.Caps{})
+	d, err := makeDoc(ownPortSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func ownPorts(t testing.TB) (*gw.Document, svg.Options) {
 // label and compartment line are cut, a container whose title is, a
 // vertex whose annotation is, and one with nothing cut.
 func cutTexts(t testing.TB) (*gw.Document, svg.Options) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{
 				Name: "part", Shape: gw.Rect, Size: gw.Size{W: 120, H: 40}, Keyword: "«part definition of a kind»",

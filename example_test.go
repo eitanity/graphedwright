@@ -20,7 +20,12 @@ func Example() {
 		VertexKinds: []gw.VertexKind{{Name: "box", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 36}}},
 		EdgeKinds:   []gw.EdgeKind{{Name: "arrow", Arrow: true}},
 	}
-	d, err := gw.New(schema, gw.Caps{})
+	kinds, err := gw.Compile(schema) // checked once; any number of documents share it
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	d, err := gw.New(kinds, gw.Caps{})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -75,8 +80,14 @@ func Example_dependencyTree() {
 	}
 	const pkg, dependsOn, devDependency = 0, 0, 1
 
-	// 2. A document, and commands that fill it.
-	d, err := gw.New(schema, gw.Caps{})
+	// 2. The schema compiled, a document of it, and commands that fill
+	// it.
+	kinds, err := gw.Compile(schema)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	d, err := gw.New(kinds, gw.Caps{})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -146,7 +157,7 @@ func Example_dependencyTree() {
 		fmt.Println(err)
 		return
 	}
-	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "deps", Schema: schema}}})
+	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "deps", Kinds: kinds}}})
 	if err != nil {
 		fmt.Println(err)
 		return

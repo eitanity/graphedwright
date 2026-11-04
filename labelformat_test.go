@@ -64,7 +64,7 @@ func TestLabelFormatRefusals(t *testing.T) {
 			} else {
 				s.VertexKinds[0].LabelFormat = tc.format
 			}
-			if _, err := gw.New(s, gw.Caps{}); err == nil || !strings.Contains(err.Error(), tc.want) {
+			if _, err := makeDoc(s, gw.Caps{}); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("%q on edge %v: got %v, want %q", tc.format, edge, err, tc.want)
 			}
 		}
@@ -73,7 +73,7 @@ func TestLabelFormatRefusals(t *testing.T) {
 		VertexKinds: []gw.VertexKind{{Name: "v", Size: gw.Size{W: 80, H: 30}, Attrs: []gw.AttrSpec{{Key: "type"}}, LabelFormat: "{label}{ : |type}"}},
 		EdgeKinds:   []gw.EdgeKind{{Name: "e", Attrs: []gw.AttrSpec{{Key: "type"}}, LabelFormat: "«flow» {type|label|}"}},
 	}
-	if _, err := gw.New(ok, gw.Caps{}); err != nil {
+	if _, err := makeDoc(ok, gw.Caps{}); err != nil {
 		t.Errorf("formats refused: %v", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestLabelFormatRefusals(t *testing.T) {
 // TestLabelFormatChange: a SetAttr on a key a format names reports the
 // element, and the label drawn grows with it.
 func TestLabelFormatChange(t *testing.T) {
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{{Name: "usage", Size: gw.Size{W: 120, H: 36}, Attrs: []gw.AttrSpec{{Key: "type"}}, LabelFormat: "{label}{ : |type}"}},
 		EdgeKinds:   []gw.EdgeKind{{Name: "transition", Attrs: []gw.AttrSpec{{Key: "guard"}}, LabelFormat: "{label}{ [|guard|]}"}},
 	}, gw.Caps{})

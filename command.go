@@ -283,10 +283,10 @@ func (d *Document) checkLabel(text string) error {
 
 // addVertex validates and adds a vertex at the next slot.
 func (d *Document) addVertex(c Command) error {
-	if c.Kind < 0 || int(c.Kind) >= len(d.Schema.VertexKinds) {
+	if c.Kind < 0 || int(c.Kind) >= len(d.kinds.vertex) {
 		return refusal("vertex kind " + itoa(int(c.Kind)) + " out of range")
 	}
-	kind := d.Schema.VertexKinds[c.Kind]
+	kind := d.kinds.vertex[c.Kind]
 	if len(d.Vertices) == d.caps.Vertices {
 		return limitError("vertex", d.caps.Vertices)
 	}
@@ -422,7 +422,7 @@ func (d *Document) addEdge(c Command) error {
 	if !(c.Weight >= 0) || c.Weight > MaxCoord {
 		return refusal(weightRule)
 	}
-	if d.Schema.Acyclic {
+	if d.kinds.acyclic {
 		if err := d.cycleThrough(c.From, c.To); err != nil {
 			return err
 		}
@@ -435,7 +435,7 @@ func (d *Document) addEdge(c Command) error {
 		e.ID = d.mintEdgeID()
 	}
 	e.Attrs = d.eattrSlab[n*d.caps.AttrsPerElement : n*d.caps.AttrsPerElement]
-	e.Attrs = fillDefaults(e.Attrs, d.Schema.EdgeKinds[c.Kind].Attrs)
+	e.Attrs = fillDefaults(e.Attrs, d.kinds.edge[c.Kind].Attrs)
 	d.nextOut[n], d.outHead[c.From] = d.outHead[c.From], int32(n) //nolint:gosec // bounded by the capacity
 	d.nextIn[n], d.inHead[c.To] = d.inHead[c.To], int32(n)        //nolint:gosec // bounded by the capacity
 	d.seq++
@@ -447,7 +447,7 @@ func (d *Document) addEdge(c Command) error {
 // checkEdgeEnds validates an edge's kind, its two vertices and their
 // kinds, and the ports with their limits.
 func (d *Document) checkEdgeEnds(c Command) error {
-	if c.Kind < 0 || int(c.Kind) >= len(d.Schema.EdgeKinds) {
+	if c.Kind < 0 || int(c.Kind) >= len(d.kinds.edge) {
 		return refusal("edge kind " + itoa(int(c.Kind)) + " out of range")
 	}
 	for _, v := range [2]VertexIndex{c.From, c.To} {
@@ -455,15 +455,15 @@ func (d *Document) checkEdgeEnds(c Command) error {
 			return refusal("vertex " + itoa(int(v)) + " is not live")
 		}
 	}
-	kind := d.Schema.EdgeKinds[c.Kind]
+	kind := d.kinds.edge[c.Kind]
 	from, to := d.Vertices[c.From], d.Vertices[c.To]
 	if !kind.allows(from.Kind, to.Kind) {
 		return refusal("edge kind " + strconv.Quote(kind.Name) + " cannot join " + d.kindName(from.Kind) + " to " + d.kindName(to.Kind))
 	}
-	if d.Schema.VertexKinds[to.Kind].Root {
+	if d.kinds.vertex[to.Kind].Root {
 		return refusal("vertex " + d.vertexName(c.To) + " of kind " + d.kindName(to.Kind) + " takes no incoming edge")
 	}
-	if d.Schema.VertexKinds[from.Kind].Leaf {
+	if d.kinds.vertex[from.Kind].Leaf {
 		return refusal("vertex " + d.vertexName(c.From) + " of kind " + d.kindName(from.Kind) + " takes no outgoing edge")
 	}
 	if err := d.checkPort(c.From, c.FromPort, true); err != nil {
@@ -478,7 +478,7 @@ func (d *Document) checkPort(v VertexIndex, p PortIndex, out bool) error {
 	ports := d.Vertices[v].Ports
 	if p == None {
 		// Ports of a vertex's own are a choice; its kind's are not.
-		if len(d.Schema.VertexKinds[d.Vertices[v].Kind].Ports) > 0 {
+		if len(d.kinds.vertex[d.Vertices[v].Kind].Ports) > 0 {
 			return refusal("vertex " + d.vertexName(v) + " has ports; the edge must name one")
 		}
 		return nil
@@ -618,7 +618,7 @@ func (d *Document) setPorts(c Command) error {
 		return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 	}
 	v := &d.Vertices[c.Vertex]
-	kind := d.Schema.VertexKinds[v.Kind]
+	kind := d.kinds.vertex[v.Kind]
 	for i := range d.Edges {
 		e := &d.Edges[i]
 		if !e.Live {

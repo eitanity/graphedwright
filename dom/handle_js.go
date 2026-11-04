@@ -42,7 +42,7 @@ type Host interface {
 	// EditingLabel reports that a vertex's or an edge's label (the
 	// other is gw.None) is about to be edited in the input, with the
 	// text the input starts with: the label, or the value of the
-	// attribute the kind edits in its place (gw.VertexKind.EditAttr).
+	// attribute the kind edits in its place (gw.VertexKindView.EditAttr).
 	EditingLabel(v gw.VertexIndex, e gw.EdgeIndex, text string)
 }
 

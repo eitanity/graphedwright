@@ -51,7 +51,7 @@ func TestParallelLabelsClear(t *testing.T) {
 					VertexKinds: []gw.VertexKind{{Name: "box", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 40}}},
 					EdgeKinds:   []gw.EdgeKind{{Name: "go", Route: route, Arrow: true, Stereotype: "«go»"}},
 				}
-				d, err := gw.New(s, gw.Caps{})
+				d, err := makeDoc(s, gw.Caps{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -141,7 +141,7 @@ func TestOrthogonalLabelOwnLeg(t *testing.T) {
 			VertexKinds: []gw.VertexKind{{Name: "box", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 36}}},
 			EdgeKinds:   []gw.EdgeKind{{Name: "wire", Route: gw.Orthogonal}},
 		}
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
 	e := &d.Edges[i]
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
-	route := d.Schema.EdgeKinds[e.Kind].Route
+	route := d.Kinds().Edge(e.Kind).Route()
 	for k := 0; k <= 1000; k++ {
 		p := along(w.f, route, w.a, w.through, w.b, float64(k)/1000)
 		for v := range d.Vertices {
@@ -310,7 +310,7 @@ func TestRoutesClearOfContainers(t *testing.T) {
 		Acyclic:   true,
 	}
 	for seed := uint64(1); seed <= 24; seed++ {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -387,7 +387,7 @@ func TestExampleLabelsClear(t *testing.T) {
 					}
 					var lane [1]gw.Point
 					w := wayOf(d, gw.EdgeIndex(i), &lane)
-					route := d.Schema.EdgeKinds[d.Edges[i].Kind].Route
+					route := d.Kinds().Edge(d.Edges[i].Kind).Route()
 					for k := 0; k <= 400; k++ {
 						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
 							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[5], g[1], d.Edges[i].ID, p)

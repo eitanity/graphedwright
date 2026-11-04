@@ -21,7 +21,7 @@ func TestBoundedNumber(t *testing.T) {
 		gw.AttrSpec{Key: "loss", Kind: gw.Number, Bounded: true, Min: -inf, Max: 10},
 		gw.AttrSpec{Key: "any", Kind: gw.Number, Bounded: true, Min: -inf, Max: inf},
 	)
-	d, err := gw.New(s, gw.Caps{})
+	d, err := makeDoc(s, gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}

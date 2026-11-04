@@ -189,10 +189,10 @@ func (e *Editor) commitText(text string) error {
 // in place of its label, or "".
 func (e *Editor) editAttr() string {
 	if e.editV != gw.None {
-		return e.d.Schema.VertexKinds[e.d.Vertices[e.editV].Kind].EditAttr
+		return e.d.Kinds().Vertex(e.d.Vertices[e.editV].Kind).EditAttr()
 	}
 	if e.editE != gw.None {
-		return e.d.Schema.EdgeKinds[e.d.Edges[e.editE].Kind].EditAttr
+		return e.d.Kinds().Edge(e.d.Edges[e.editE].Kind).EditAttr()
 	}
 	return ""
 }
@@ -211,7 +211,7 @@ func (e *Editor) paletteStart(ev Event) error {
 // was chosen, as a tool palette does.
 func (e *Editor) chooseEdge(item gw.KindIndex) {
 	k := gw.KindIndex(gw.None)
-	if item != e.edgeKind && item >= 0 && int(item) < len(e.d.Schema.EdgeKinds) {
+	if item != e.edgeKind && item >= 0 && int(item) < e.d.Kinds().EdgeKinds() {
 		k = item
 	}
 	e.edgeKind = k

@@ -13,10 +13,11 @@ import (
 	"code.eitanity.com/graphedwright/layout"
 )
 
-// Named is a schema the host supplies under a name.
+// Named is a compiled schema the host supplies under a name. Every
+// document decoded with it shares its Kinds.
 type Named struct {
-	Name   string
-	Schema gw.Schema
+	Name  string
+	Kinds *gw.Kinds
 }
 
 // Options shape a decode: the schemas known, the capacities of the
@@ -174,7 +175,7 @@ func (dec *decoder) schema() error {
 	}
 	for _, n := range dec.opts.Schemas {
 		if n.Name == name {
-			d, err := gw.New(n.Schema, dec.opts.Caps)
+			d, err := gw.New(n.Kinds, dec.opts.Caps)
 			if err != nil {
 				return s.errorf(err.Error())
 			}
@@ -444,10 +445,8 @@ func (dec *decoder) vertexKind() (gw.KindIndex, error) {
 	if err != nil {
 		return gw.None, err
 	}
-	for i, k := range dec.d.Schema.VertexKinds {
-		if k.Name == name {
-			return gw.KindIndex(i), nil //nolint:gosec // bounded by the schema
-		}
+	if k := dec.d.Kinds().VertexNamed(name); k != gw.None {
+		return k, nil
 	}
 	return gw.None, dec.s.errorf("unknown vertex kind " + strconv.Quote(name))
 }
@@ -661,12 +660,7 @@ func (dec *decoder) resolveEdge(f *edgeFields) error {
 	if !f.hasKind || !f.hasFrom || !f.hasTo {
 		return s.errorf(`"kind", "from" and "to" are required`)
 	}
-	f.cmd.Kind = gw.None
-	for i, k := range dec.d.Schema.EdgeKinds {
-		if k.Name == f.kindName {
-			f.cmd.Kind = gw.KindIndex(i) //nolint:gosec // bounded by the schema
-		}
-	}
+	f.cmd.Kind = dec.d.Kinds().EdgeNamed(f.kindName)
 	if f.cmd.Kind == gw.None {
 		return s.errorf("unknown edge kind " + strconv.Quote(f.kindName))
 	}

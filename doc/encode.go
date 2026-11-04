@@ -123,7 +123,7 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 	e.str(`{"id":`)
 	e.quote(string(v.ID))
 	e.field("kind")
-	e.quote(d.Schema.VertexKinds[v.Kind].Name)
+	e.quote(d.Kinds().Vertex(v.Kind).Name())
 	if v.Label != "" {
 		e.field("label")
 		e.quote(v.Label)
@@ -135,12 +135,12 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 	// A container's size is its own, which its fit grows from, and so
 	// is a vertex's with compartments or ports of its own; the size it
 	// is drawn at follows from what it holds.
-	size, kind := v.Size, d.Schema.VertexKinds[v.Kind]
-	own := v.Ports[len(kind.Ports):]
-	if kind.Container || len(kind.Compartments) > 0 || len(own) > 0 {
+	size, kind := v.Size, d.Kinds().Vertex(v.Kind)
+	own := v.Ports[kind.PortCount():]
+	if kind.Container() || kind.CompartmentCount() > 0 || len(own) > 0 {
 		size = v.Min
 	}
-	if size != kind.Size && size != (gw.Size{}) {
+	if size != kind.Size() && size != (gw.Size{}) {
 		e.field("w")
 		e.num(size.W)
 		e.field("h")
@@ -185,7 +185,7 @@ func (e *encoder) edge(d *gw.Document, ed *gw.Edge) {
 	e.str(`{"id":`)
 	e.quote(string(ed.ID))
 	e.field("kind")
-	e.quote(d.Schema.EdgeKinds[ed.Kind].Name)
+	e.quote(d.Kinds().Edge(ed.Kind).Name())
 	e.field("from")
 	e.quote(string(d.Vertices[ed.From].ID))
 	e.field("to")

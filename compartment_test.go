@@ -26,7 +26,7 @@ func compartmentSchema() gw.Schema {
 // compartments' lines, an empty one left out, as wide as its widest line
 // up to the kind's MaxWidth, and never smaller than its kind.
 func TestCompartmentSize(t *testing.T) {
-	d, err := gw.New(compartmentSchema(), gw.Caps{})
+	d, err := makeDoc(compartmentSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestCompartmentSize(t *testing.T) {
 // and does the same; a resize is never below what the compartments
 // need, and a saved document loads at the size it was saved at.
 func TestCompartmentStale(t *testing.T) {
-	d, err := gw.New(compartmentSchema(), gw.Caps{})
+	d, err := makeDoc(compartmentSchema(), gw.Caps{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestCompartmentStale(t *testing.T) {
 	if err := doc.Encode(d, "classes", &text); err != nil {
 		t.Fatal(err)
 	}
-	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "classes", Schema: compartmentSchema()}}})
+	again, err := doc.Decode(text.Bytes(), doc.Options{Schemas: []doc.Named{{Name: "classes", Kinds: d.Kinds()}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,7 @@ func TestBentRoutesClear(t *testing.T) {
 		Acyclic:   true,
 	}
 	for seed := uint64(1); seed <= 16; seed++ {
-		d, err := gw.New(s, gw.Caps{})
+		d, err := makeDoc(s, gw.Caps{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +52,7 @@ func TestBentRoutesClear(t *testing.T) {
 				continue
 			}
 			bent++
-			route := d.Schema.EdgeKinds[e.Kind].Route
+			route := d.Kinds().Edge(e.Kind).Route()
 			a, b := ends(d, e, e.Bends)
 			f := frameOf(d, e)
 			for k := 1; k < len(e.Bends); k++ {
@@ -87,7 +87,7 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 	}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
 		for kind := range gw.KindIndex(2) {
-			d, err := gw.New(s, gw.Caps{})
+			d, err := makeDoc(s, gw.Caps{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,7 +117,7 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 			}
 			a, b := ends(d, e, e.Bends)
 			f := frameOf(d, e)
-			route := d.Schema.EdgeKinds[kind].Route
+			route := d.Kinds().Edge(kind).Route()
 			prev := f.t(a).X
 			const samples = 256
 			for j := 1; j <= samples; j++ {
@@ -143,7 +143,7 @@ func TestLanesApart(t *testing.T) {
 	}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
 		for kind := range gw.KindIndex(2) {
-			d, err := gw.New(s, gw.Caps{})
+			d, err := makeDoc(s, gw.Caps{})
 			if err != nil {
 				t.Fatal(err)
 			}

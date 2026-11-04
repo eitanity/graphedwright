@@ -100,11 +100,14 @@ func (h *Handle) buildPalette() {
 	if h.ed.Mode() != edit.Edit {
 		return
 	}
-	for i, k := range h.d.Schema.VertexKinds {
-		h.paletteButton(doc, k.Name, "vertex", gw.KindIndex(i), false) //nolint:gosec // bounded by the schema
+	kinds := h.d.Kinds()
+	// bound: the vertex kinds
+	for i := range kinds.VertexKinds() {
+		h.paletteButton(doc, kinds.Vertex(gw.KindIndex(i)).Name(), "vertex", gw.KindIndex(i), false) //nolint:gosec // bounded by the kinds
 	}
-	for i, k := range h.d.Schema.EdgeKinds {
-		h.edgeItems = append(h.edgeItems, h.paletteButton(doc, k.Name, "edge", gw.KindIndex(i), true)) //nolint:gosec // bounded by the schema
+	// bound: the edge kinds
+	for i := range kinds.EdgeKinds() {
+		h.edgeItems = append(h.edgeItems, h.paletteButton(doc, kinds.Edge(gw.KindIndex(i)).Name(), "edge", gw.KindIndex(i), true)) //nolint:gosec // bounded by the kinds
 	}
 	h.markChosen()
 }
@@ -432,7 +435,7 @@ func (h *Handle) patchElements(ch gw.Change) {
 			continue
 		}
 		group := ":scope > g.vertices"
-		if h.d.Schema.VertexKinds[h.d.Vertices[v].Kind].Container {
+		if h.d.Kinds().Vertex(h.d.Vertices[v].Kind).Container() {
 			group = ":scope > g.containers"
 		}
 		h.patchOne(string(h.d.Vertices[v].ID), h.d.Vertices[v].Live, group)

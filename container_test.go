@@ -17,7 +17,7 @@ const (
 // only boxes; edges of any kind between any vertices.
 func containerDoc(t *testing.T) *gw.Document {
 	t.Helper()
-	d, err := gw.New(gw.Schema{
+	d, err := makeDoc(gw.Schema{
 		VertexKinds: []gw.VertexKind{
 			{Name: "box", Size: gw.Size{W: 40, H: 20}},
 			{Name: "zone", Shape: gw.RoundRect, Size: gw.Size{W: 100, H: 60}, Container: true},

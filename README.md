@@ -44,7 +44,8 @@ schema := gw.Schema{
 	VertexKinds: []gw.VertexKind{{Name: "box", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 36}}},
 	EdgeKinds:   []gw.EdgeKind{{Name: "arrow", Arrow: true}},
 }
-d, _ := gw.New(schema, gw.Caps{})
+kinds, _ := gw.Compile(schema)
+d, _ := gw.New(kinds, gw.Caps{})
 ch, _ := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "hello"})
 hello := ch.Vertices[0]
 ch, _ = d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "world"})
