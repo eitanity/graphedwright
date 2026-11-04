@@ -83,7 +83,7 @@ func (d *Document) setParent(c Command) error {
 		return nil
 	}
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{To: v.Parent}})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{To: v.Parent}})
 	d.putIn(c.Vertex, c.To)
 	return nil
 }
@@ -268,7 +268,7 @@ func moves(op Op) bool {
 	switch op {
 	case DeleteVertex, Move, Resize, SetParent, Layout:
 		return true
-	case AddVertex, AddEdge, DeleteEdge, Relabel, SetAttr, SetPorts, Compact, AddPort, DeletePort:
+	case AddVertex, AddEdge, DeleteEdge, Relabel, SetAttr, SetPorts, Compact, AddPort, DeletePort, HostChange:
 	}
 	return false
 }

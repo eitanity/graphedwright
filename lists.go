@@ -133,3 +133,17 @@ func (l EdgeList) At(i int) EdgeIndex {
 	}
 	return l.s[i]
 }
+
+// IDList is a list of IDs.
+type IDList struct{ s []ID }
+
+// Len is the number of IDs.
+func (l IDList) Len() int { return len(l.s) }
+
+// At is the ith ID; out of range, "".
+func (l IDList) At(i int) ID {
+	if i < 0 || i >= len(l.s) {
+		return ""
+	}
+	return l.s[i]
+}

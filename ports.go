@@ -80,7 +80,7 @@ func (d *Document) addPort(c Command) error {
 		v.Min = v.Size
 	}
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, at: len(v.Ports)})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, at: len(v.Ports)})
 	d.insertPort(c.Vertex, len(v.Ports), p)
 	return nil
 }
@@ -103,7 +103,7 @@ func (d *Document) deletePort(c Command) error {
 	}
 	c.Port = d.vertices[c.Vertex].Ports[i]
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, at: int(i)})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, at: int(i)})
 	d.removePort(c.Vertex, int(i))
 	return nil
 }

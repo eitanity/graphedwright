@@ -39,7 +39,7 @@ func (d *Document) setAttr(c Command) error {
 		v.Attrs = attrs
 		d.seq++
 		en.seq = d.seq
-		d.log.push(en)
+		d.record(en)
 		d.touchVertex(c.Vertex)
 		return nil
 	}
@@ -58,7 +58,7 @@ func (d *Document) setAttr(c Command) error {
 	e.Attrs = attrs
 	d.seq++
 	en.seq = d.seq
-	d.log.push(en)
+	d.record(en)
 	d.touchEdge(c.Edge)
 	return nil
 }

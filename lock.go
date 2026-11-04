@@ -12,11 +12,16 @@ var ErrLocked = errors.New("the document is locked: it may be read, not changed"
 // ClearBends do nothing. It is for a caller that hands the document to
 // code that may only read it, such as a host's method called while the
 // caller is in the middle of a change, so that the code cannot change
-// the document underneath it. The exported fields are not guarded.
+// the document underneath it.
 func (d *Document) Lock() { d.locked = true }
 
-// Unlock ends a Lock.
-func (d *Document) Unlock() { d.locked = false }
+// Unlock ends a Lock. While host code runs on the document's behalf
+// (Store), it does nothing.
+func (d *Document) Unlock() {
+	if !d.host.calling {
+		d.locked = false
+	}
+}
 
 // Locked reports whether the document is locked.
 func (d *Document) Locked() bool { return d.locked }

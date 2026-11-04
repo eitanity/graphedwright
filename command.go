@@ -21,6 +21,7 @@ const (
 	SetParent              // Vertex, To: the container it goes in, or None
 	AddPort                // Vertex, Port: a port of the vertex's own, after its others
 	DeletePort             // Vertex, Text: the name of a port of its own that no edge uses
+	HostChange             // Vertex, or Edge with Vertex None, or neither for the document; Token: a change the document's Store makes
 )
 
 // Command is one change to a document. Which fields matter depends on
@@ -41,6 +42,7 @@ type Command struct {
 	Value    string
 	Weight   float64
 	Port     Port
+	Token    uint64 // a HostChange's, issued by the Store
 }
 
 // Change names what a command moved: the vertices and edges touched,
@@ -56,6 +58,9 @@ type Change struct {
 // either leaves the document untouched, returning an error that names
 // the rule, or applies it and records its inverse for Undo.
 func (d *Document) Apply(c Command) (Change, error) {
+	if d.host.calling {
+		return Change{}, ErrReentered
+	}
 	if d.locked {
 		return Change{}, ErrLocked
 	}
@@ -90,6 +95,8 @@ func (d *Document) Apply(c Command) (Change, error) {
 		d.compact()
 	case SetParent:
 		err = d.setParent(c)
+	case HostChange:
+		err = d.hostChange(c)
 	default:
 		err = refusal("unknown op " + itoa(int(c.Op)))
 	}
@@ -327,8 +334,8 @@ func (d *Document) addVertex(c Command) error {
 	d.outHead[n], d.inHead[n] = None, None
 	d.kindCount[c.Kind]++
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: VertexIndex(n)}) //nolint:gosec // bounded by the capacity
-	d.touchVertex(VertexIndex(n))                                 //nolint:gosec // bounded by the capacity
+	d.record(entry{cmd: c, seq: d.seq, vertex: VertexIndex(n)}) //nolint:gosec // bounded by the capacity
+	d.touchVertex(VertexIndex(n))                               //nolint:gosec // bounded by the capacity
 	return nil
 }
 
@@ -351,7 +358,7 @@ func (d *Document) deleteVertex(c Command) error {
 	}
 	d.seq++
 	d.killVertex(c.Vertex, d.seq)
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex})
 	return nil
 }
 
@@ -439,8 +446,8 @@ func (d *Document) addEdge(c Command) error {
 	d.nextOut[n], d.outHead[c.From] = d.outHead[c.From], int32(n) //nolint:gosec // bounded by the capacity
 	d.nextIn[n], d.inHead[c.To] = d.inHead[c.To], int32(n)        //nolint:gosec // bounded by the capacity
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, edge: EdgeIndex(n)}) //nolint:gosec // bounded by the capacity
-	d.touchEdge(EdgeIndex(n))                                 //nolint:gosec // bounded by the capacity
+	d.record(entry{cmd: c, seq: d.seq, edge: EdgeIndex(n)}) //nolint:gosec // bounded by the capacity
+	d.touchEdge(EdgeIndex(n))                               //nolint:gosec // bounded by the capacity
 	return nil
 }
 
@@ -521,7 +528,7 @@ func (d *Document) deleteEdge(c Command) error {
 	d.seq++
 	d.edges[c.Edge].Live = false
 	d.edges[c.Edge].diedBy = d.seq
-	d.log.push(entry{cmd: c, seq: d.seq, edge: c.Edge})
+	d.record(entry{cmd: c, seq: d.seq, edge: c.Edge})
 	d.touchEdge(c.Edge)
 	return nil
 }
@@ -536,7 +543,7 @@ func (d *Document) move(c Command) error {
 	}
 	v := &d.vertices[c.Vertex]
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Pos: v.Pos}, placed: v.Placed})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Pos: v.Pos}, placed: v.Placed})
 	d.moveTo(c.Vertex, c.Pos, true)
 	return nil
 }
@@ -568,7 +575,7 @@ func (d *Document) resize(c Command) error {
 		c.Size = d.fitted(c.Vertex, c.Size)
 	}
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Size: v.Size}, min: v.Min})
+	d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Size: v.Size}, min: v.Min})
 	d.setSize(c.Vertex, c.Size, c.Size)
 	return nil
 }
@@ -595,7 +602,7 @@ func (d *Document) relabel(c Command) error {
 		}
 		v := &d.vertices[c.Vertex]
 		d.seq++
-		d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, edge: None, prev: Command{Text: v.Label}})
+		d.record(entry{cmd: c, seq: d.seq, vertex: c.Vertex, edge: None, prev: Command{Text: v.Label}})
 		v.Label = c.Text
 		d.touchVertex(c.Vertex)
 		return nil
@@ -605,7 +612,7 @@ func (d *Document) relabel(c Command) error {
 	}
 	e := &d.edges[c.Edge]
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, vertex: None, edge: c.Edge, prev: Command{Text: e.Label}})
+	d.record(entry{cmd: c, seq: d.seq, vertex: None, edge: c.Edge, prev: Command{Text: e.Label}})
 	e.Label = c.Text
 	d.touchEdge(c.Edge)
 	return nil
@@ -632,7 +639,7 @@ func (d *Document) setPorts(c Command) error {
 	en := entry{cmd: c, seq: d.seq, vertex: c.Vertex}
 	en.ports = d.log.portsFor(d.log.next(), len(v.Ports))
 	copy(en.ports, v.Ports)
-	d.log.push(en)
+	d.record(en)
 	v.Ports = v.Ports[:len(kind.Ports)]
 	copy(v.Ports, kind.Ports)
 	d.portsChanged(c.Vertex)
@@ -655,7 +662,7 @@ func (d *Document) layout(c Command) error {
 	}
 	d.layouts++
 	if n := uint64(d.caps.UndoLayouts); d.layouts > n { //nolint:gosec // bounded by MaxCap
-		d.log.dropLayout(d.layouts - n)
+		d.forgetFrom(0, d.log.dropLayout(d.layouts-n))
 	}
 	d.savePositions(d.layoutSnap(d.layouts, false))
 	if c.Text == "all" {
@@ -669,7 +676,7 @@ func (d *Document) layout(c Command) error {
 		d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 	}
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, layout: d.layouts, flows: [2]Flow{d.flow, flow}})
+	d.record(entry{cmd: c, seq: d.seq, layout: d.layouts, flows: [2]Flow{d.flow, flow}})
 	d.flow = flow
 	return nil
 }

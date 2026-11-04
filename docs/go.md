@@ -99,6 +99,11 @@ document is locked; those that report a result report false then:
 code that hands the document to other code that may only read it, as
 `dom` does while a host's method runs.
 
+`SetStore(s)` gives the document a host's `gw.Store`, for data of the
+host's own on its elements, changed by `HostChange` commands and undone
+with the rest ([Concepts](concepts.md#host-data)). It is refused for
+nil, while locked, and once the undo log holds anything.
+
 `Discard` takes back every command applied since the open `Group` and
 forgets them, so that they cannot be redone: for code whose reaction to
 an edit cannot be completed, so that the edit and the reaction stand or

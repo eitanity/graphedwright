@@ -115,6 +115,7 @@ way, and undo is a log of commands.
 | `Layout` | records positions before a layout, so it can be undone | `Text: "all"` to lay out placed vertices too; `Value` a flow |
 | `SetParent` | puts a vertex in a container, or takes it out with `To: gw.None` | `Vertex`, `To` |
 | `Compact` | drops tombstones and renumbers; clears the undo log | |
+| `HostChange` | a change to the host's own data, made by its `Store` | `Vertex`, or `Edge` with `Vertex: gw.None`, or neither for the document; `Token` |
 
 `Apply` either applies the command and records how to undo it, or
 refuses it with an error that names the rule, and leaves the document
@@ -143,6 +144,34 @@ A layout can be undone too: the positions before and after each of the
 last `UndoLayouts` layouts are kept. `ClearUndo` empties the log for a
 host whose setup should not be undoable, and a document read from JSON
 starts with an empty log.
+
+### Host data
+
+A host keeps data of its own on vertices, edges and the document: of
+its own type, as large as it needs, in its own store. graphedwright
+never reads it and never draws it, but it gives the data a place in
+the undo log, so that "add a node with its settings" is one step.
+
+The host gives the document a `gw.Store` with `SetStore`, before the log
+holds anything. A change to the data is a `HostChange` command carrying
+a `Token` the store issued; the store keeps behind the token whatever
+the change needs, such as the value before and after. `Apply` calls the
+store's `Do`, whose error refuses the command, and records the token.
+`Undo` and `Redo` call the store's, in order with every other command
+and within groups. When the log drops a token, because it fell off the
+ring, a new command replaced what could be redone, or `Discard`,
+`ClearUndo` or `Compact` emptied it, the store's `Forget` is called,
+once for each token `Do` accepted.
+
+The store keys by element ID, which deletion, its undo and `Compact`
+keep, so it need not follow graphedwright's bookkeeping. `Compact`
+gives its `Released` the IDs of the tombstones it removed.
+
+While a store's method runs, the document refuses to change: `Apply`
+returns `gw.ErrReentered` and the other methods do nothing, as under
+`Lock`. A reaction that needs a command is applied after the call
+returns. A store's methods must not panic, since TinyGo on wasm cannot
+recover from one.
 
 ## Positions and layout
 

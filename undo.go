@@ -93,8 +93,10 @@ func (l *undoLog) unpop() (entry, bool) {
 }
 
 // dropLayout drops the oldest entries up to and including the layout
-// numbered k, when it is still applied, so its snapshots can be reused.
-func (l *undoLog) dropLayout(k uint64) {
+// numbered k, when it is still applied, so its snapshots can be reused,
+// and returns how many it dropped. They stay in the ring, before its
+// start, until a push takes their places.
+func (l *undoLog) dropLayout(k uint64) int {
 	// bound: the applied entries, at most the ring's length
 	for i := 0; i < l.done; i++ {
 		e := &l.entries[(l.start+i)%len(l.entries)]
@@ -108,9 +110,10 @@ func (l *undoLog) dropLayout(k uint64) {
 			l.start = (l.start + i + 1) % len(l.entries)
 			l.done -= i + 1
 			l.n -= i + 1
-			return
+			return i + 1
 		}
 	}
+	return 0
 }
 
 // grouped reports whether the next entry for Undo, or for Redo when redo
@@ -184,6 +187,7 @@ func (d *Document) Discard() (Change, bool) {
 		s, m := d.undoOne(en)
 		st, mv = st || s, mv || m
 	}
+	d.forgetFrom(l.done, l.n)
 	l.n = l.done
 	return d.settle(st, mv), true
 }
@@ -192,7 +196,7 @@ func (d *Document) Discard() (Change, bool) {
 // decode or a host's setup, is not undone.
 func (d *Document) ClearUndo() {
 	if !d.locked {
-		d.log.clear()
+		d.clearLog()
 	}
 }
 
@@ -264,6 +268,8 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 	case Compact:
 	case SetParent:
 		d.putIn(en.vertex, en.prev.To)
+	case HostChange:
+		d.undoHost(en)
 	}
 	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
@@ -342,6 +348,8 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 	case Compact:
 	case SetParent:
 		d.putIn(en.vertex, en.cmd.To)
+	case HostChange:
+		d.redoHost(en)
 	}
 	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
@@ -362,7 +370,7 @@ func structural(op Op) bool {
 	switch op {
 	case AddVertex, DeleteVertex, AddEdge, DeleteEdge, Layout, Compact, SetParent:
 		return true
-	case Move, Resize, Relabel, SetAttr, SetPorts, AddPort, DeletePort:
+	case Move, Resize, Relabel, SetAttr, SetPorts, AddPort, DeletePort, HostChange:
 		return false
 	}
 	return false

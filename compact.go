@@ -4,7 +4,8 @@ package graphedwright
 // edges, keeping their order. It returns, for each old vertex and edge
 // index, the new index or None, read by the old index; the maps read
 // the document's scratch and are valid until the next Compact. The undo
-// log is cleared, since it names indices. Locked, it does nothing and
+// log is cleared, since it names indices, and the document's Store is
+// given the IDs of the tombstones removed. Locked, it does nothing and
 // returns empty maps.
 func (d *Document) Compact() (vmap VertexList, emap EdgeList) {
 	if d.locked {
@@ -17,6 +18,7 @@ func (d *Document) Compact() (vmap VertexList, emap EdgeList) {
 
 // compact is Compact without the maps returned.
 func (d *Document) compact() {
+	d.gather()
 	d.vmapN, d.emapN = len(d.vertices), len(d.edges)
 	n := 0
 	for i := range d.vertices {
@@ -52,7 +54,8 @@ func (d *Document) compact() {
 	}
 	d.edges = d.edges[:m]
 	d.relink()
-	d.log.clear()
+	d.clearLog()
+	d.release()
 	for i := range d.vertices {
 		d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 	}

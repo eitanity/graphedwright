@@ -166,6 +166,7 @@ type Document struct {
 	nextEdgeID   uint64
 	seq          uint64
 	log          undoLog
+	host         host // the host's store, if it set one
 
 	// Scratch for the cycle search, the change report and Compact.
 	mark    []uint32
