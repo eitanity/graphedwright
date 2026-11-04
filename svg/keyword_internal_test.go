@@ -32,7 +32,7 @@ func TestKeywordClear(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d.Flow = flow
+		d.SetFlow(flow)
 		add := func(kind gw.KindIndex, label string) gw.VertexIndex {
 			ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: kind, Text: label})
 			if err != nil {

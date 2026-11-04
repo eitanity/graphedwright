@@ -326,16 +326,16 @@ func (h *Handle) fitView() {
 		if w <= 0 || ht <= 0 {
 			w, ht = 800, 480
 		}
-		h.d.View = gw.Viewport{W: w, H: ht}
+		h.d.SetView(gw.Viewport{W: w, H: ht})
 		return
 	}
 	b := svg.Bounds(h.d)
 	// The bounds carry the renderer's margin; the vertices themselves
 	// are what must be in view.
 	x0, y0, x1, y1 := b.X+svg.Margin, b.Y+svg.Margin, b.X+b.W-svg.Margin, b.Y+b.H-svg.Margin
-	v := h.d.View
+	v := h.d.View()
 	if v.W <= 0 || v.H <= 0 || x0 < v.X || y0 < v.Y || x1 > v.X+v.W || y1 > v.Y+v.H {
-		h.d.View = b
+		h.d.SetView(b)
 	}
 }
 

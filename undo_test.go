@@ -187,26 +187,26 @@ func TestUndoRevivesOnlyItsOwn(t *testing.T) {
 func TestLayoutFlow(t *testing.T) {
 	d := newDoc(t, gw.Caps{})
 	chain(t, d)
-	if d.Flow != gw.LeftToRight {
-		t.Fatalf("a new document flows %v", d.Flow)
+	if d.Flow() != gw.LeftToRight {
+		t.Fatalf("a new document flows %v", d.Flow())
 	}
 	refuse(t, d, gw.Command{Op: gw.Layout, Value: "sideways"}, `unknown flow "sideways"`)
 	apply(t, d, gw.Command{Op: gw.Layout, Value: "top-to-bottom"})
-	if d.Flow != gw.TopToBottom {
-		t.Errorf("after the layout: %v", d.Flow)
+	if d.Flow() != gw.TopToBottom {
+		t.Errorf("after the layout: %v", d.Flow())
 	}
 	apply(t, d, gw.Command{Op: gw.Layout})
-	if d.Flow != gw.TopToBottom {
-		t.Errorf("a layout without a flow changed it: %v", d.Flow)
+	if d.Flow() != gw.TopToBottom {
+		t.Errorf("a layout without a flow changed it: %v", d.Flow())
 	}
 	d.Undo()
 	d.Undo()
-	if d.Flow != gw.LeftToRight {
-		t.Errorf("both layouts undone: %v", d.Flow)
+	if d.Flow() != gw.LeftToRight {
+		t.Errorf("both layouts undone: %v", d.Flow())
 	}
 	d.Redo()
-	if d.Flow != gw.TopToBottom {
-		t.Errorf("the first layout redone: %v", d.Flow)
+	if d.Flow() != gw.TopToBottom {
+		t.Errorf("the first layout redone: %v", d.Flow())
 	}
 	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
 		if g, ok := gw.FlowNamed(f.String()); !ok || g != f {

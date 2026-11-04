@@ -207,7 +207,7 @@ func fixture() (*gw.Document, error) {
 	if _, err := d.Apply(gw.Command{Op: gw.AddEdge, Kind: eTo, From: 0, To: 1, FromPort: gw.None, ToPort: 0}); err != nil {
 		return nil, err
 	}
-	d.View = gw.Viewport{W: 800, H: 200}
+	d.SetView(gw.Viewport{W: 800, H: 200})
 	d.ClearUndo()
 	return d, nil
 }
@@ -237,10 +237,10 @@ func (w *world) encode() string {
 // content is the document without its view, which panning and zooming
 // change without a command.
 func (w *world) content() string {
-	v := w.d.View
-	w.d.View = gw.Viewport{}
+	v := w.d.View()
+	w.d.SetView(gw.Viewport{})
 	s := w.encode()
-	w.d.View = v
+	w.d.SetView(v)
 	return s
 }
 

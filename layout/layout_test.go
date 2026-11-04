@@ -97,7 +97,7 @@ func checkInvariants(t *testing.T, name string, d *gw.Document, res layout.Resul
 // lay is how far along the document's flow a point lies: its x for
 // left to right, its y for top to bottom.
 func lay(d *gw.Document, p gw.Point) float64 {
-	if d.Flow == gw.TopToBottom {
+	if d.Flow() == gw.TopToBottom {
 		return p.Y
 	}
 	return p.X
@@ -454,7 +454,7 @@ func TestLabelRoom(t *testing.T) {
 		}
 		a, b := d.Vertices[0], d.Vertices[1]
 		gap, want := b.Pos.X-a.Pos.X-(a.Size.W+b.Size.W)/2, float64(len(label)*7+16)
-		if d.Flow == gw.TopToBottom {
+		if d.Flow() == gw.TopToBottom {
 			gap, want = b.Pos.Y-a.Pos.Y, 96
 		}
 		if gap < want || gap >= want+8 {

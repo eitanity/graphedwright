@@ -204,14 +204,14 @@ func TestContainerArrowRoom(t *testing.T) {
 			bent++
 			last, to := e.Bends[len(e.Bends)-1], &d.Vertices[e.To]
 			run, level := to.Pos.X-to.Size.W/2-last.X, last.Y == to.Pos.Y
-			if d.Flow == gw.TopToBottom {
+			if d.Flow() == gw.TopToBottom {
 				run, level = to.Pos.Y-to.Size.H/2-last.Y, last.X == to.Pos.X
 			}
 			if run < head || !level {
 				t.Errorf("%s: edge %d comes to %v from %v, %g out", flow, i, to.Pos, last, run)
 			}
 		}
-		if bent == 0 && d.Flow == gw.LeftToRight {
+		if bent == 0 && d.Flow() == gw.LeftToRight {
 			t.Errorf("%s: no edge was routed round the members", flow)
 		}
 	}

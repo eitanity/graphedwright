@@ -40,7 +40,7 @@ func TestCompartmentsInside(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d.Flow = flow
+		d.SetFlow(flow)
 		var prev gw.VertexIndex = gw.None
 		for i, val := range values {
 			v := apply(t, d, gw.Command{Op: gw.AddVertex, Kind: 0, ID: gw.ID("p" + strconv.Itoa(i)), Text: "part " + strconv.Itoa(i)}).Vertices[0]

@@ -255,7 +255,7 @@ func TestTopToBottom(t *testing.T) {
 	for seed := uint64(1); seed <= 8; seed++ {
 		name := "seed " + strconv.FormatUint(seed, 10) + " down"
 		d := randomDAG(t, seed, 40, 70, gw.Caps{})
-		d.Flow = gw.TopToBottom
+		d.SetFlow(gw.TopToBottom)
 		res, err := layout.New(d.Caps()).Run(d, layout.Options{})
 		if err != nil {
 			t.Fatal(err)
@@ -272,7 +272,7 @@ func TestTopToBottom(t *testing.T) {
 			}
 		}
 		n := nested(t, seed, 30, 50, 5)
-		n.Flow = gw.TopToBottom
+		n.SetFlow(gw.TopToBottom)
 		res, err = layout.New(n.Caps()).Run(n, layout.Options{All: true})
 		if err != nil {
 			t.Fatal(err)
@@ -340,7 +340,7 @@ func TestContainerEdgeKeepsRoute(t *testing.T) {
 // alongside reports whether two vertices' boxes overlap along the flow.
 func alongside(d *gw.Document, a, b *gw.Vertex) bool {
 	ha, hb := a.Size.W/2, b.Size.W/2
-	if d.Flow == gw.TopToBottom {
+	if d.Flow() == gw.TopToBottom {
 		ha, hb = a.Size.H/2, b.Size.H/2
 	}
 	pa, pb := lay(d, a.Pos), lay(d, b.Pos)

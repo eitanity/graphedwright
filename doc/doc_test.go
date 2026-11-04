@@ -66,8 +66,8 @@ func decode(t *testing.T, text string) *gw.Document {
 // text, and the decoded document holds what the text said.
 func TestRoundTrip(t *testing.T) {
 	d := decode(t, example)
-	if d.LiveVertices() != 3 || d.LiveEdges() != 2 || d.View.W != 600 {
-		t.Fatalf("decoded %d vertices %d edges view %+v", d.LiveVertices(), d.LiveEdges(), d.View)
+	if d.LiveVertices() != 3 || d.LiveEdges() != 2 || d.View().W != 600 {
+		t.Fatalf("decoded %d vertices %d edges view %+v", d.LiveVertices(), d.LiveEdges(), d.View())
 	}
 	a := d.Vertices[d.VertexByID("a")]
 	if a.Label != `claim "big"` || a.Size != (gw.Size{W: 140, H: 40}) || a.Placed || a.Pos != (gw.Point{X: 220, Y: 100}) || len(a.Attrs) != 2 || a.Attrs[0].Value != "0.25" || a.Attrs[1].Value != "tab\there" {
@@ -462,7 +462,7 @@ func FuzzLayout(f *testing.F) {
 		}
 		l := layout.New(d.Caps())
 		for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
-			d.Flow = flow
+			d.SetFlow(flow)
 			if _, err := l.Run(d, layout.Options{All: true}); err != nil {
 				continue
 			}
@@ -547,8 +547,8 @@ func TestFlowRoundTrip(t *testing.T) {
 	text := `{"schema":"basic","flow":"top-to-bottom","vertices":[{"id":"a","kind":"box"},{"id":"b","kind":"box"}],"edges":[{"kind":"arrow","from":"a","to":"b"}]}`
 	d := decode(t, text)
 	a, b := d.Vertices[d.VertexByID("a")].Pos, d.Vertices[d.VertexByID("b")].Pos
-	if d.Flow != gw.TopToBottom || b.Y <= a.Y || b.X != a.X {
-		t.Errorf("flow %v: a at %v, b at %v, not below it", d.Flow, a, b)
+	if d.Flow() != gw.TopToBottom || b.Y <= a.Y || b.X != a.X {
+		t.Errorf("flow %v: a at %v, b at %v, not below it", d.Flow(), a, b)
 	}
 	var first, second bytes.Buffer
 	if err := doc.Encode(d, "basic", &first); err != nil {

@@ -27,7 +27,7 @@ func TestBentRoutesClear(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d.Flow = gw.Flow(seed % 2) //nolint:gosec // 0 or 1
+		d.SetFlow(gw.Flow(seed % 2)) //nolint:gosec // 0 or 1
 		r := rand.New(rand.NewPCG(seed, 3))
 		const n = 40
 		for range n {
@@ -91,7 +91,7 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.Flow = flow
+			d.SetFlow(flow)
 			const n = 5
 			for range n {
 				if _, err := d.Apply(gw.Command{Op: gw.AddVertex}); err != nil {
@@ -147,7 +147,7 @@ func TestLanesApart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.Flow = flow
+			d.SetFlow(flow)
 			for range 2 {
 				if _, err := d.Apply(gw.Command{Op: gw.AddVertex}); err != nil {
 					t.Fatal(err)

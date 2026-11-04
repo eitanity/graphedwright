@@ -31,7 +31,7 @@ func TestTails(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d.Flow = flow
+		d.SetFlow(flow)
 		var vs [6]gw.VertexIndex
 		for i := range vs {
 			ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "v" + strconv.Itoa(i)})

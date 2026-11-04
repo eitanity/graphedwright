@@ -25,7 +25,7 @@ var (
 func TestExpanded(t *testing.T) {
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
 		d, opts := cutTextsDoc(t)
-		d.Flow = flow
+		d.SetFlow(flow)
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 			t.Fatal(err)
 		}

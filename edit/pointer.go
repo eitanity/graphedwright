@@ -45,8 +45,10 @@ func (e *Editor) pointerMove(ev Event) error {
 // pan moves the viewport by the pointer's move to p, which puts the
 // point last back under the pointer.
 func (e *Editor) pan(p gw.Point) {
-	e.d.View.X -= p.X - e.last.X
-	e.d.View.Y -= p.Y - e.last.Y
+	v := e.d.View()
+	v.X -= p.X - e.last.X
+	v.Y -= p.Y - e.last.Y
+	e.d.SetView(v)
 	e.layout = true
 	e.panned = true
 }
@@ -313,7 +315,7 @@ func (e *Editor) place(p gw.Point) error {
 // inView moves a new vertex's centre so that a vertex of the kind sits
 // wholly inside the viewport, when there is one.
 func (e *Editor) inView(p gw.Point, kind gw.KindIndex) gw.Point {
-	v := e.d.View
+	v := e.d.View()
 	size := e.d.Schema.VertexKinds[kind].Size
 	if v.W <= 0 || v.H <= 0 || size.W > v.W || size.H > v.H {
 		return p
@@ -333,7 +335,7 @@ func (e *Editor) wheel(ev Event) {
 		e.zoom(ev)
 		return
 	}
-	v := &e.d.View
+	v := e.d.View()
 	if v.W <= 0 || v.H <= 0 {
 		return
 	}
@@ -341,6 +343,7 @@ func (e *Editor) wheel(ev Event) {
 	// has no element size, so a wheel unit is a document unit.
 	v.X += ev.DeltaX
 	v.Y += ev.Delta
+	e.d.SetView(v)
 	e.layout = true
 }
 
@@ -358,7 +361,7 @@ func (e *Editor) zoom(ev Event) {
 // zoomBy scales the viewport about its centre, in by the factor when
 // it is above 1.
 func (e *Editor) zoomBy(f float64) {
-	v := e.d.View
+	v := e.d.View()
 	e.scale(1/f, gw.Point{X: v.X + float64(v.W/2), Y: v.Y + float64(v.H/2)})
 }
 
@@ -366,7 +369,7 @@ func (e *Editor) zoomBy(f float64) {
 // stays where it is on the screen. A viewport narrower or lower than
 // minView, or wider or higher than gw.MaxCoord, is not taken.
 func (e *Editor) scale(f float64, p gw.Point) {
-	v := &e.d.View
+	v := e.d.View()
 	if v.W <= 0 || v.H <= 0 || !(f > 0) || math.IsInf(f, 0) {
 		return
 	}
@@ -376,6 +379,7 @@ func (e *Editor) scale(f float64, p gw.Point) {
 	}
 	v.X, v.Y = p.X-float64((p.X-v.X)*f), p.Y-float64((p.Y-v.Y)*f)
 	v.W, v.H = w, h
+	e.d.SetView(v)
 	e.layout = true
 }
 
@@ -384,6 +388,6 @@ func (e *Editor) fit() {
 	if e.d.LiveVertices() == 0 {
 		return
 	}
-	e.d.View = svg.Bounds(e.d)
+	e.d.SetView(svg.Bounds(e.d))
 	e.layout = true
 }

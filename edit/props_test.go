@@ -165,7 +165,7 @@ func TestAttrEditing(t *testing.T) {
 	if _, err := d.Apply(gw.Command{Op: gw.SetAttr, Vertex: gw.None, Edge: 0, Key: "share", Value: "0.5"}); err != nil {
 		t.Fatal(err)
 	}
-	d.View = gw.Viewport{X: 0, Y: 0, W: 800, H: 200}
+	d.SetView(gw.Viewport{X: 0, Y: 0, W: 800, H: 200})
 	d.ClearUndo()
 	e := edit.New(d, edit.Edit, 8)
 	share := func() string { return gw.AttrValue(d.Edges[0].Attrs, "share") }

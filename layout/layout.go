@@ -232,7 +232,7 @@ func fillCaps(c gw.Caps) gw.Caps {
 // Run lays the document out and sets the positions through Place. The
 // document's capacities must fit the layouter's.
 func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
-	if !(opts.Pitch > 0) && d.Flow == gw.TopToBottom {
+	if !(opts.Pitch > 0) && d.Flow() == gw.TopToBottom {
 		opts.Pitch = downPitch
 	}
 	opts = opts.filled()
@@ -240,7 +240,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 		return Result{}, errors.New("document exceeds the layouter's capacities")
 	}
 	l.realN = len(d.Vertices)
-	l.down = d.Flow == gw.TopToBottom
+	l.down = d.Flow() == gw.TopToBottom
 	deepest := 0
 	for i := range d.Vertices {
 		v := &d.Vertices[i]

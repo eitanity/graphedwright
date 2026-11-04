@@ -55,7 +55,7 @@ func TestParallelLabelsClear(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				d.Flow = flow
+				d.SetFlow(flow)
 				far := gw.Point{X: 240}
 				if flow == gw.TopToBottom {
 					far = gw.Point{Y: 160}
@@ -314,7 +314,7 @@ func TestRoutesClearOfContainers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d.Flow = gw.Flow(seed % 2) //nolint:gosec // 0 or 1
+		d.SetFlow(gw.Flow(seed % 2)) //nolint:gosec // 0 or 1
 		r := rand.New(rand.NewPCG(seed, 7))
 		const n, zones = 30, 5
 		for range n {

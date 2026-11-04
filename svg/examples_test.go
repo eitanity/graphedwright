@@ -216,7 +216,7 @@ func tree(t testing.TB) (*gw.Document, svg.Options) {
 // bent builds the graph of bends in a flow and lays it out.
 func bent(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
 	d := newDoc(t, gw.Caps{})
-	d.Flow = flow
+	d.SetFlow(flow)
 	add := func(kind gw.KindIndex, id string) gw.VertexIndex {
 		return must(t, d, gw.Command{Op: gw.AddVertex, Kind: kind, ID: gw.ID(id), Text: id}).Vertices[0]
 	}
@@ -291,7 +291,7 @@ func decorated(t testing.TB, flow gw.Flow) (*gw.Document, svg.Options) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Flow = flow
+	d.SetFlow(flow)
 	add := func(id string) gw.VertexIndex {
 		return must(t, d, gw.Command{Op: gw.AddVertex, Kind: 0, ID: gw.ID(id), Text: id}).Vertices[0]
 	}

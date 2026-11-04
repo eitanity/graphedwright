@@ -85,7 +85,7 @@ func ends(d *gw.Document, e *gw.Edge, through []gw.Point) (a, b gw.Point) {
 		}
 		return ca, cb
 	}
-	down := d.Flow == gw.TopToBottom
+	down := d.Flow() == gw.TopToBottom
 	fromH, fromW, toH, toW := float64(from.Size.H/2), float64(from.Size.W/2), float64(to.Size.H/2), float64(to.Size.W/2)
 	if backward(d, e) {
 		fromH, fromW, toH, toW = -fromH, -fromW, -toH, -toW
@@ -120,7 +120,7 @@ func backward(d *gw.Document, e *gw.Edge) bool {
 		return false
 	}
 	from, to := d.Vertices[e.From].Pos, d.Vertices[e.To].Pos
-	if d.Flow == gw.TopToBottom {
+	if d.Flow() == gw.TopToBottom {
 		return to.Y < from.Y
 	}
 	return to.X < from.X
@@ -136,7 +136,7 @@ type frame struct{ down, back bool }
 
 // frameOf is the frame of an edge in the document's flow.
 func frameOf(d *gw.Document, e *gw.Edge) frame {
-	return frame{down: d.Flow == gw.TopToBottom, back: backward(d, e)}
+	return frame{down: d.Flow() == gw.TopToBottom, back: backward(d, e)}
 }
 
 // t takes a point into the frame or back out of it.

@@ -404,7 +404,7 @@ func (e *Editor) Fit() gw.Change {
 
 // toDoc maps client coordinates to document units through the viewport.
 func (e *Editor) toDoc(p gw.Point) gw.Point {
-	v := e.d.View
+	v := e.d.View()
 	if v.W <= 0 || v.H <= 0 || e.elemW <= 0 || e.elemH <= 0 {
 		return p
 	}

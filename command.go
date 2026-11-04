@@ -645,7 +645,7 @@ func (d *Document) setPorts(c Command) error {
 // for its undo; the layout that last used that snapshot, and everything
 // before it, fall out of the log.
 func (d *Document) layout(c Command) error {
-	flow := d.Flow
+	flow := d.flow
 	if c.Value != "" {
 		f, ok := FlowNamed(c.Value)
 		if !ok {
@@ -669,8 +669,8 @@ func (d *Document) layout(c Command) error {
 		d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 	}
 	d.seq++
-	d.log.push(entry{cmd: c, seq: d.seq, layout: d.layouts, flows: [2]Flow{d.Flow, flow}})
-	d.Flow = flow
+	d.log.push(entry{cmd: c, seq: d.seq, layout: d.layouts, flows: [2]Flow{d.flow, flow}})
+	d.flow = flow
 	return nil
 }
 

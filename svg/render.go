@@ -134,7 +134,7 @@ func (r *Renderer) Render(d *gw.Document, opts Options, w io.Writer) error {
 	o := r.o
 	o.reset(w)
 	opts = opts.filled()
-	view := d.View
+	view := d.View()
 	if !usable(view) {
 		view = bounds(d)
 	}

@@ -716,7 +716,7 @@ func (dec *decoder) flow() error {
 	if !ok {
 		return s.errorf("unknown flow " + strconv.Quote(name))
 	}
-	dec.d.Flow = f
+	dec.d.SetFlow(f)
 	return nil
 }
 
@@ -747,6 +747,7 @@ func (dec *decoder) view() error {
 	if err := s.open('{'); err != nil {
 		return err
 	}
+	var v gw.Viewport
 	for s.peek() != '}' {
 		k, err := s.key()
 		if err != nil {
@@ -755,13 +756,13 @@ func (dec *decoder) view() error {
 		var dst *float64
 		switch k {
 		case "x":
-			dst = &dec.d.View.X
+			dst = &v.X
 		case "y":
-			dst = &dec.d.View.Y
+			dst = &v.Y
 		case "w":
-			dst = &dec.d.View.W
+			dst = &v.W
 		case "h":
-			dst = &dec.d.View.H
+			dst = &v.H
 		default:
 			return s.errorf("unknown key " + strconv.Quote(k))
 		}
@@ -780,5 +781,6 @@ func (dec *decoder) view() error {
 		}
 	}
 	s.close()
+	dec.d.SetView(v)
 	return nil
 }

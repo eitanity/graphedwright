@@ -70,7 +70,7 @@ func fixture(t *testing.T, caps gw.Caps) (*gw.Document, *edit.Editor) {
 	if _, err := d.Apply(gw.Command{Op: gw.AddEdge, Kind: eTo, From: 0, To: 1, FromPort: gw.None, ToPort: 0}); err != nil {
 		t.Fatal(err)
 	}
-	d.View = gw.Viewport{X: 0, Y: 0, W: 800, H: 200}
+	d.SetView(gw.Viewport{X: 0, Y: 0, W: 800, H: 200})
 	// The fixture's own commands are not part of any session's log.
 	d.ClearUndo()
 	return d, edit.New(d, edit.Edit, 8)
@@ -535,16 +535,16 @@ func TestViewMode(t *testing.T) {
 		}
 	}
 	send(t, e, edit.Event{Kind: edit.PointerDown, Point: pt(100, 100), Button: 1}, move(110, 120), up(110, 120))
-	if d.View.X != -10 || d.View.Y != -20 {
-		t.Errorf("pan: %+v", d.View)
+	if d.View().X != -10 || d.View().Y != -20 {
+		t.Errorf("pan: %+v", d.View())
 	}
 	send(t, e, edit.Event{Kind: edit.Wheel, Point: pt(0, 0), Delta: 100, Modifiers: edit.Ctrl})
-	if d.View.W < 879 || d.View.W > 881 {
-		t.Errorf("zoom: %+v", d.View)
+	if d.View().W < 879 || d.View().W > 881 {
+		t.Errorf("zoom: %+v", d.View())
 	}
 	send(t, e, edit.Event{Kind: edit.Wheel, Delta: 30, DeltaX: -5})
-	if d.View.X != -16 || d.View.Y != 8 {
-		t.Errorf("wheel pan: %+v", d.View)
+	if d.View().X != -16 || d.View().Y != 8 {
+		t.Errorf("wheel pan: %+v", d.View())
 	}
 	if snapshot(d) != before {
 		t.Error("view mode changed the document")
@@ -773,30 +773,30 @@ func TestZoom(t *testing.T) {
 	d, e := fixture(t, gw.Caps{})
 	e.SetMode(edit.View)
 	send(t, e, key("=", edit.Ctrl))
-	if d.View != (gw.Viewport{X: 80, Y: 20, W: 640, H: 160}) {
-		t.Errorf("zoom in: %+v", d.View)
+	if d.View() != (gw.Viewport{X: 80, Y: 20, W: 640, H: 160}) {
+		t.Errorf("zoom in: %+v", d.View())
 	}
 	send(t, e, key("-", edit.Ctrl))
-	if d.View != (gw.Viewport{X: 0, Y: 0, W: 800, H: 200}) {
-		t.Errorf("zoom out: %+v", d.View)
+	if d.View() != (gw.Viewport{X: 0, Y: 0, W: 800, H: 200}) {
+		t.Errorf("zoom out: %+v", d.View())
 	}
 	send(t, e, key("0", edit.Ctrl))
-	if d.View != svg.Bounds(d) {
-		t.Errorf("fit: %+v, bounds %+v", d.View, svg.Bounds(d))
+	if d.View() != svg.Bounds(d) {
+		t.Errorf("fit: %+v, bounds %+v", d.View(), svg.Bounds(d))
 	}
 	e.SetMode(edit.Edit)
-	d.View = gw.Viewport{W: 800, H: 200}
-	if ch := e.Zoom(2); !ch.Layout || d.View != (gw.Viewport{X: 200, Y: 50, W: 400, H: 100}) {
-		t.Errorf("Zoom(2): %+v %+v", ch, d.View)
+	d.SetView(gw.Viewport{W: 800, H: 200})
+	if ch := e.Zoom(2); !ch.Layout || d.View() != (gw.Viewport{X: 200, Y: 50, W: 400, H: 100}) {
+		t.Errorf("Zoom(2): %+v %+v", ch, d.View())
 	}
-	if ch := e.Zoom(1000); ch.Layout || d.View.W != 400 {
-		t.Errorf("Zoom past the least view: %+v %+v", ch, d.View)
+	if ch := e.Zoom(1000); ch.Layout || d.View().W != 400 {
+		t.Errorf("Zoom past the least view: %+v %+v", ch, d.View())
 	}
 	if ch := e.Zoom(0); ch.Layout {
 		t.Errorf("Zoom(0): %+v", ch)
 	}
-	if ch := e.Fit(); !ch.Layout || d.View != svg.Bounds(d) {
-		t.Errorf("Fit: %+v %+v", ch, d.View)
+	if ch := e.Fit(); !ch.Layout || d.View() != svg.Bounds(d) {
+		t.Errorf("Fit: %+v %+v", ch, d.View())
 	}
 	before := snapshot(d)
 	send(t, e, key("+", edit.Ctrl), key("_", edit.Ctrl))
@@ -866,7 +866,7 @@ func TestPanFollowsPointer(t *testing.T) {
 			}
 			at := func(sx, sy float64) gw.Point {
 				if hostMaps {
-					return pt(d.View.X+sx, d.View.Y+sy)
+					return pt(d.View().X+sx, d.View().Y+sy)
 				}
 				return pt(sx, sy)
 			}
@@ -878,8 +878,8 @@ func TestPanFollowsPointer(t *testing.T) {
 			for k := 1; k <= 6; k++ {
 				sx, sy := 100+float64(10*k), 100+float64(5*k)
 				send(t, e, edit.Event{Kind: edit.PointerMove, Point: at(sx, sy)})
-				if gx, gy := d.View.X+sx, d.View.Y+sy; gx != 100 || gy != 100 {
-					t.Errorf("host maps %v, alt %v: after move %d the pointer is over (%g, %g), not the (100, 100) it grabbed; view %+v", hostMaps, alt, k, gx, gy, d.View)
+				if gx, gy := d.View().X+sx, d.View().Y+sy; gx != 100 || gy != 100 {
+					t.Errorf("host maps %v, alt %v: after move %d the pointer is over (%g, %g), not the (100, 100) it grabbed; view %+v", hostMaps, alt, k, gx, gy, d.View())
 				}
 			}
 			send(t, e, edit.Event{Kind: edit.PointerUp, Point: at(160, 130)})

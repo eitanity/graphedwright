@@ -151,7 +151,7 @@ func Example_dependencyTree() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(again.LiveVertices(), "packages,", again.LiveEdges(), "dependencies,", again.Flow)
+	fmt.Println(again.LiveVertices(), "packages,", again.LiveEdges(), "dependencies,", again.Flow())
 	// Output:
 	// edge would make a cycle: log → app → cli → log
 	// attribute "licence" of vertex "db" must be one of MIT, Apache-2.0, BSD-3-Clause

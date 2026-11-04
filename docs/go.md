@@ -50,11 +50,19 @@ d.Redo()
   schema with `Connected`.
 - **`Depth(v)` and `Within(v, c)`** answer questions about containers,
   and **`Containers()`** lists them in the order they are drawn.
-- **`Flow`** is the way the layers run, set by a `Layout` command.
-  **`View`** is the viewport; a host sets it directly.
+- **`Flow()`** is the way the layers run, set by a `Layout` command.
+  **`View()`** is the viewport, the part of the drawing shown; empty, it
+  shows the whole drawing.
 
-Three calls change positions outside the command log. They are for a
-layout engine or a loader, not for edits a user should be able to undo:
+Five calls change the document outside the command log. They are for a
+front end, a layout engine or a loader, not for edits a user should be
+able to undo. Each checks its parameters and does nothing while the
+document is locked; those that report a result report false then:
+- **`SetView(v)`** sets the viewport: its corner within `gw.MaxCoord` of
+  the origin, its width and height from 0 to `gw.MaxCoord`. The editor
+  sets it to pan and zoom.
+- **`SetFlow(f)`** sets the way the layers run, for a loader; a
+  `Layout` command sets it so that it can be undone.
 - **`Place(v, p, placed)`** sets a vertex's position.
 - **`Fit()`** fits every container around what it holds.
 - **`SetBends(e, pts)` and `ReserveBends(e, n)`** give an edge its route.

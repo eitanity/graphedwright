@@ -13,9 +13,9 @@ func Encode(d *gw.Document, schema string, w io.Writer) error {
 	e := &encoder{w: w, buf: make([]byte, 0, 4096)}
 	e.str(`{"schema":`)
 	e.quote(schema)
-	if d.Flow != gw.LeftToRight {
+	if d.Flow() != gw.LeftToRight {
 		e.field("flow")
-		e.quote(d.Flow.String())
+		e.quote(d.Flow().String())
 	}
 	e.str(`,"vertices":[`)
 	first := true
@@ -40,13 +40,13 @@ func Encode(d *gw.Document, schema string, w io.Writer) error {
 		}
 	}
 	e.str(`],"view":{"x":`)
-	e.num(d.View.X)
+	e.num(d.View().X)
 	e.str(`,"y":`)
-	e.num(d.View.Y)
+	e.num(d.View().Y)
 	e.str(`,"w":`)
-	e.num(d.View.W)
+	e.num(d.View().W)
 	e.str(`,"h":`)
-	e.num(d.View.H)
+	e.num(d.View().H)
 	e.str("}}\n")
 	return e.flush()
 }

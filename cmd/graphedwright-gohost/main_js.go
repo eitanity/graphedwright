@@ -7,6 +7,7 @@ package main
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -244,6 +245,25 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	sv, se := h2.Editor().Selected(make([]gw.VertexIndex, 0, 4), make([]gw.EdgeIndex, 0, 4))
 	r.check("the host is given the whole selection after Load, in a copy of its own", errSmall == nil && t2.selected == "abce" && len(sv) == 3 && len(se) == 1 && sv[0] != gw.None && se[0] != gw.None, "host given "+strconv.Quote(t2.selected)+", editor holds "+strconv.Itoa(len(sv))+" "+errText(errSmall))
 	_ = h2.Destroy()
+
+	// An empty document loaded is shown one unit to a pixel, so that a
+	// box added to it is drawn at its size, not scaled to fill.
+	empty, errEmpty := doc.Decode([]byte(`{"schema":"basic"}`), doc.Options{Schemas: doc.Builtin()})
+	full, errFull := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	h4, errMount4 := dom.Mount(el, full, dom.Options{}, &host{first: gw.None})
+	if err := errors.Join(errEmpty, errFull, errMount4); err != nil {
+		r.check("mount a document", false, err.Error())
+		return
+	}
+	errLoad4 := h4.Load(empty)
+	_, errAdd := h4.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "box", Pos: gw.Point{X: 200, Y: 100}})
+	scale := 0.0
+	if s := el.Call("querySelector", "svg"); !s.IsNull() && el.Call("querySelector", "svg g.vertex").Truthy() {
+		scale = s.Call("getScreenCTM").Get("a").Float()
+	}
+	errAdd = errors.Join(errLoad4, errAdd)
+	r.check("an empty document loaded is shown one unit to a pixel", errAdd == nil && math.Abs(scale-1) < 0.01, "pixels to a unit "+num(scale)+" "+errText(errAdd))
+	_ = h4.Destroy()
 }
 
 // marquee drags the main button from one corner of the drawing to the

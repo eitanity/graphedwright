@@ -136,13 +136,14 @@ func DefaultCaps() Caps {
 // Document is a directed graph with typed vertices and edges, a schema
 // that says what is allowed, positions for drawing, and a viewport.
 // Vertices and Edges are by index; a deleted entry is a tombstone until
-// Compact. Every change goes through Apply.
+// Compact. Every change goes through Apply, but for the viewport, the
+// flow, the positions and the bends, which have methods of their own.
 type Document struct {
 	Schema   Schema
 	Vertices []Vertex
 	Edges    []Edge
-	View     Viewport
-	Flow     Flow // the way the layers run: set by a Layout command, or by a loader
+	view     Viewport
+	flow     Flow // the way the layers run: set by a Layout command, or by SetFlow
 	caps     Caps
 	locked   bool // Lock: no method may change the document
 

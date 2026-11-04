@@ -99,7 +99,7 @@ func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	// width is what is drawn and hit.
 	w := float64(float64(drawn)*defaultCharWidth) + 8
 	switch {
-	case d.Flow != gw.TopToBottom:
+	case d.Flow() != gw.TopToBottom:
 		b.X, b.W = b.X+float64(b.W/2)-float64(w/2), w
 	case side < 0:
 		b.X, b.W = b.X+b.W-w, w

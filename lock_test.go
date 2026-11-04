@@ -12,8 +12,8 @@ import (
 // did nothing, and neither the content, the bends nor the undo log
 // changes. Each method is given something to do, so that an unguarded
 // one would show: a redo pending, a container left unfitted and a bend
-// set. Unlocked, each does it. A group neither opens nor closes while
-// locked.
+// set, a viewport and a flow to change. Unlocked, each does it. A group
+// neither opens nor closes while locked.
 func TestLock(t *testing.T) {
 	d := containerDoc(t)
 	a := at(t, d, cBox, "a", 0, 0)
@@ -55,6 +55,12 @@ func TestLock(t *testing.T) {
 	if d.ReserveBends(e, 2) != nil {
 		t.Error("ReserveBends reserved while locked")
 	}
+	if d.SetView(gw.Viewport{W: 10, H: 10}) || d.View() != (gw.Viewport{}) {
+		t.Errorf("SetView set while locked: %v", d.View())
+	}
+	if d.SetFlow(gw.TopToBottom) || d.Flow() != gw.LeftToRight {
+		t.Errorf("SetFlow set while locked: %v", d.Flow())
+	}
 	if vm, em := d.Compact(); vm != nil || em != nil {
 		t.Error("Compact renumbered while locked")
 	}
@@ -88,6 +94,12 @@ func TestLock(t *testing.T) {
 	}
 	if !d.Place(a, gw.Point{X: 40, Y: 40}, true) {
 		t.Error("Place after Unlock")
+	}
+	if !d.SetView(gw.Viewport{W: 10, H: 10}) || d.View() != (gw.Viewport{W: 10, H: 10}) {
+		t.Errorf("SetView after Unlock: %v", d.View())
+	}
+	if !d.SetFlow(gw.TopToBottom) || d.Flow() != gw.TopToBottom {
+		t.Errorf("SetFlow after Unlock: %v", d.Flow())
 	}
 
 	// A Group while locked opens nothing: two commands after it are two

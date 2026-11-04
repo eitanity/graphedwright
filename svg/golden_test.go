@@ -314,7 +314,7 @@ func TestViewport(t *testing.T) {
 	if !strings.Contains(buf.String(), `viewBox="28 14 144 72"`) {
 		t.Errorf("bounds: %s", buf.String()[:80])
 	}
-	d.View = gw.Viewport{X: -5, Y: -5, W: 300, H: 200}
+	d.SetView(gw.Viewport{X: -5, Y: -5, W: 300, H: 200})
 	buf.Reset()
 	if err := svg.Render(d, svg.Options{}, &buf); err != nil {
 		t.Fatal(err)
@@ -420,12 +420,12 @@ func TestOutOfRange(t *testing.T) {
 	}
 	want := render()
 	for _, v := range []gw.Viewport{{W: math.NaN(), H: 10}, {W: 10, H: math.Inf(1)}, {X: math.NaN(), W: 10, H: 10}, {W: -5, H: 10}, {W: 2e9, H: 10}} {
-		d.View = v
+		d.SetView(v)
 		if got := render(); got != want {
 			t.Errorf("view %v: %s", v, firstDiff([]byte(got), []byte(want)))
 		}
 	}
-	d.View = gw.Viewport{}
+	d.SetView(gw.Viewport{})
 	weight := opts.EdgeNotes[1].Weight
 	for _, w := range []float64{math.Inf(1), math.NaN(), 2e9} {
 		opts.EdgeNotes[1].Weight = w

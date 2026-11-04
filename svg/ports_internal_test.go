@@ -24,7 +24,7 @@ func TestPortLabelsClear(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.Flow = flow
+			d.SetFlow(flow)
 			add := func(kind gw.KindIndex, id string) gw.VertexIndex {
 				return apply(t, d, gw.Command{Op: gw.AddVertex, Kind: kind, ID: gw.ID(id), Text: id}).Vertices[0]
 			}
