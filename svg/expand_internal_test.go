@@ -33,7 +33,7 @@ func TestExpanded(t *testing.T) {
 		for _, mode := range []Mode{View, Edit} {
 			opts.Mode = mode
 			want := map[gw.ID]string{"part": "keyword label entry", "sys": "label", "noted": "annotation", "plain": ""}
-			for i := range d.Vertices {
+			for i := range d.VertexSlots() {
 				v := gw.VertexIndex(i) //nolint:gosec // a test's few vertices
 				var drawn, over bytes.Buffer
 				if err := r.RenderVertex(d, opts, v, &drawn); err != nil {
@@ -46,30 +46,30 @@ func TestExpanded(t *testing.T) {
 				}
 				cuts := cutRE.FindAllStringSubmatch(drawn.String(), -1)
 				if n := strings.Count(drawn.String(), "…"); n != len(cuts) {
-					t.Errorf("flow %d mode %d: %s has %d cut texts, %d followed in full", flow, mode, d.Vertices[v].ID, n, len(cuts))
+					t.Errorf("flow %d mode %d: %s has %d cut texts, %d followed in full", flow, mode, d.Vertex(v).ID(), n, len(cuts))
 				}
 				classes := make([]string, 0, len(cuts))
 				for _, c := range cuts {
 					classes = append(classes, c[1])
 					if c[6] != c[1] || c[7] != c[2] || c[8] != c[3] || c[9] != c[4] || c[10] != c[11] || !strings.HasPrefix(c[10], c[5]) {
-						t.Errorf("flow %d mode %d: %s cut %q not followed by itself in full at its place: %q", flow, mode, d.Vertices[v].ID, c[0], c[6:])
+						t.Errorf("flow %d mode %d: %s cut %q not followed by itself in full at its place: %q", flow, mode, d.Vertex(v).ID(), c[0], c[6:])
 					}
 				}
-				if got := strings.Join(classes, " "); got != want[d.Vertices[v].ID] {
-					t.Errorf("flow %d mode %d: %s cut %q, want %q", flow, mode, d.Vertices[v].ID, got, want[d.Vertices[v].ID])
+				if got := strings.Join(classes, " "); got != want[d.Vertex(v).ID()] {
+					t.Errorf("flow %d mode %d: %s cut %q, want %q", flow, mode, d.Vertex(v).ID(), got, want[d.Vertex(v).ID()])
 				}
 				exp := expandedRE.FindAllStringSubmatch(over.String(), -1)
 				if len(cuts) == 0 && over.String() != `<g class="overlay"></g>` {
-					t.Errorf("flow %d mode %d: %s with nothing cut draws %s", flow, mode, d.Vertices[v].ID, over.String())
+					t.Errorf("flow %d mode %d: %s with nothing cut draws %s", flow, mode, d.Vertex(v).ID(), over.String())
 				}
 				if len(exp) != len(cuts) {
-					t.Fatalf("flow %d mode %d: %s has %d cut texts, %d expanded in\n%s", flow, mode, d.Vertices[v].ID, len(cuts), len(exp), over.String())
+					t.Fatalf("flow %d mode %d: %s has %d cut texts, %d expanded in\n%s", flow, mode, d.Vertex(v).ID(), len(cuts), len(exp), over.String())
 				}
-				pos := d.Vertices[v].Pos
+				pos := d.Vertex(v).Pos()
 				for k, e := range exp {
 					c := cuts[k]
 					if e[1] != num(pos.X) || e[2] != num(pos.Y) || e[5] != c[1] || e[6] != c[2] || e[7] != c[3] || e[8] != c[4] || e[9] != c[10] {
-						t.Errorf("flow %d mode %d: %s expands %q as %q", flow, mode, d.Vertices[v].ID, c[0], e[0])
+						t.Errorf("flow %d mode %d: %s expands %q as %q", flow, mode, d.Vertex(v).ID(), c[0], e[0])
 					}
 					cw := float64(defaultCharWidth)
 					if c[1] == "entry" {
@@ -79,7 +79,7 @@ func TestExpanded(t *testing.T) {
 					x, _ := strconv.ParseFloat(c[2], 64)
 					left := map[string]float64{"start": x - 2, "middle": x - w/2, anchorEnd: x + 2 - w}[c[4]]
 					if e[3] != num(left) || e[4] != num(w) {
-						t.Errorf("flow %d mode %d: %s %q backed at x %s width %s, want %v %v", flow, mode, d.Vertices[v].ID, c[10], e[3], e[4], left, w)
+						t.Errorf("flow %d mode %d: %s %q backed at x %s width %s, want %v %v", flow, mode, d.Vertex(v).ID(), c[10], e[3], e[4], left, w)
 					}
 				}
 			}
@@ -88,7 +88,7 @@ func TestExpanded(t *testing.T) {
 				t.Fatal(err)
 			}
 			gone := opts
-			gone.Hover, gone.HasHover = gw.VertexIndex(len(d.Vertices)), true //nolint:gosec // a test's few vertices
+			gone.Hover, gone.HasHover = gw.VertexIndex(d.VertexSlots()), true //nolint:gosec // a test's few vertices
 			if err := r.RenderOverlay(d, gone, &dead); err != nil {
 				t.Fatal(err)
 			}
@@ -168,7 +168,7 @@ func cutTextsDoc(t *testing.T) (*gw.Document, Options) {
 			t.Fatal(err)
 		}
 	}
-	notes := make([]Annotation, len(d.Vertices))
+	notes := make([]Annotation, d.VertexSlots())
 	notes[noted] = Annotation{Text: "an annotation far too long to fit"}
 	return d, Options{VertexNotes: notes}
 }

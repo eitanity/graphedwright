@@ -18,8 +18,8 @@ func TestBendsInRange(t *testing.T) {
 	a := at(t, d, cBox, "a", 0, 0)
 	b := at(t, d, cBox, "b", 400, 0)
 	e := addEdge(t, d, 0, a, b, gw.None, gw.None)
-	if !d.SetBends(e, []gw.Point{{X: 100, Y: gw.MaxCoord}}) || d.SetBends(e, []gw.Point{{X: 100, Y: 2e9}}) || d.Edges[e].Bends != nil {
-		t.Errorf("bends %v", d.Edges[e].Bends)
+	if !d.SetBends(e, []gw.Point{{X: 100, Y: gw.MaxCoord}}) || d.SetBends(e, []gw.Point{{X: 100, Y: 2e9}}) || d.Edge(e).Bends().Len() != 0 {
+		t.Errorf("bends %v", d.Edge(e).Bends())
 	}
 }
 
@@ -33,16 +33,16 @@ func TestSetBends(t *testing.T) {
 		t.Fatal("refused")
 	}
 	pts[0].X = -1
-	if got := d.Edges[e].Bends; len(got) != 2 || got[0] != (gw.Point{X: 100, Y: 80}) {
+	if got := d.Edge(e).Bends(); got.Len() != 2 || got.At(0) != (gw.Point{X: 100, Y: 80}) {
 		t.Errorf("bends %v, not a copy", got)
 	}
-	if d.SetBends(e, []gw.Point{{X: math.NaN()}}) || d.Edges[e].Bends != nil {
-		t.Errorf("a NaN was taken: %v", d.Edges[e].Bends)
+	if d.SetBends(e, []gw.Point{{X: math.NaN()}}) || d.Edge(e).Bends().Len() != 0 {
+		t.Errorf("a NaN was taken: %v", d.Edge(e).Bends())
 	}
 	if d.SetBends(gw.EdgeIndex(7), pts) {
 		t.Error("an edge out of range took bends")
 	}
-	if !d.SetBends(e, nil) || d.Edges[e].Bends != nil {
+	if !d.SetBends(e, nil) || d.Edge(e).Bends().Len() != 0 {
 		t.Error("no bends refused")
 	}
 
@@ -56,7 +56,7 @@ func TestSetBends(t *testing.T) {
 	if !small.SetBends(f, make([]gw.Point, 3)) || small.SetBends(f, make([]gw.Point, 2)) {
 		t.Error("the slab of four points took five")
 	}
-	if small.Edges[f].Bends != nil {
+	if small.Edge(f).Bends().Len() != 0 {
 		t.Error("a refused edge kept its bends")
 	}
 	small.ClearBends()
@@ -64,7 +64,7 @@ func TestSetBends(t *testing.T) {
 		t.Error("ClearBends did not empty the slab")
 	}
 	small.ClearBends()
-	if small.Edges[f].Bends != nil {
+	if small.Edge(f).Bends().Len() != 0 {
 		t.Error("ClearBends left the bends")
 	}
 }
@@ -94,7 +94,7 @@ func TestBendsHold(t *testing.T) {
 	}
 	bent := func(name string, e gw.EdgeIndex, want bool) {
 		t.Helper()
-		if got := len(d.Edges[e].Bends) > 0; got != want {
+		if got := d.Edge(e).Bends().Len() > 0; got != want {
 			t.Errorf("%s: edge %d bent %v, want %v", name, e, got, want)
 		}
 	}
@@ -124,14 +124,14 @@ func TestBendsHold(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: z})
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: b, To: z})
 	set()
-	at0 := d.Vertices[z].Pos
+	at0 := d.Vertex(z).Pos()
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: z, Pos: gw.Point{X: at0.X + 16, Y: at0.Y + 8}})
-	if got := d.Edges[ab].Bends; len(got) != 1 || got[0] != (gw.Point{X: 26, Y: 88}) {
+	if got := d.Edge(ab).Bends(); got.Len() != 1 || got.At(0) != (gw.Point{X: 26, Y: 88}) {
 		t.Errorf("an edge within the moved zone: bends %v, want carried to (26, 88)", got)
 	}
 	bent("the edge leaving the zone", bc, false)
 	d.Undo()
-	if got := d.Edges[ab].Bends; len(got) != 1 || got[0] != (gw.Point{X: 10, Y: 80}) {
+	if got := d.Edge(ab).Bends(); got.Len() != 1 || got.At(0) != (gw.Point{X: 10, Y: 80}) {
 		t.Errorf("the zone's move undone: bends %v, want carried back to (10, 80)", got)
 	}
 	bent("the zone's move undone, the edge leaving it", bc, true)
@@ -154,12 +154,12 @@ func TestBendsKept(t *testing.T) {
 	d.SetBends(e, []gw.Point{{X: 1, Y: 2}})
 	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: e})
 	d.Undo()
-	if len(d.Edges[e].Bends) != 1 {
-		t.Errorf("undone delete: bends %v", d.Edges[e].Bends)
+	if d.Edge(e).Bends().Len() != 1 {
+		t.Errorf("undone delete: bends %v", d.Edge(e).Bends())
 	}
 	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: first})
 	_, emap := d.Compact()
-	if got := d.Edges[emap[e]].Bends; len(got) != 1 || got[0] != (gw.Point{X: 1, Y: 2}) {
+	if got := d.Edge(emap[e]).Bends(); got.Len() != 1 || got.At(0) != (gw.Point{X: 1, Y: 2}) {
 		t.Errorf("after Compact: bends %v", got)
 	}
 }

@@ -38,25 +38,25 @@ func HitTest(d *gw.Document, p gw.Point) Hit {
 	if h, ok := hitPort(d, p); ok {
 		return h
 	}
-	for i := len(d.Vertices) - 1; i >= 0; i-- {
-		v := &d.Vertices[i]
-		if !v.Live || d.Kinds().Vertex(v.Kind).Container() {
+	for i := d.VertexSlots() - 1; i >= 0; i-- {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() || d.Kinds().Vertex(v.Kind()).Container() {
 			continue
 		}
-		if len(v.Ports) == 0 && math.Abs(outlineDistance(d.Kinds().Vertex(v.Kind).Shape(), v, p)) <= band(v) {
+		if v.Ports().Len() == 0 && math.Abs(outlineDistance(d.Kinds().Vertex(v.Kind()).Shape(), v, p)) <= band(v) {
 			return Hit{Kind: OutlineHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
 		}
 		if inBox(v, p) {
 			return Hit{Kind: VertexHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
 		}
 	}
-	for i := len(d.Edges) - 1; i >= 0; i-- {
-		if d.Edges[i].Live && nearEdge(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
+	for i := d.EdgeSlots() - 1; i >= 0; i-- {
+		if d.Edge(gw.EdgeIndex(i)).Live() && nearEdge(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
 			return Hit{Kind: EdgeHit, Vertex: gw.None, Port: gw.None, Edge: gw.EdgeIndex(i)} //nolint:gosec // bounded by the capacity
 		}
 	}
-	for i := len(d.Edges) - 1; i >= 0; i-- {
-		if d.Edges[i].Live && inLabel(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
+	for i := d.EdgeSlots() - 1; i >= 0; i-- {
+		if d.Edge(gw.EdgeIndex(i)).Live() && inLabel(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
 			return Hit{Kind: EdgeHit, Vertex: gw.None, Port: gw.None, Edge: gw.EdgeIndex(i)} //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -69,13 +69,23 @@ func HitTest(d *gw.Document, p gw.Point) Hit {
 // hitPort names the port whose circle holds the point, the later
 // vertex's first.
 func hitPort(d *gw.Document, p gw.Point) (Hit, bool) {
-	for i := len(d.Vertices) - 1; i >= 0; i-- {
-		v := &d.Vertices[i]
-		if !v.Live {
+	for i := d.VertexSlots() - 1; i >= 0; i-- {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		ports := v.Ports()
+		if !v.Live() || ports.Len() == 0 {
 			continue
 		}
-		for j := range v.Ports {
-			q := portAt(v, gw.PortIndex(j)) //nolint:gosec // bounded by the ports per vertex
+		// Each port's place on its side, as portAt finds it, from the
+		// count on each side.
+		var n, k [gw.Bottom + 1]int
+		for j := range ports.Len() {
+			n[ports.At(j).Side]++
+		}
+		pos, size := v.Pos(), v.Size()
+		for j := range ports.Len() {
+			side := ports.At(j).Side
+			q := sidePoint(pos, size, side, k[side], n[side])
+			k[side]++
 			dx, dy := p.X-q.X, p.Y-q.Y
 			if float64(dx*dx)+float64(dy*dy) <= (portRadius+2)*(portRadius+2) {
 				return Hit{Kind: PortHit, Vertex: gw.VertexIndex(i), Port: gw.PortIndex(j), Edge: gw.None}, true //nolint:gosec // bounded by the capacities
@@ -93,10 +103,10 @@ func ContainerAt(d *gw.Document, p gw.Point, v gw.VertexIndex) gw.VertexIndex {
 	order := d.Containers()
 	for i := len(order) - 1; i >= 0; i-- {
 		c := order[i]
-		if !inBox(&d.Vertices[c], p) {
+		if !inBox(d.Vertex(c), p) {
 			continue
 		}
-		if v == gw.None || (!d.Within(c, v) && d.Kinds().Vertex(d.Vertices[c].Kind).Holds(d.Vertices[v].Kind)) {
+		if v == gw.None || (!d.Within(c, v) && d.Kinds().Vertex(d.Vertex(c).Kind()).Holds(d.Vertex(v).Kind())) {
 			return c
 		}
 	}
@@ -110,6 +120,6 @@ const HandleSize = 8
 // HandleBox is the square of vertex v's resize handle, centred on the
 // bottom right corner of its box.
 func HandleBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
-	x := &d.Vertices[v]
-	return gw.Viewport{X: x.Pos.X + float64(x.Size.W/2) - HandleSize/2, Y: x.Pos.Y + float64(x.Size.H/2) - HandleSize/2, W: HandleSize, H: HandleSize}
+	x := d.Vertex(v)
+	return gw.Viewport{X: x.Pos().X + float64(x.Size().W/2) - HandleSize/2, Y: x.Pos().Y + float64(x.Size().H/2) - HandleSize/2, W: HandleSize, H: HandleSize}
 }

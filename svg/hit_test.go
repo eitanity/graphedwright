@@ -85,15 +85,15 @@ func TestHitTest(t *testing.T) {
 func TestHitBends(t *testing.T) {
 	d, _ := bends(t)
 	skip := gw.EdgeIndex(3)
-	b := d.Edges[skip].Bends
-	if len(b) != 4 {
+	b := d.Edge(skip).Bends()
+	if b.Len() != 4 {
 		t.Fatalf("skip has bends %v", b)
 	}
-	run := gw.Point{X: (b[2].X + b[3].X) / 2, Y: b[2].Y}
+	run := gw.Point{X: (b.At(2).X + b.At(3).X) / 2, Y: b.At(2).Y}
 	if h := svg.HitTest(d, run); h.Kind != svg.EdgeHit || h.Edge != skip {
 		t.Errorf("on the run past the third layer %v: %+v", run, h)
 	}
-	from, to := d.Vertices[d.Edges[skip].From].Pos, d.Vertices[d.Edges[skip].To].Pos
+	from, to := d.Vertex(d.Edge(skip).From()).Pos(), d.Vertex(d.Edge(skip).To()).Pos()
 	chord := gw.Point{X: (from.X + to.X) / 2, Y: (from.Y + to.Y) / 2}
 	if h := svg.HitTest(d, chord); h.Kind == svg.EdgeHit && h.Edge == skip {
 		t.Errorf("on the straight line between the ends %v: %+v", chord, h)
@@ -105,11 +105,11 @@ func TestHitBends(t *testing.T) {
 func TestHitBendsDown(t *testing.T) {
 	d, _ := tree(t)
 	skip := gw.EdgeIndex(3)
-	b := d.Edges[skip].Bends
-	if len(b) != 4 || b[2].X != b[3].X {
+	b := d.Edge(skip).Bends()
+	if b.Len() != 4 || b.At(2).X != b.At(3).X {
 		t.Fatalf("skip has bends %v, not vertical runs", b)
 	}
-	run := gw.Point{X: b[2].X, Y: (b[2].Y + b[3].Y) / 2}
+	run := gw.Point{X: b.At(2).X, Y: (b.At(2).Y + b.At(3).Y) / 2}
 	if h := svg.HitTest(d, run); h.Kind != svg.EdgeHit || h.Edge != skip {
 		t.Errorf("on the run past the third layer %v: %+v", run, h)
 	}
@@ -125,7 +125,7 @@ func TestLabelBoxes(t *testing.T) {
 	b := svg.EdgeLabelBox(d, fail)
 	centre := gw.Point{X: b.X + b.W/2, Y: b.Y + b.H/2}
 	if h := svg.HitTest(d, centre); h.Kind != svg.EdgeHit || h.Edge != fail {
-		t.Errorf("on the label of %q at %v: %+v", d.Edges[fail].Label, centre, h)
+		t.Errorf("on the label of %q at %v: %+v", d.Edge(fail).Label(), centre, h)
 	}
 	if b.W < 80 {
 		t.Errorf("the input's box is %v wide", b.W)
@@ -133,27 +133,27 @@ func TestLabelBoxes(t *testing.T) {
 	if h := svg.HitTest(d, gw.Point{X: b.X + 2, Y: centre.Y}); h.Kind == svg.EdgeHit && h.Edge == fail {
 		t.Error("the edge is hit past the end of its short label")
 	}
-	if a := d.Vertices[1]; !(b.Y+b.H < a.Pos.Y+40) {
+	if a := d.Vertex(1); !(b.Y+b.H < a.Pos().Y+40) {
 		t.Errorf("the label box %v is not above its edge", b)
 	}
 
 	n, _ := notation(t)
-	for v := range n.Vertices {
-		x := &n.Vertices[v]
+	for v := range n.VertexSlots() {
+		x := n.Vertex(gw.VertexIndex(v))               //nolint:gosec // bounded by the capacity
 		lb := svg.VertexLabelBox(n, gw.VertexIndex(v)) //nolint:gosec // bounded
 		cy := lb.Y + lb.H/2
-		switch x.Kind {
+		switch x.Kind() {
 		case 0: // an actor: its label at the foot of its box
-			if cy < x.Pos.Y+x.Size.H/4 || cy > x.Pos.Y+x.Size.H/2 {
-				t.Errorf("actor %s: label box %v", x.ID, lb)
+			if cy < x.Pos().Y+x.Size().H/4 || cy > x.Pos().Y+x.Size().H/2 {
+				t.Errorf("actor %s: label box %v", x.ID(), lb)
 			}
 		case 4: // a container: its title at the top
-			if lb.Y < x.Pos.Y-x.Size.H/2 || cy > x.Pos.Y-x.Size.H/2+gw.ContainerTitle || lb.X < x.Pos.X-x.Size.W/2 {
-				t.Errorf("container %s: title box %v for %v %v", x.ID, lb, x.Pos, x.Size)
+			if lb.Y < x.Pos().Y-x.Size().H/2 || cy > x.Pos().Y-x.Size().H/2+gw.ContainerTitle || lb.X < x.Pos().X-x.Size().W/2 {
+				t.Errorf("container %s: title box %v for %v %v", x.ID(), lb, x.Pos(), x.Size())
 			}
 		default:
-			if math.Abs(cy-x.Pos.Y) > 4 || math.Abs(lb.X+lb.W/2-x.Pos.X) > 0.01 {
-				t.Errorf("%s: label box %v for %v", x.ID, lb, x.Pos)
+			if math.Abs(cy-x.Pos().Y) > 4 || math.Abs(lb.X+lb.W/2-x.Pos().X) > 0.01 {
+				t.Errorf("%s: label box %v for %v", x.ID(), lb, x.Pos())
 			}
 		}
 	}

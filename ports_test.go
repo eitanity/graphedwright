@@ -34,7 +34,7 @@ func TestAddPort(t *testing.T) {
 	}
 	b := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: 1, ID: "b"}).Vertices[0]
 	ch := mustApply(t, d, gw.Command{Op: gw.AddPort, Vertex: b, Port: port("out", gw.Right)})
-	if got := d.Vertices[b].Ports; len(got) != 2 || got[1] != port("out", gw.Right) || d.OwnPorts(b) != 1 {
+	if got := d.Vertex(b).Ports(); got.Len() != 2 || got.At(1) != port("out", gw.Right) || d.OwnPorts(b) != 1 {
 		t.Fatalf("ports %v, own %d", got, d.OwnPorts(b))
 	}
 	if len(ch.Vertices) != 1 || ch.Vertices[0] != b {
@@ -60,11 +60,11 @@ func TestAddPort(t *testing.T) {
 	}
 	d.Undo()
 	d.Undo()
-	if n := len(d.Vertices[b].Ports); n != 1 {
+	if n := d.Vertex(b).Ports().Len(); n != 1 {
 		t.Fatalf("undone: %d ports, want the kind's 1", n)
 	}
 	d.Redo()
-	if got := d.Vertices[b].Ports; len(got) != 2 || got[1].Name != "out" {
+	if got := d.Vertex(b).Ports(); got.Len() != 2 || got.At(1).Name != "out" {
 		t.Errorf("redone: %v", got)
 	}
 }
@@ -110,21 +110,21 @@ func TestDeletePort(t *testing.T) {
 	// gives q back and puts the edge's end at it.
 	mustApply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: eq})
 	mustApply(t, d, gw.Command{Op: gw.DeletePort, Vertex: a, Text: "q"})
-	if got := d.Vertices[a].Ports; len(got) != 2 || got[1].Name != "r" || d.Edges[er].FromPort != 1 || d.Edges[ep].FromPort != 0 {
-		t.Fatalf("deleted q: ports %v, er at %d, ep at %d", got, d.Edges[er].FromPort, d.Edges[ep].FromPort)
+	if got := d.Vertex(a).Ports(); got.Len() != 2 || got.At(1).Name != "r" || d.Edge(er).FromPort() != 1 || d.Edge(ep).FromPort() != 0 {
+		t.Fatalf("deleted q: ports %v, er at %d, ep at %d", got, d.Edge(er).FromPort(), d.Edge(ep).FromPort())
 	}
 	d.Undo()
-	if got := d.Vertices[a].Ports; len(got) != 3 || got[1].Name != "q" || d.Edges[er].FromPort != 2 {
-		t.Fatalf("undone: ports %v, er at %d", got, d.Edges[er].FromPort)
+	if got := d.Vertex(a).Ports(); got.Len() != 3 || got.At(1).Name != "q" || d.Edge(er).FromPort() != 2 {
+		t.Fatalf("undone: ports %v, er at %d", got, d.Edge(er).FromPort())
 	}
 	d.Undo()
-	if e := d.Edges[eq]; !e.Live || e.FromPort != 1 {
-		t.Fatalf("edge back: live %v at port %d, want 1", e.Live, e.FromPort)
+	if e := d.Edge(eq); !e.Live() || e.FromPort() != 1 {
+		t.Fatalf("edge back: live %v at port %d, want 1", e.Live(), e.FromPort())
 	}
 	d.Redo()
 	d.Redo()
-	if d.Edges[er].FromPort != 1 || d.Edges[plain].ToPort != gw.None || len(d.Vertices[a].Ports) != 2 {
-		t.Errorf("redone: er at %d, plain at %d, %d ports", d.Edges[er].FromPort, d.Edges[plain].ToPort, len(d.Vertices[a].Ports))
+	if d.Edge(er).FromPort() != 1 || d.Edge(plain).ToPort() != gw.None || d.Vertex(a).Ports().Len() != 2 {
+		t.Errorf("redone: er at %d, plain at %d, %d ports", d.Edge(er).FromPort(), d.Edge(plain).ToPort(), d.Vertex(a).Ports().Len())
 	}
 }
 
@@ -141,7 +141,7 @@ func TestPortRoom(t *testing.T) {
 	for i, name := range []string{"l1", "l2", "l3"} {
 		ch := mustApply(t, d, gw.Command{Op: gw.AddPort, Vertex: a, Port: port(name, gw.Left)})
 		want := max(40, float64((i+2)*gw.PortGap))
-		if got := d.Vertices[a].Size; got.H != want || got.W != 100 {
+		if got := d.Vertex(a).Size(); got.H != want || got.W != 100 {
 			t.Errorf("%d left ports: size %v, want height %g", i+1, got, want)
 		}
 		if ch.Layout != (want > 40) {
@@ -154,14 +154,14 @@ func TestPortRoom(t *testing.T) {
 	// Each top port's slot is its two-character label either side
 	// of it and a gap.
 	slot := float64(max(gw.PortGap, 2*2*gw.PortLabelChar+16))
-	if got := d.Vertices[a].Size; got != (gw.Size{W: 7 * slot, H: 4 * gw.PortGap}) {
+	if got := d.Vertex(a).Size(); got != (gw.Size{W: 7 * slot, H: 4 * gw.PortGap}) {
 		t.Errorf("six on top: %v, want %v", got, gw.Size{W: 7 * slot, H: 4 * gw.PortGap})
 	}
-	if got := d.Vertices[a].Pos; got != (gw.Point{X: 100, Y: 100}) {
+	if got := d.Vertex(a).Pos(); got != (gw.Point{X: 100, Y: 100}) {
 		t.Errorf("moved to %v", got)
 	}
 	mustApply(t, d, gw.Command{Op: gw.Resize, Vertex: a, Size: gw.Size{W: 50, H: 300}})
-	if got := d.Vertices[a].Size; got != (gw.Size{W: 7 * slot, H: 300}) {
+	if got := d.Vertex(a).Size(); got != (gw.Size{W: 7 * slot, H: 300}) {
 		t.Errorf("resized below its ports: %v", got)
 	}
 	d.Undo()
@@ -172,7 +172,7 @@ func TestPortRoom(t *testing.T) {
 	for _, name := range []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7"} {
 		mustApply(t, d, gw.Command{Op: gw.AddPort, Vertex: sys, Port: port(name, gw.Right)})
 	}
-	if got := d.Vertices[sys].Size.H; got != 8*gw.PortGap {
+	if got := d.Vertex(sys).Size().H; got != 8*gw.PortGap {
 		t.Errorf("container with seven on the right: height %g, want %d", got, 8*gw.PortGap)
 	}
 	mustApply(t, d, gw.Command{Op: gw.AddEdge, ID: "e", From: a, To: sys, FromPort: 0, ToPort: 3})
@@ -189,13 +189,13 @@ func TestPortRoom(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range []gw.VertexIndex{a, sys, in} {
-		w := again.VertexByID(d.Vertices[v].ID)
-		got, want := again.Vertices[w], d.Vertices[v]
-		if got.Pos != want.Pos || got.Size != want.Size || len(got.Ports) != len(want.Ports) {
-			t.Errorf("%s loaded at %v %v with %d ports, saved at %v %v with %d", want.ID, got.Pos, got.Size, len(got.Ports), want.Pos, want.Size, len(want.Ports))
+		w := again.VertexByID(d.Vertex(v).ID())
+		got, want := again.Vertex(w), d.Vertex(v)
+		if got.Pos() != want.Pos() || got.Size() != want.Size() || got.Ports().Len() != want.Ports().Len() {
+			t.Errorf("%s loaded at %v %v with %d ports, saved at %v %v with %d", want.ID(), got.Pos(), got.Size(), got.Ports().Len(), want.Pos(), want.Size(), want.Ports().Len())
 		}
 	}
-	if e := again.Edges[again.EdgeByID("e")]; e.FromPort != 0 || e.ToPort != 3 {
-		t.Errorf("edge loaded at ports %d and %d, want 0 and 3", e.FromPort, e.ToPort)
+	if e := again.Edge(again.EdgeByID("e")); e.FromPort() != 0 || e.ToPort() != 3 {
+		t.Errorf("edge loaded at ports %d and %d, want 0 and 3", e.FromPort(), e.ToPort())
 	}
 }

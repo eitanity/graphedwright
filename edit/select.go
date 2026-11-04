@@ -63,15 +63,15 @@ func (e *Editor) selectIn(box gw.Viewport, add bool) {
 	if !add {
 		e.clearSelection()
 	}
-	for i := range e.d.Vertices {
-		v := &e.d.Vertices[i]
-		if v.Live && v.Pos.X >= box.X && v.Pos.X <= box.X+box.W && v.Pos.Y >= box.Y && v.Pos.Y <= box.Y+box.H {
+	for i := range e.d.VertexSlots() {
+		v := e.d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if v.Live() && v.Pos().X >= box.X && v.Pos().X <= box.X+box.W && v.Pos().Y >= box.Y && v.Pos().Y <= box.Y+box.H {
 			e.selectVertex(gw.VertexIndex(i), true) //nolint:gosec // bounded by the capacity
 		}
 	}
-	for i := range e.d.Edges {
-		x := &e.d.Edges[i]
-		if x.Live && e.isSelectedV(x.From) && e.isSelectedV(x.To) {
+	for i := range e.d.EdgeSlots() {
+		x := e.d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if x.Live() && e.isSelectedV(x.From()) && e.isSelectedV(x.To()) {
 			e.selectEdge(gw.EdgeIndex(i), true) //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -81,7 +81,7 @@ func (e *Editor) selectIn(box gw.Viewport, add bool) {
 func (e *Editor) dropDead() {
 	n := 0
 	for _, v := range e.selV {
-		if e.d.Vertices[v].Live {
+		if e.d.Vertex(v).Live() {
 			e.selV[n] = v
 			n++
 		}
@@ -89,7 +89,7 @@ func (e *Editor) dropDead() {
 	e.selV = e.selV[:n]
 	m := 0
 	for _, x := range e.selE {
-		if e.d.Edges[x].Live {
+		if e.d.Edge(x).Live() {
 			e.selE[m] = x
 			m++
 		}

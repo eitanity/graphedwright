@@ -16,7 +16,7 @@ const labelKey = "label"
 // the rest of the format after it: text outside braces as before, or a
 // placeholder's before, value and after, all empty when the value is.
 // An empty format draws the label as set.
-func NextLabelPart(format, label string, attrs []Attr) (before, value, after, rest string) {
+func NextLabelPart(format, label string, attrs AttrList) (before, value, after, rest string) {
 	if format == "" {
 		return "", label, "", ""
 	}
@@ -32,7 +32,7 @@ func NextLabelPart(format, label string, attrs []Attr) (before, value, after, re
 	before, key, after := placeholder(format[1:end])
 	value = label
 	if key != labelKey {
-		value = AttrValue(attrs, key)
+		value = attrs.Value(key)
 	}
 	if value == "" {
 		return "", "", "", format[end+1:]
@@ -43,7 +43,7 @@ func NextLabelPart(format, label string, attrs []Attr) (before, value, after, re
 // LabelRunes is the number of characters of the label drawn by a
 // format, by which the layout makes room for it and the renderer cuts
 // it.
-func LabelRunes(format, label string, attrs []Attr) int {
+func LabelRunes(format, label string, attrs AttrList) int {
 	n := 0
 	// bound: the format's parts, at most its length
 	for more := true; more; {
@@ -56,7 +56,7 @@ func LabelRunes(format, label string, attrs []Attr) int {
 }
 
 // AppendLabel appends the label drawn by a format.
-func AppendLabel(dst []byte, format, label string, attrs []Attr) []byte {
+func AppendLabel(dst []byte, format, label string, attrs AttrList) []byte {
 	// bound: the format's parts, at most its length
 	for more := true; more; {
 		var before, value, after string
@@ -131,13 +131,13 @@ func indexByte(s string, c byte) int {
 // VertexLabelRunes is the number of characters of a vertex's label as
 // its kind's format draws it.
 func (d *Document) VertexLabelRunes(v VertexIndex) int {
-	x := &d.Vertices[v]
-	return LabelRunes(d.kinds.vertex[x.Kind].LabelFormat, x.Label, x.Attrs)
+	x := &d.vertices[v]
+	return LabelRunes(d.kinds.vertex[x.Kind].LabelFormat, x.Label, AttrList{x.Attrs})
 }
 
 // EdgeLabelRunes is the number of characters of an edge's label as its
 // kind's format draws it.
 func (d *Document) EdgeLabelRunes(e EdgeIndex) int {
-	x := &d.Edges[e]
-	return LabelRunes(d.kinds.edge[x.Kind].LabelFormat, x.Label, x.Attrs)
+	x := &d.edges[e]
+	return LabelRunes(d.kinds.edge[x.Kind].LabelFormat, x.Label, AttrList{x.Attrs})
 }

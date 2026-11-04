@@ -103,21 +103,21 @@ func send(t *testing.T, e *edit.Editor, evs ...edit.Event) {
 func ids(d *gw.Document, vs []gw.VertexIndex) string {
 	var b strings.Builder
 	for _, v := range vs {
-		b.WriteString(string(d.Vertices[v].ID))
+		b.WriteString(string(d.Vertex(v).ID()))
 	}
 	return b.String()
 }
 
 func snapshot(d *gw.Document) string {
 	var b strings.Builder
-	for i := range d.Vertices {
-		if v := &d.Vertices[i]; v.Live {
-			b.WriteString(string(v.ID) + "@" + strconv.FormatFloat(v.Pos.X, 'g', -1, 64) + "," + strconv.FormatFloat(v.Pos.Y, 'g', -1, 64) + " " + strconv.Quote(v.Label) + " ")
+	for i := range d.VertexSlots() {
+		if v := d.Vertex(gw.VertexIndex(i)); v.Live() { //nolint:gosec // bounded by the capacity
+			b.WriteString(string(v.ID()) + "@" + strconv.FormatFloat(v.Pos().X, 'g', -1, 64) + "," + strconv.FormatFloat(v.Pos().Y, 'g', -1, 64) + " " + strconv.Quote(v.Label()) + " ")
 		}
 	}
-	for i := range d.Edges {
-		if x := &d.Edges[i]; x.Live {
-			b.WriteString(string(x.ID) + ":" + strconv.Itoa(int(x.From)) + ">" + strconv.Itoa(int(x.To)) + " ")
+	for i := range d.EdgeSlots() {
+		if x := d.Edge(gw.EdgeIndex(i)); x.Live() { //nolint:gosec // bounded by the capacity
+			b.WriteString(string(x.ID()) + ":" + strconv.Itoa(int(x.From())) + ">" + strconv.Itoa(int(x.To())) + " ")
 		}
 	}
 	return b.String()
@@ -219,12 +219,12 @@ func TestDrag(t *testing.T) {
 	d, e := fixture(t, gw.Caps{})
 	before := snapshot(d)
 	send(t, e, down(220, 100, 0), move(230, 110), move(243, 121))
-	if e.State() != edit.Dragging || d.Vertices[1].Pos != pt(243, 121) {
-		t.Errorf("mid-drag: state %d pos %v", e.State(), d.Vertices[1].Pos)
+	if e.State() != edit.Dragging || d.Vertex(1).Pos() != pt(243, 121) {
+		t.Errorf("mid-drag: state %d pos %v", e.State(), d.Vertex(1).Pos())
 	}
 	send(t, e, up(243, 121))
-	if d.Vertices[1].Pos != pt(240, 120) || !d.Vertices[1].Placed || e.State() != edit.Idle {
-		t.Errorf("after drag: %v placed %v state %d", d.Vertices[1].Pos, d.Vertices[1].Placed, e.State())
+	if d.Vertex(1).Pos() != pt(240, 120) || !d.Vertex(1).Placed() || e.State() != edit.Idle {
+		t.Errorf("after drag: %v placed %v state %d", d.Vertex(1).Pos(), d.Vertex(1).Placed(), e.State())
 	}
 	if _, ok := d.Undo(); !ok || snapshot(d) != before {
 		t.Errorf("undo of the drag:\n%s\n%s", before, snapshot(d))
@@ -232,8 +232,8 @@ func TestDrag(t *testing.T) {
 	d.Redo()
 	send(t, e, down(420, 100, edit.Shift), up(420, 100))
 	send(t, e, down(240, 120, 0), move(260, 140), key("Escape", 0))
-	if d.Vertices[1].Pos != pt(240, 120) || d.Vertices[2].Pos != pt(420, 100) || e.State() != edit.Idle {
-		t.Errorf("escape: %v %v", d.Vertices[1].Pos, d.Vertices[2].Pos)
+	if d.Vertex(1).Pos() != pt(240, 120) || d.Vertex(2).Pos() != pt(420, 100) || e.State() != edit.Idle {
+		t.Errorf("escape: %v %v", d.Vertex(1).Pos(), d.Vertex(2).Pos())
 	}
 	send(t, e, down(240, 120, 0), up(240, 120))
 	if d.CanRedo() {
@@ -251,8 +251,8 @@ func TestConnect(t *testing.T) {
 		t.Errorf("ghost %v %v %v", from, to, ok)
 	}
 	send(t, e, up(360, 100))
-	if d.LiveEdges() != 2 || d.Edges[1].Kind != eOutcome || d.Edges[1].From != 1 || d.Edges[1].To != 2 || d.Edges[1].ToPort != 0 {
-		t.Errorf("connect: %d edges, %+v", d.LiveEdges(), d.Edges[1])
+	if d.LiveEdges() != 2 || d.Edge(1).Kind() != eOutcome || d.Edge(1).From() != 1 || d.Edge(1).To() != 2 || d.Edge(1).ToPort() != 0 {
+		t.Errorf("connect: %d edges, %+v", d.LiveEdges(), d.Edge(1))
 	}
 	_, err := e.Handle(down(480, 100, 0))
 	if err != nil {
@@ -262,8 +262,8 @@ func TestConnect(t *testing.T) {
 		t.Errorf("cycle: %v", err)
 	}
 	send(t, e, down(480, 100, 0), up(620, 100))
-	if d.LiveEdges() != 3 || d.Edges[2].ToPort != gw.None {
-		t.Errorf("into a leaf without ports: %d edges %+v", d.LiveEdges(), d.Edges[2])
+	if d.LiveEdges() != 3 || d.Edge(2).ToPort() != gw.None {
+		t.Errorf("into a leaf without ports: %d edges %+v", d.LiveEdges(), d.Edge(2))
 	}
 	send(t, e, down(480, 100, 0), up(700, 190))
 	if d.LiveEdges() != 3 || e.State() != edit.Idle {
@@ -313,13 +313,13 @@ func TestConnectFromOutline(t *testing.T) {
 		t.Error("over the leaf, which no edge from a source joins: a target")
 	}
 	send(t, e, up(360, 100))
-	if d.LiveEdges() != 2 || d.Edges[1].Kind != eTo || d.Edges[1].From != 0 || d.Edges[1].FromPort != gw.None || d.Edges[1].To != 2 || d.Edges[1].ToPort != 0 {
-		t.Errorf("from the outline: %d edges, %+v", d.LiveEdges(), d.Edges[1])
+	if d.LiveEdges() != 2 || d.Edge(1).Kind() != eTo || d.Edge(1).From() != 0 || d.Edge(1).FromPort() != gw.None || d.Edge(1).To() != 2 || d.Edge(1).ToPort() != 0 {
+		t.Errorf("from the outline: %d edges, %+v", d.LiveEdges(), d.Edge(1))
 	}
 	// From a port onto the leaf's outline.
 	send(t, e, down(280, 100, 0), up(572, 100))
-	if d.LiveEdges() != 3 || d.Edges[2].To != 3 || d.Edges[2].ToPort != gw.None {
-		t.Errorf("onto the outline: %d edges, %+v", d.LiveEdges(), d.Edges[2])
+	if d.LiveEdges() != 3 || d.Edge(2).To() != 3 || d.Edge(2).ToPort() != gw.None {
+		t.Errorf("onto the outline: %d edges, %+v", d.LiveEdges(), d.Edge(2))
 	}
 	if _, err := e.Handle(down(105, 100, 0)); err != nil {
 		t.Fatal(err)
@@ -332,7 +332,7 @@ func TestConnectFromOutline(t *testing.T) {
 		t.Errorf("click on the outline: selected %q, %d edges", ids(d, v), d.LiveEdges())
 	}
 	send(t, e, down(60, 100, 0), move(60, 140), up(60, 140))
-	if d.Vertices[0].Pos.Y == 100 {
+	if d.Vertex(0).Pos().Y == 100 {
 		t.Error("a drag from inside did not move the vertex")
 	}
 	e.SetMode(edit.View)
@@ -363,33 +363,33 @@ func TestContainers(t *testing.T) {
 	if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: z, To: g}); err != nil {
 		t.Fatal(err)
 	}
-	if v := d.Vertices[g]; v.Pos != pt(620, 90) || v.Size != (gw.Size{W: 132, H: 82}) {
-		t.Fatalf("group %v %v", v.Pos, v.Size)
+	if v := d.Vertex(g); v.Pos() != pt(620, 90) || v.Size() != (gw.Size{W: 132, H: 82}) {
+		t.Fatalf("group %v %v", v.Pos(), v.Size())
 	}
 	b := d.VertexByID("b")
 	// b drags from (420,100) to (600,56): into the group, near its top,
 	// which grows to take it only once it is in.
 	send(t, e, down(420, 100, 0), move(500, 80), move(600, 56), up(600, 56))
-	if d.Vertices[b].Parent != g || d.Vertices[b].Pos != pt(600, 56) || d.Vertices[g].Size.H <= 82 {
-		t.Errorf("into the group: parent %d at %v, group %v", d.Vertices[b].Parent, d.Vertices[b].Pos, d.Vertices[g].Size)
+	if d.Vertex(b).Parent() != g || d.Vertex(b).Pos() != pt(600, 56) || d.Vertex(g).Size().H <= 82 {
+		t.Errorf("into the group: parent %d at %v, group %v", d.Vertex(b).Parent(), d.Vertex(b).Pos(), d.Vertex(g).Size())
 	}
 	send(t, e, down(600, 56, 0), move(420, 200), up(420, 200))
-	if d.Vertices[b].Parent != gw.None || d.Vertices[g].Size != (gw.Size{W: 132, H: 82}) {
-		t.Errorf("out of the group: parent %d, group %v", d.Vertices[b].Parent, d.Vertices[g].Size)
+	if d.Vertex(b).Parent() != gw.None || d.Vertex(g).Size() != (gw.Size{W: 132, H: 82}) {
+		t.Errorf("out of the group: parent %d, group %v", d.Vertex(b).Parent(), d.Vertex(g).Size())
 	}
 	// The group by its empty corner, carrying c.
 	before := snapshot(d)
 	send(t, e, down(560, 55, 0), move(620, 95), move(660, 95), up(660, 95))
 	// The group snaps to the grid and c moves with it, by the same offset.
-	if d.Vertices[z].Pos != pt(720, 138) || d.Vertices[g].Pos != pt(720, 128) || d.Vertices[z].Parent != g {
-		t.Errorf("dragging the group: c %v, group %v", d.Vertices[z].Pos, d.Vertices[g].Pos)
+	if d.Vertex(z).Pos() != pt(720, 138) || d.Vertex(g).Pos() != pt(720, 128) || d.Vertex(z).Parent() != g {
+		t.Errorf("dragging the group: c %v, group %v", d.Vertex(z).Pos(), d.Vertex(g).Pos())
 	}
 	send(t, e, key("z", edit.Ctrl))
 	if snapshot(d) != before {
 		t.Errorf("undo of the group's drag:\n%s\nwant\n%s", snapshot(d), before)
 	}
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: kNode}, up(600, 60))
-	if v := d.VertexByID("v1"); v == gw.None || d.Vertices[v].Parent != g {
+	if v := d.VertexByID("v1"); v == gw.None || d.Vertex(v).Parent() != g {
 		t.Errorf("palette drop in the group: %d", v)
 	}
 	// The group has grown up and left round v1; (530,120) is in it,
@@ -408,8 +408,8 @@ func TestPalette(t *testing.T) {
 	d, e := fixture(t, gw.Caps{})
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: kNode}, move(300, 30), up(301, 29))
 	v := d.VertexByID("v1")
-	if v == gw.None || d.Vertices[v].Pos != pt(304, 32) || !d.Vertices[v].Placed {
-		t.Fatalf("placed vertex %d %+v", v, d.Vertices)
+	if v == gw.None || d.Vertex(v).Pos() != pt(304, 32) || !d.Vertex(v).Placed() {
+		t.Fatalf("placed vertex %d at %v, placed %v", v, d.Vertex(v).Pos(), d.Vertex(v).Placed())
 	}
 	if sel, _ := selected(e); ids(d, sel) != "v1" {
 		t.Errorf("selected %q", ids(d, sel))
@@ -424,17 +424,17 @@ func TestPalette(t *testing.T) {
 		t.Fatalf("choosing outcome: state %d kind %d edges %d", e.State(), e.EdgeKind(), d.LiveEdges())
 	}
 	send(t, e, down(280, 100, 0), up(244, 32))
-	if d.LiveEdges() != 2 || d.Edges[1].Kind != eOutcome || d.Edges[1].To != v {
-		t.Errorf("edge from a port with outcome chosen: %+v", d.Edges[1])
+	if d.LiveEdges() != 2 || d.Edge(1).Kind() != eOutcome || d.Edge(1).To() != v {
+		t.Errorf("edge from a port with outcome chosen: %+v", d.Edge(1))
 	}
 	send(t, e, down(280, 100, 0), up(360, 100))
-	if d.LiveEdges() != 3 || d.Edges[2].Kind != eOutcome {
-		t.Errorf("a second edge with outcome chosen: %+v", d.Edges[2])
+	if d.LiveEdges() != 3 || d.Edge(2).Kind() != eOutcome {
+		t.Errorf("a second edge with outcome chosen: %+v", d.Edge(2))
 	}
 	// From the outline of a vertex without ports, the chosen kind too.
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: eTo, IsEdge: true}, down(108, 100, 0), up(360, 100))
-	if d.LiveEdges() != 4 || d.Edges[3].Kind != eTo || d.Edges[3].From != 0 || d.Edges[3].To != 2 {
-		t.Errorf("edge from an outline with to chosen: %d edges %+v", d.LiveEdges(), d.Edges[3])
+	if d.LiveEdges() != 4 || d.Edge(3).Kind() != eTo || d.Edge(3).From() != 0 || d.Edge(3).To() != 2 {
+		t.Errorf("edge from an outline with to chosen: %d edges %+v", d.LiveEdges(), d.Edge(3))
 	}
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: eTo, IsEdge: true})
 	if e.EdgeKind() != gw.None {
@@ -448,10 +448,10 @@ func TestPalette(t *testing.T) {
 	// target and the node b's in port is.
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: eTo, IsEdge: true}, down(108, 100, 0), move(620, 100))
 	if v, ok := e.Target(); ok {
-		t.Errorf("with to chosen, %q is a target", d.Vertices[v].ID)
+		t.Errorf("with to chosen, %q is a target", d.Vertex(v).ID())
 	}
 	send(t, e, move(360, 100))
-	if v, ok := e.Target(); !ok || d.Vertices[v].ID != "b" {
+	if v, ok := e.Target(); !ok || d.Vertex(v).ID() != "b" {
 		t.Errorf("with to chosen, b is not the target: %d %v", v, ok)
 	}
 	send(t, e, key("Escape", 0))
@@ -460,8 +460,8 @@ func TestPalette(t *testing.T) {
 	}
 	// A drop at the edge of the view keeps the vertex inside it.
 	send(t, e, edit.Event{Kind: edit.PaletteStart, Item: kLeaf}, up(795, 3))
-	if last := d.Vertices[len(d.Vertices)-1]; last.Pos != pt(750, 15) {
-		t.Errorf("drop at the edge: %v", last.Pos)
+	if last := d.Vertex(gw.VertexIndex(d.VertexSlots() - 1)); last.Pos() != pt(750, 15) { //nolint:gosec // bounded by the capacity
+		t.Errorf("drop at the edge: %v", last.Pos())
 	}
 }
 
@@ -472,8 +472,8 @@ func TestGrid(t *testing.T) {
 		d, _ := fixture(t, gw.Caps{})
 		e := edit.New(d, edit.Edit, tc.grid)
 		send(t, e, down(220, 100, 0), up(220, 100), key("ArrowRight", 0))
-		if d.Vertices[1].Pos.X != tc.want {
-			t.Errorf("grid %v: nudged to %v, want %v", tc.grid, d.Vertices[1].Pos.X, tc.want)
+		if d.Vertex(1).Pos().X != tc.want {
+			t.Errorf("grid %v: nudged to %v, want %v", tc.grid, d.Vertex(1).Pos().X, tc.want)
 		}
 	}
 }
@@ -483,16 +483,16 @@ func TestGrid(t *testing.T) {
 func TestKeys(t *testing.T) {
 	d, e := fixture(t, gw.Caps{LabelBytes: 8})
 	send(t, e, down(220, 100, 0), up(220, 100), key("ArrowRight", 0), key("ArrowDown", 0))
-	if d.Vertices[1].Pos != pt(228, 108) {
-		t.Errorf("nudge: %v", d.Vertices[1].Pos)
+	if d.Vertex(1).Pos() != pt(228, 108) {
+		t.Errorf("nudge: %v", d.Vertex(1).Pos())
 	}
 	send(t, e, key("z", edit.Ctrl), key("z", edit.Ctrl))
-	if d.Vertices[1].Pos != pt(220, 100) {
-		t.Errorf("undo: %v", d.Vertices[1].Pos)
+	if d.Vertex(1).Pos() != pt(220, 100) {
+		t.Errorf("undo: %v", d.Vertex(1).Pos())
 	}
 	send(t, e, key("y", edit.Ctrl), key("Z", edit.Ctrl|edit.Shift))
-	if d.Vertices[1].Pos != pt(228, 108) {
-		t.Errorf("redo: %v", d.Vertices[1].Pos)
+	if d.Vertex(1).Pos() != pt(228, 108) {
+		t.Errorf("redo: %v", d.Vertex(1).Pos())
 	}
 	send(t, e, key("Enter", 0))
 	if v, _ := e.Editing(); e.State() != edit.EditingText || v != 1 {
@@ -502,16 +502,16 @@ func TestKeys(t *testing.T) {
 		t.Errorf("long label: %v", err)
 	}
 	send(t, e, key("Enter", 0), edit.Event{Kind: edit.TextDone, Text: "A"})
-	if d.Vertices[1].Label != "A" || e.State() != edit.Idle {
-		t.Errorf("relabel: %q", d.Vertices[1].Label)
+	if d.Vertex(1).Label() != "A" || e.State() != edit.Idle {
+		t.Errorf("relabel: %q", d.Vertex(1).Label())
 	}
 	send(t, e, key("Enter", 0), edit.Event{Kind: edit.TextCancel})
-	if d.Vertices[1].Label != "A" {
+	if d.Vertex(1).Label() != "A" {
 		t.Error("cancel relabelled")
 	}
 	send(t, e, down(130, 105, 0), up(130, 105), key("Enter", 0), edit.Event{Kind: edit.TextDone, Text: "e"})
-	if d.Edges[0].Label != "e" {
-		t.Errorf("edge relabel: %q", d.Edges[0].Label)
+	if d.Edge(0).Label() != "e" {
+		t.Errorf("edge relabel: %q", d.Edge(0).Label())
 	}
 	send(t, e, down(10, 10, 0), move(500, 190), up(500, 190), key("Delete", 0))
 	if d.LiveVertices() != 1 || d.LiveEdges() != 0 {
@@ -736,8 +736,8 @@ func TestResize(t *testing.T) {
 		t.Errorf("resize box %v %v", box, ok)
 	}
 	send(t, e, up(330, 152))
-	if v := d.Vertices[a]; v.Size != (gw.Size{W: 168, H: 72}) || v.Pos != pt(244, 118) {
-		t.Errorf("resized a: %v %v", v.Pos, v.Size)
+	if v := d.Vertex(a); v.Size() != (gw.Size{W: 168, H: 72}) || v.Pos() != pt(244, 118) {
+		t.Errorf("resized a: %v %v", v.Pos(), v.Size())
 	}
 	send(t, e, key("z", edit.Ctrl), key("z", edit.Ctrl))
 	if snapshot(d) != before {
@@ -759,15 +759,15 @@ func TestResize(t *testing.T) {
 		t.Fatal(err)
 	}
 	send(t, e, down(560, 55, 0), up(560, 55), down(686, 131, 0), move(800, 200), up(800, 200))
-	if v := d.Vertices[g]; v.Size != (gw.Size{W: 248, H: 152}) || v.Pos != pt(678, 125) || d.Vertices[c].Pos != pt(620, 100) {
-		t.Errorf("resized group: %v %v, c %v", v.Pos, v.Size, d.Vertices[c].Pos)
+	if v := d.Vertex(g); v.Size() != (gw.Size{W: 248, H: 152}) || v.Pos() != pt(678, 125) || d.Vertex(c).Pos() != pt(620, 100) {
+		t.Errorf("resized group: %v %v, c %v", v.Pos(), v.Size(), d.Vertex(c).Pos())
 	}
 	// Taking c out leaves the group its own size, corner kept.
 	if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: c, To: gw.None}); err != nil {
 		t.Fatal(err)
 	}
-	if v := d.Vertices[g]; v.Size != (gw.Size{W: 248, H: 152}) || v.Pos != pt(678, 125) {
-		t.Errorf("emptied group: %v %v", v.Pos, v.Size)
+	if v := d.Vertex(g); v.Size() != (gw.Size{W: 248, H: 152}) || v.Pos() != pt(678, 125) {
+		t.Errorf("emptied group: %v %v", v.Pos(), v.Size())
 	}
 	send(t, e, down(220, 100, edit.Shift), up(220, 100))
 	if _, ok := e.ResizeHandle(); ok {
@@ -851,14 +851,14 @@ func TestGestureKeepsItsOwn(t *testing.T) {
 // both, and one Ctrl-Z puts both back.
 func TestNudgeUndoesInOneStep(t *testing.T) {
 	d, e := fixture(t, gw.Caps{})
-	start := []gw.Point{d.Vertices[1].Pos, d.Vertices[2].Pos}
+	start := []gw.Point{d.Vertex(1).Pos(), d.Vertex(2).Pos()}
 	send(t, e, down(220, 100, 0), up(220, 100), down(420, 100, edit.Shift), up(420, 100), key("ArrowLeft", 0))
-	if d.Vertices[1].Pos == start[0] || d.Vertices[2].Pos == start[1] {
-		t.Fatalf("the nudge moved a to %v and b to %v", d.Vertices[1].Pos, d.Vertices[2].Pos)
+	if d.Vertex(1).Pos() == start[0] || d.Vertex(2).Pos() == start[1] {
+		t.Fatalf("the nudge moved a to %v and b to %v", d.Vertex(1).Pos(), d.Vertex(2).Pos())
 	}
 	send(t, e, key("z", edit.Ctrl))
-	if d.Vertices[1].Pos != start[0] || d.Vertices[2].Pos != start[1] {
-		t.Errorf("one undo left a at %v and b at %v, want %v", d.Vertices[1].Pos, d.Vertices[2].Pos, start)
+	if d.Vertex(1).Pos() != start[0] || d.Vertex(2).Pos() != start[1] {
+		t.Errorf("one undo left a at %v and b at %v, want %v", d.Vertex(1).Pos(), d.Vertex(2).Pos(), start)
 	}
 	if d.CanUndo() {
 		t.Error("a second step is left to undo")

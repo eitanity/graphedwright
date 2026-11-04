@@ -24,20 +24,20 @@ func nested(t *testing.T, seed uint64, n, m, zones int) *gw.Document {
 		t.Fatal(err)
 	}
 	src := randomDAG(t, seed, n, m, gw.Caps{})
-	for i := range src.Vertices {
-		v := &src.Vertices[i]
-		if _, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: v.Kind, Text: v.Label}); err != nil {
+	for i := range src.VertexSlots() {
+		v := src.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if _, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: v.Kind(), Text: v.Label()}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for i := range src.Edges {
-		e := &src.Edges[i]
-		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: e.From, To: e.To, FromPort: gw.None, ToPort: gw.None}); err != nil {
+	for i := range src.EdgeSlots() {
+		e := src.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: e.From(), To: e.To(), FromPort: gw.None, ToPort: gw.None}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	r := rand.New(rand.NewPCG(seed, 2))
-	first := gw.VertexIndex(len(d.Vertices)) //nolint:gosec // below the capacity
+	first := gw.VertexIndex(d.VertexSlots()) //nolint:gosec // below the capacity
 	for z := 0; z < zones; z++ {
 		ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: kZone, Text: "z" + strconv.Itoa(z)})
 		if err != nil {
@@ -60,9 +60,9 @@ func nested(t *testing.T, seed uint64, n, m, zones int) *gw.Document {
 }
 
 // inside reports whether a's box lies within b's.
-func inside(a, b *gw.Vertex) bool {
-	return a.Pos.X-a.Size.W/2 >= b.Pos.X-b.Size.W/2 && a.Pos.X+a.Size.W/2 <= b.Pos.X+b.Size.W/2 &&
-		a.Pos.Y-a.Size.H/2 >= b.Pos.Y-b.Size.H/2 && a.Pos.Y+a.Size.H/2 <= b.Pos.Y+b.Size.H/2
+func inside(a, b gw.VertexView) bool {
+	return a.Pos().X-a.Size().W/2 >= b.Pos().X-b.Size().W/2 && a.Pos().X+a.Size().W/2 <= b.Pos().X+b.Size().W/2 &&
+		a.Pos().Y-a.Size().H/2 >= b.Pos().Y-b.Size().H/2 && a.Pos().Y+a.Size().H/2 <= b.Pos().Y+b.Size().H/2
 }
 
 // TestContainers: on random DAGs with nested zones, every vertex lies
@@ -89,8 +89,8 @@ func TestContainersOwnSize(t *testing.T) {
 			}
 		}
 		checkContainers(t, name, d)
-		if v := d.Vertices[30]; v.Size.W < 500 || v.Size.H < 260 {
-			t.Errorf("%s: zone z0 %v below its own size", name, v.Size)
+		if v := d.Vertex(30); v.Size().W < 500 || v.Size().H < 260 {
+			t.Errorf("%s: zone z0 %v below its own size", name, v.Size())
 		}
 	}
 }
@@ -104,18 +104,18 @@ func checkContainers(t *testing.T, name string, d *gw.Document) {
 	if _, err := l.Run(d, layout.Options{All: true}); err != nil {
 		t.Fatal(err)
 	}
-	for i := range d.Vertices {
-		a := &d.Vertices[i]
-		if !a.Live {
+	for i := range d.VertexSlots() {
+		a := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !a.Live() {
 			continue
 		}
-		if a.Parent != gw.None && !inside(a, &d.Vertices[a.Parent]) {
-			t.Errorf("%s: %s %v %v outside its zone %s %v %v", name, a.Label, a.Pos, a.Size, d.Vertices[a.Parent].Label, d.Vertices[a.Parent].Pos, d.Vertices[a.Parent].Size)
+		if a.Parent() != gw.None && !inside(a, d.Vertex(a.Parent())) {
+			t.Errorf("%s: %s %v %v outside its zone %s %v %v", name, a.Label(), a.Pos(), a.Size(), d.Vertex(a.Parent()).Label(), d.Vertex(a.Parent()).Pos(), d.Vertex(a.Parent()).Size())
 		}
-		for j := i + 1; j < len(d.Vertices); j++ {
-			b := &d.Vertices[j]
-			if b.Live && a.Parent == b.Parent && overlap(a, b) {
-				t.Errorf("%s: %s %v %v overlaps %s %v %v", name, a.Label, a.Pos, a.Size, b.Label, b.Pos, b.Size)
+		for j := i + 1; j < d.VertexSlots(); j++ {
+			b := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+			if b.Live() && a.Parent() == b.Parent() && overlap(a, b) {
+				t.Errorf("%s: %s %v %v overlaps %s %v %v", name, a.Label(), a.Pos(), a.Size(), b.Label(), b.Pos(), b.Size())
 			}
 		}
 	}
@@ -137,7 +137,7 @@ func TestContainerPlaced(t *testing.T) {
 	}
 	var in gw.VertexIndex = gw.None
 	for i := range 12 {
-		if d.Vertices[i].Parent == z {
+		if d.Vertex(gw.VertexIndex(i)).Parent() == z { //nolint:gosec // bounded by the capacity
 			in = gw.VertexIndex(i)
 			break
 		}
@@ -145,21 +145,21 @@ func TestContainerPlaced(t *testing.T) {
 	if in == gw.None {
 		t.Fatal("no vertex in the zone")
 	}
-	at := gw.Point{X: d.Vertices[in].Pos.X + 40, Y: d.Vertices[in].Pos.Y - 200}
+	at := gw.Point{X: d.Vertex(in).Pos().X + 40, Y: d.Vertex(in).Pos().Y - 200}
 	d.Place(in, at, true)
-	d.Place(z, d.Vertices[z].Pos, true)
+	d.Place(z, d.Vertex(z).Pos(), true)
 	d.Fit()
 	if _, err := l.Run(d, layout.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	if d.Vertices[in].Pos != at || !d.Vertices[in].Placed || !inside(&d.Vertices[in], &d.Vertices[z]) {
-		t.Errorf("placed vertex in a placed zone moved: %v, was %v; zone %v %v", d.Vertices[in].Pos, at, d.Vertices[z].Pos, d.Vertices[z].Size)
+	if d.Vertex(in).Pos() != at || !d.Vertex(in).Placed() || !inside(d.Vertex(in), d.Vertex(z)) {
+		t.Errorf("placed vertex in a placed zone moved: %v, was %v; zone %v %v", d.Vertex(in).Pos(), at, d.Vertex(z).Pos(), d.Vertex(z).Size())
 	}
 }
 
 // overlap reports whether two vertices' boxes overlap.
-func overlap(a, b *gw.Vertex) bool {
-	return math.Abs(a.Pos.X-b.Pos.X) < (a.Size.W+b.Size.W)/2 && math.Abs(a.Pos.Y-b.Pos.Y) < (a.Size.H+b.Size.H)/2
+func overlap(a, b gw.VertexView) bool {
+	return math.Abs(a.Pos().X-b.Pos().X) < (a.Size().W+b.Size().W)/2 && math.Abs(a.Pos().Y-b.Pos().Y) < (a.Size().H+b.Size().H)/2
 }
 
 // TestContainerArrowRoom: edges from one vertex to each of six stacked
@@ -196,19 +196,19 @@ func TestContainerArrowRoom(t *testing.T) {
 			t.Fatal(err)
 		}
 		bent := 0
-		for i := range d.Edges {
-			e := &d.Edges[i]
-			if len(e.Bends) == 0 {
+		for i := range d.EdgeSlots() {
+			e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+			if e.Bends().Len() == 0 {
 				continue
 			}
 			bent++
-			last, to := e.Bends[len(e.Bends)-1], &d.Vertices[e.To]
-			run, level := to.Pos.X-to.Size.W/2-last.X, last.Y == to.Pos.Y
+			last, to := e.Bends().At(e.Bends().Len()-1), d.Vertex(e.To())
+			run, level := to.Pos().X-to.Size().W/2-last.X, last.Y == to.Pos().Y
 			if d.Flow() == gw.TopToBottom {
-				run, level = to.Pos.Y-to.Size.H/2-last.Y, last.X == to.Pos.X
+				run, level = to.Pos().Y-to.Size().H/2-last.Y, last.X == to.Pos().X
 			}
 			if run < head || !level {
-				t.Errorf("%s: edge %d comes to %v from %v, %g out", flow, i, to.Pos, last, run)
+				t.Errorf("%s: edge %d comes to %v from %v, %g out", flow, i, to.Pos(), last, run)
 			}
 		}
 		if bent == 0 && d.Flow() == gw.LeftToRight {

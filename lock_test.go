@@ -22,11 +22,15 @@ func TestLock(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: z})
 	e := addEdge(t, d, 0, a, b, gw.None, gw.None)
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "before"})
-	d.Undo() // something to redo
-	if !d.Place(a, gw.Point{X: -300, Y: -300}, true) || !d.SetBends(e, []gw.Point{{X: 100, Y: 50}, {X: 150, Y: 50}}) {
+	d.Undo()                    // something to redo
+	own := d.ReserveBends(e, 2) // the edge's own reservation, filled and set as a layout does
+	if own != nil {
+		own[0], own[1] = gw.Point{X: 100, Y: 50}, gw.Point{X: 150, Y: 50}
+	}
+	if !d.Place(a, gw.Point{X: -300, Y: -300}, true) || own == nil || !d.SetBends(e, own) {
 		t.Fatal("setting up")
 	}
-	unfitted := d.Vertices[z].Pos
+	unfitted := d.Vertex(z).Pos()
 	before := snapshot(d)
 	canUndo, canRedo := d.CanUndo(), d.CanRedo()
 
@@ -49,7 +53,7 @@ func TestLock(t *testing.T) {
 	if d.SetBends(e, []gw.Point{{X: 1, Y: 1}}) {
 		t.Error("SetBends set while locked")
 	}
-	if d.SetBends(e, d.Edges[e].Bends[:1]) { // a prefix of its own, which reserves nothing
+	if d.SetBends(e, own[:1]) { // a prefix of its own, which reserves nothing
 		t.Error("SetBends cut the edge's own bends while locked")
 	}
 	if d.ReserveBends(e, 2) != nil {
@@ -70,7 +74,7 @@ func TestLock(t *testing.T) {
 	if got := snapshot(d); got != before {
 		t.Errorf("locked document changed:\n%s\nwant\n%s", got, before)
 	}
-	if got := d.Edges[e].Bends; len(got) != 2 || got[0] != (gw.Point{X: 100, Y: 50}) {
+	if got := d.Edge(e).Bends(); got.Len() != 2 || got.At(0) != (gw.Point{X: 100, Y: 50}) {
 		t.Errorf("bends while locked: %v", got)
 	}
 	if d.CanUndo() != canUndo || d.CanRedo() != canRedo {
@@ -81,15 +85,15 @@ func TestLock(t *testing.T) {
 	if d.Locked() {
 		t.Fatal("still locked")
 	}
-	if _, ok := d.Redo(); !ok || d.Vertices[a].Label != "before" {
+	if _, ok := d.Redo(); !ok || d.Vertex(a).Label() != "before" {
 		t.Error("Redo after Unlock")
 	}
 	d.Fit()
-	if d.Vertices[z].Pos == unfitted {
+	if d.Vertex(z).Pos() == unfitted {
 		t.Error("Fit after Unlock: the container did not move to its vertex")
 	}
 	d.ClearBends()
-	if len(d.Edges[e].Bends) != 0 {
+	if d.Edge(e).Bends().Len() != 0 {
 		t.Error("ClearBends after Unlock")
 	}
 	if !d.Place(a, gw.Point{X: 40, Y: 40}, true) {
@@ -110,7 +114,7 @@ func TestLock(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "one"})
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "two"})
 	d.Undo()
-	if got := d.Vertices[a].Label; got != "one" {
+	if got := d.Vertex(a).Label(); got != "one" {
 		t.Errorf("a group opened while locked: undid to %q, want %q", got, "one")
 	}
 	// An EndGroup while locked closes nothing: a group begun before the
@@ -118,7 +122,7 @@ func TestLock(t *testing.T) {
 	d.Group()
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "three"})
 	d.Lock()
-	if _, ok := d.Discard(); ok || d.Vertices[a].Label != "three" {
+	if _, ok := d.Discard(); ok || d.Vertex(a).Label() != "three" {
 		t.Error("Discard took back while locked")
 	}
 	d.EndGroup()
@@ -126,7 +130,7 @@ func TestLock(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "four"})
 	d.EndGroup()
 	d.Undo()
-	if got := d.Vertices[a].Label; got != "one" {
+	if got := d.Vertex(a).Label(); got != "one" {
 		t.Errorf("a group closed while locked: undid to %q, want %q", got, "one")
 	}
 }

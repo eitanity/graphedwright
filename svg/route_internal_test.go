@@ -46,25 +46,25 @@ func TestBentRoutesClear(t *testing.T) {
 			t.Fatal(err)
 		}
 		bent := 0
-		for i := range d.Edges {
-			e := &d.Edges[i]
-			if !e.Live || len(e.Bends) == 0 {
+		for i := range d.EdgeSlots() {
+			e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+			if !e.Live() || e.Bends().Len() == 0 {
 				continue
 			}
 			bent++
-			route := d.Kinds().Edge(e.Kind).Route()
-			a, b := ends(d, e, e.Bends)
+			route := d.Kinds().Edge(e.Kind()).Route()
+			a, b := ends(d, e, e.Bends())
 			f := frameOf(d, e)
-			for k := 1; k < len(e.Bends); k++ {
-				p, q := leg(a, e.Bends, b, k)
+			for k := 1; k < e.Bends().Len(); k++ {
+				p, q := leg(a, e.Bends(), b, k)
 				p, q = f.t(p), f.t(q)
 				lr := legRoute(route, true, p, q)
 				for j := 0; j <= 32; j++ {
 					x := f.t(f.at(lr, p, q, float64(j)/32))
-					for v := range d.Vertices {
-						u := &d.Vertices[v]
-						if gw.VertexIndex(v) != e.From && gw.VertexIndex(v) != e.To && insideBy(u, x, 0.5) { //nolint:gosec // bounded
-							t.Errorf("seed %d: edge %s leg %d (%v to %v) passes through %s at %v", seed, e.ID, k, p, q, u.ID, x)
+					for v := range d.VertexSlots() {
+						u := d.Vertex(gw.VertexIndex(v))                                                         //nolint:gosec // bounded by the capacity
+						if gw.VertexIndex(v) != e.From() && gw.VertexIndex(v) != e.To() && insideBy(u, x, 0.5) { //nolint:gosec // bounded
+							t.Errorf("seed %d: edge %s leg %d (%v to %v) passes through %s at %v", seed, e.ID(), k, p, q, u.ID(), x)
 						}
 					}
 				}
@@ -111,17 +111,17 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 			if _, err := layout.New(d.Caps()).Run(d, layout.Options{}); err != nil {
 				t.Fatal(err)
 			}
-			e := &d.Edges[back]
-			if len(e.Bends) == 0 || !backward(d, e) {
-				t.Fatalf("flow %d kind %d: the edge back has bends %v, backward %t", flow, kind, e.Bends, backward(d, e))
+			e := d.Edge(back)
+			if e.Bends().Len() == 0 || !backward(d, e) {
+				t.Fatalf("flow %d kind %d: the edge back has bends %v, backward %t", flow, kind, e.Bends(), backward(d, e))
 			}
-			a, b := ends(d, e, e.Bends)
+			a, b := ends(d, e, e.Bends())
 			f := frameOf(d, e)
 			route := d.Kinds().Edge(kind).Route()
 			prev := f.t(a).X
 			const samples = 256
 			for j := 1; j <= samples; j++ {
-				x := f.t(along(f, route, a, e.Bends, b, float64(j)/samples)).X
+				x := f.t(along(f, route, a, e.Bends(), b, float64(j)/samples)).X
 				if x > prev+1e-9 {
 					t.Fatalf("flow %d kind %d: the route turns back at %d/%d, %g after %g", flow, kind, j, samples, x, prev)
 				}
@@ -198,6 +198,6 @@ func TestLanesApart(t *testing.T) {
 }
 
 // insideBy reports whether p is inside the vertex's box by more than m.
-func insideBy(v *gw.Vertex, p gw.Point, m float64) bool {
-	return p.X > v.Pos.X-v.Size.W/2+m && p.X < v.Pos.X+v.Size.W/2-m && p.Y > v.Pos.Y-v.Size.H/2+m && p.Y < v.Pos.Y+v.Size.H/2-m
+func insideBy(v gw.VertexView, p gw.Point, m float64) bool {
+	return p.X > v.Pos().X-v.Size().W/2+m && p.X < v.Pos().X+v.Size().W/2-m && p.Y > v.Pos().Y-v.Size().H/2+m && p.Y < v.Pos().Y+v.Size().H/2-m
 }

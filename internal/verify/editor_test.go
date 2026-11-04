@@ -131,8 +131,8 @@ var (
 // right of its centre and its resize handle 60 right and 18 down. A
 // deleted vertex is pressed where the fixture put it.
 func (w *world) on(id gw.ID, at gw.Point, dx, dy float64) gw.Point {
-	if v := w.d.VertexByID(id); v != gw.None && w.d.Vertices[v].Live {
-		at = w.d.Vertices[v].Pos
+	if v := w.d.VertexByID(id); v != gw.None && w.d.Vertex(v).Live() {
+		at = w.d.Vertex(v).Pos()
 	}
 	return pt(at.X+dx, at.Y+dy)
 }
@@ -373,12 +373,12 @@ func (w *world) commit() {
 	switch {
 	case err != nil && w.encode() != before:
 		w.broke("a refused event leaves the document as it was", "refused with %q, but the document changed", err)
-	case err == nil && w.label != gw.None && w.d.Vertices[w.label].Live && w.d.Vertices[w.label].Label != text:
+	case err == nil && w.label != gw.None && w.d.Vertex(w.label).Live() && w.d.Vertex(w.label).Label() != text:
 		w.broke("a label committed in the host's input is applied or refused, never dropped",
-			"the host committed %q for %s, which kept %q", text, w.d.Vertices[w.label].ID, w.d.Vertices[w.label].Label)
-	case err == nil && w.edge != gw.None && w.d.Edges[w.edge].Live && w.d.Edges[w.edge].Label != text:
+			"the host committed %q for %s, which kept %q", text, w.d.Vertex(w.label).ID(), w.d.Vertex(w.label).Label())
+	case err == nil && w.edge != gw.None && w.d.Edge(w.edge).Live() && w.d.Edge(w.edge).Label() != text:
 		w.broke("a label committed in the host's input is applied or refused, never dropped",
-			"the host committed %q for %s, which kept %q", text, w.d.Edges[w.edge].ID, w.d.Edges[w.edge].Label)
+			"the host committed %q for %s, which kept %q", text, w.d.Edge(w.edge).ID(), w.d.Edge(w.edge).Label())
 	}
 	w.label, w.edge = gw.None, gw.None
 }
@@ -521,17 +521,17 @@ func (w *world) Check() error {
 	const live = "the selection, and while editing text the label being edited, name live elements"
 	sv, se := w.e.Selected(w.selV[:0], w.selE[:0])
 	for _, v := range sv {
-		if !w.d.Vertices[v].Live {
+		if !w.d.Vertex(v).Live() {
 			return fmt.Errorf("%s: vertex %d is selected but deleted", live, v)
 		}
 	}
 	for _, x := range se {
-		if !w.d.Edges[x].Live {
+		if !w.d.Edge(x).Live() {
 			return fmt.Errorf("%s: edge %d is selected but deleted", live, x)
 		}
 	}
 	// Editing is defined only while the state is EditingText.
-	if v, x := w.e.Editing(); w.e.State() == edit.EditingText && ((v != gw.None && !w.d.Vertices[v].Live) || (x != gw.None && !w.d.Edges[x].Live)) {
+	if v, x := w.e.Editing(); w.e.State() == edit.EditingText && ((v != gw.None && !w.d.Vertex(v).Live()) || (x != gw.None && !w.d.Edge(x).Live())) {
 		return fmt.Errorf("%s: the label being edited is deleted", live)
 	}
 	return nil

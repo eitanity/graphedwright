@@ -55,7 +55,7 @@ func TestBoundedNumber(t *testing.T) {
 			t.Errorf("%s = %s: got %v, want %q", tc.key, tc.value, err, tc.want)
 		}
 	}
-	if got := gw.AttrValue(d.Vertices[v].Attrs, "share"); got != "0.25" {
+	if got := d.Vertex(v).Attrs().Value("share"); got != "0.25" {
 		t.Errorf("share after the refusals: %q, want the last accepted, 0.25", got)
 	}
 }

@@ -6,7 +6,7 @@ package graphedwright
 // looking for from.
 func (d *Document) cycleThrough(from, to VertexIndex) error {
 	if from == to {
-		return refusal("edge would make a cycle: " + string(d.Vertices[from].ID) + " → " + string(d.Vertices[from].ID))
+		return refusal("edge would make a cycle: " + string(d.vertices[from].ID) + " → " + string(d.vertices[from].ID))
 	}
 	d.gen++
 	if d.gen == 0 {
@@ -24,10 +24,10 @@ func (d *Document) cycleThrough(from, to VertexIndex) error {
 		v := d.stack[top]
 		// bound: the out list visits each edge of v once
 		for e := d.outHead[v]; e != None; e = d.nextOut[e] {
-			if !d.Edges[e].Live {
+			if !d.edges[e].Live {
 				continue
 			}
-			w := d.Edges[e].To
+			w := d.edges[e].To
 			if w == from {
 				d.parent[w] = v
 				return d.cycleError(from, to)
@@ -60,17 +60,17 @@ func (d *Document) cycleError(from, to VertexIndex) error {
 			break
 		}
 	}
-	msg := "edge would make a cycle: " + string(d.Vertices[from].ID)
+	msg := "edge would make a cycle: " + string(d.vertices[from].ID)
 	names := 0
 	for i := n - 1; i >= 0; i-- {
 		if names == maxCycleNames {
 			msg += " → …"
 			break
 		}
-		msg += " → " + string(d.Vertices[d.stack[i]].ID)
+		msg += " → " + string(d.vertices[d.stack[i]].ID)
 		names++
 	}
-	return refusal(msg + " → " + string(d.Vertices[from].ID))
+	return refusal(msg + " → " + string(d.vertices[from].ID))
 }
 
 // Unreachable lists the live vertices no root-kind vertex reaches,
@@ -85,8 +85,8 @@ func (d *Document) Unreachable(dst []VertexIndex) []VertexIndex {
 		d.gen = 1
 	}
 	top := 0
-	for i := range d.Vertices {
-		if v := &d.Vertices[i]; v.Live && d.kinds.vertex[v.Kind].Root {
+	for i := range d.vertices {
+		if v := &d.vertices[i]; v.Live && d.kinds.vertex[v.Kind].Root {
 			d.mark[i] = d.gen
 			d.stack[top] = int32(i) //nolint:gosec // bounded by the capacity
 			top++
@@ -98,7 +98,7 @@ func (d *Document) Unreachable(dst []VertexIndex) []VertexIndex {
 		v := d.stack[top]
 		// bound: the out list visits each edge of v once
 		for e := d.outHead[v]; e != None; e = d.nextOut[e] {
-			if w := d.Edges[e].To; d.Edges[e].Live && d.mark[w] != d.gen {
+			if w := d.edges[e].To; d.edges[e].Live && d.mark[w] != d.gen {
 				d.mark[w] = d.gen
 				d.stack[top] = int32(w) //nolint:gosec // bounded by the capacity
 				top++
@@ -106,8 +106,8 @@ func (d *Document) Unreachable(dst []VertexIndex) []VertexIndex {
 		}
 	}
 	dst = dst[:0]
-	for i := range d.Vertices {
-		if d.Vertices[i].Live && d.mark[i] != d.gen && len(dst) < cap(dst) {
+	for i := range d.vertices {
+		if d.vertices[i].Live && d.mark[i] != d.gen && len(dst) < cap(dst) {
 			dst = append(dst, VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		}
 	}

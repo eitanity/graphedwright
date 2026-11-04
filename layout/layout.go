@@ -109,7 +109,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	for s := range l.s {
 		e := l.segE[s]
 		a, b := l.layer[l.segF[s]], l.layer[l.segT[s]]
-		if l.dN[e] == 0 && (a-b == 1 || b-a == 1) && d.Kinds().Edge(d.Edges[e].Kind).Route() == gw.Orthogonal {
+		if l.dN[e] == 0 && (a-b == 1 || b-a == 1) && d.Kinds().Edge(d.Edge(gw.EdgeIndex(e)).Kind()).Route() == gw.Orthogonal { //nolint:gosec // bounded by the capacity
 			l.bary[l.eFrom[e]]++
 		}
 	}
@@ -120,7 +120,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 			continue
 		}
 		k := max(a, b)
-		kind := d.Kinds().Edge(d.Edges[e].Kind)
+		kind := d.Kinds().Edge(d.Edge(gw.EdgeIndex(e)).Kind()) //nolint:gosec // bounded by the capacity
 		chars := max(d.EdgeLabelRunes(gw.EdgeIndex(e)), utf8.RuneCountInString(kind.Stereotype()))
 		w := float64(float64(chars)*labelChar) + 2*labelPad
 		if kind.Route() == gw.Orthogonal && l.bary[l.eFrom[e]] > 1 {
@@ -236,17 +236,17 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 		opts.Pitch = downPitch
 	}
 	opts = opts.filled()
-	if len(d.Vertices) > l.caps.Vertices || len(d.Edges) > l.caps.Edges {
+	if d.VertexSlots() > l.caps.Vertices || d.EdgeSlots() > l.caps.Edges {
 		return Result{}, errors.New("document exceeds the layouter's capacities")
 	}
-	l.realN = len(d.Vertices)
+	l.realN = d.VertexSlots()
 	l.down = d.Flow() == gw.TopToBottom
 	deepest := 0
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		l.fixed[i] = !opts.All && v.Live && v.Placed
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		l.fixed[i] = !opts.All && v.Live() && v.Placed()
 		l.bw[i], l.bh[i], l.cx[i], l.cy[i] = 0, 0, 0, 0
-		if v.Live {
+		if v.Live() {
 			l.depth[i] = int32(d.Depth(gw.VertexIndex(i))) //nolint:gosec // bounded by the capacity
 			deepest = max(deepest, int(l.depth[i]))
 		}
@@ -280,9 +280,9 @@ func (l *Layouter) contents(d *gw.Document, opts Options, deepest int) (int64, e
 	crossings := int64(0)
 	// bound: the deepest nesting, at most the vertex count
 	for k := deepest; k >= 0; k-- {
-		for i := range d.Vertices {
-			c := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
-			if !d.Vertices[i].Live || int(l.depth[i]) != k || !d.Kinds().Vertex(d.Vertices[i].Kind).Container() {
+		for i := range d.VertexSlots() {
+			c := gw.VertexIndex(i)                                                                                                                //nolint:gosec // bounded by the capacity
+			if !d.Vertex(gw.VertexIndex(i)).Live() || int(l.depth[i]) != k || !d.Kinds().Vertex(d.Vertex(gw.VertexIndex(i)).Kind()).Container() { //nolint:gosec // bounded by the capacity
 				continue
 			}
 			n, cr, err := l.level(d, opts, c)
@@ -303,23 +303,23 @@ func (l *Layouter) contents(d *gw.Document, opts Options, deepest int) (int64, e
 // each at its container's centre plus its offset; a placed vertex at the
 // top level stays where it is.
 func (l *Layouter) compose(d *gw.Document, deepest int) {
-	for i := range d.Vertices {
+	for i := range d.VertexSlots() {
 		if l.liveReal[i] {
 			l.rx[i], l.ry[i] = l.swap(l.x[i], l.y[i])
 		}
 	}
 	// bound: the deepest nesting, at most the vertex count
 	for k := 0; k <= deepest; k++ {
-		for i := range d.Vertices {
-			v := &d.Vertices[i]
-			if !v.Live || int(l.depth[i]) != k {
+		for i := range d.VertexSlots() {
+			v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+			if !v.Live() || int(l.depth[i]) != k {
 				continue
 			}
-			if v.Parent != gw.None {
-				l.rx[i] += l.rx[v.Parent]
-				l.ry[i] += l.ry[v.Parent]
+			if v.Parent() != gw.None {
+				l.rx[i] += l.rx[v.Parent()]
+				l.ry[i] += l.ry[v.Parent()]
 			}
-			if v.Parent != gw.None || !l.fixed[i] {
+			if v.Parent() != gw.None || !l.fixed[i] {
 				d.Place(gw.VertexIndex(i), gw.Point{X: l.rx[i], Y: l.ry[i]}, l.fixed[i]) //nolint:gosec // bounded by the capacity
 			}
 		}
@@ -332,7 +332,7 @@ func (l *Layouter) compose(d *gw.Document, deepest int) {
 // reserved rather than the edges' Bends, which hide a route while an
 // end is not where it was recorded for, as after a container is fitted.
 func (l *Layouter) placeBends(d *gw.Document) {
-	for i := range d.Edges {
+	for i := range d.EdgeSlots() {
 		pts := l.route[i]
 		if pts == nil {
 			continue
@@ -355,9 +355,9 @@ func (l *Layouter) placeBends(d *gw.Document) {
 // of the containers holding its source, the bends, and the runs into
 // the containers holding its target.
 func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, pts []gw.Point) int {
-	ed := &d.Edges[e]
+	ed := d.Edge(e)
 	off, n := int(l.rOff[e]), int(l.rLen[e])
-	from, to := d.Vertices[ed.From].Pos, d.Vertices[ed.To].Pos
+	from, to := d.Vertex(ed.From()).Pos(), d.Vertex(ed.To()).Pos()
 	farFrom, farTo := to, from // the point each end's runs come from outside
 	if n > 0 {
 		farFrom, farTo = pts[off], pts[off+n-1]
@@ -366,8 +366,8 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, pts []gw.Point) int 
 	// walked from outside in, to lower; against it, the other way.
 	back := l.reversed(e)
 	half := len(l.runs) / 2
-	src := l.insideRuns(d, e, ed.From, farFrom, !back, l.runs[:half])
-	dst := l.insideRuns(d, e, ed.To, farTo, back, l.runs[half:])
+	src := l.insideRuns(d, e, ed.From(), farFrom, !back, l.runs[:half])
+	dst := l.insideRuns(d, e, ed.To(), farTo, back, l.runs[half:])
 	if src+n+dst > len(pts) {
 		return copy(pts, pts[off:off+n]) // no room: the bends alone
 	}
@@ -399,9 +399,9 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		if !l.eOn[i] {
 			continue
 		}
-		e := &d.Edges[i]
-		src, dst := 4*crossed(d, e.From, c), 4*crossed(d, e.To, c)
-		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Kinds().Edge(e.Kind).Route())
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		src, dst := 4*crossed(d, e.From(), c), 4*crossed(d, e.To(), c)
+		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Kinds().Edge(e.Kind()).Route())
 		ns, nt := 0, 0
 		if sOK {
 			ns = 2
@@ -624,40 +624,40 @@ func (l *Layouter) walk(k, end int32, ty float64) (lo, hi, step int32) {
 // vertices there were and the crossings of the order kept.
 func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, int64, error) {
 	n := 0
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		m := v.Live && v.Parent == c
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		m := v.Live() && v.Parent() == c
 		l.liveReal[i], l.pin[i] = m, m && l.fixed[i]
 		if !m {
 			continue
 		}
 		n++
-		l.w[i], l.h[i] = l.swap(v.Size.W, v.Size.H)
+		l.w[i], l.h[i] = l.swap(v.Size().W, v.Size().H)
 		if l.bw[i] > 0 {
 			l.w[i], l.h[i] = l.swap(l.bw[i], l.bh[i])
 		}
 		if l.pin[i] {
 			// A placed container stays where its box falls, so that
 			// what is placed in it stays where it is.
-			x, y := v.Pos.X+l.cx[i], v.Pos.Y+l.cy[i]
+			x, y := v.Pos().X+l.cx[i], v.Pos().Y+l.cy[i]
 			if c != gw.None {
-				x -= d.Vertices[c].Pos.X
-				y -= d.Vertices[c].Pos.Y
+				x -= d.Vertex(c).Pos().X
+				y -= d.Vertex(c).Pos().Y
 			}
 			l.fx[i], l.fy[i] = l.swap(x, y)
 		}
 	}
-	l.members, l.edges = n, len(d.Edges)
+	l.members, l.edges = n, d.EdgeSlots()
 	if n == 0 {
 		return 0, 0, nil
 	}
-	for i := range d.Edges {
-		e := &d.Edges[i]
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		l.eOn[i] = false
-		if !e.Live {
+		if !e.Live() {
 			continue
 		}
-		a, b := holder(d, e.From, c), holder(d, e.To, c)
+		a, b := holder(d, e.From(), c), holder(d, e.To(), c)
 		if a >= 0 && b >= 0 && a != b {
 			l.eOn[i], l.eFrom[i], l.eTo[i] = true, a, b
 		}
@@ -678,8 +678,8 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 // v or holds it; -1 when v is not in c.
 func holder(d *gw.Document, v, c gw.VertexIndex) int32 {
 	// bound: the parent chain is acyclic, so at most the vertex count
-	for n := 0; v != gw.None && n <= len(d.Vertices); n++ {
-		p := d.Vertices[v].Parent
+	for n := 0; v != gw.None && n <= d.VertexSlots(); n++ {
+		p := d.Vertex(v).Parent()
 		if p == c {
 			return int32(v)
 		}
@@ -694,7 +694,7 @@ func holder(d *gw.Document, v, c gw.VertexIndex) int32 {
 // from it, all in the document's axes.
 func (l *Layouter) box(d *gw.Document, c gw.VertexIndex, opts Options) {
 	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
-	for i := range d.Vertices {
+	for i := range d.VertexSlots() {
 		if l.liveReal[i] {
 			x, y := l.swap(l.x[i], l.y[i])
 			w, h := l.swap(l.w[i], l.h[i])
@@ -705,17 +705,17 @@ func (l *Layouter) box(d *gw.Document, c gw.VertexIndex, opts Options) {
 	w, h := x1-x0+2*gw.ContainerPad, y1-y0+2*gw.ContainerPad+gw.ContainerTitle
 	ex, ey := float64((x0+x1)/2), float64((y0+y1)/2)-gw.ContainerTitle/2
 	// Grown to its own size from the top left corner, as the fit does.
-	if own := d.Vertices[c].Min; w < own.W {
+	if own := d.Vertex(c).Min(); w < own.W {
 		ex, w = ex+float64((own.W-w)/2), own.W
 	}
-	if own := d.Vertices[c].Min; h < own.H {
+	if own := d.Vertex(c).Min(); h < own.H {
 		ey, h = ey+float64((own.H-h)/2), own.H
 	}
 	cx := float64(math.Round(ex/opts.Grid) * opts.Grid)
 	cy := float64(math.Round(ey/opts.Grid) * opts.Grid)
 	l.cx[c], l.cy[c] = cx, cy
 	l.bw[c], l.bh[c] = w, h
-	for i := range d.Vertices {
+	for i := range d.VertexSlots() {
 		if l.liveReal[i] {
 			x, y := l.swap(l.x[i], l.y[i])
 			l.rx[i], l.ry[i] = x-cx, y-cy

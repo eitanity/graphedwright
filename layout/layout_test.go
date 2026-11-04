@@ -68,28 +68,28 @@ func checkInvariants(t *testing.T, name string, d *gw.Document, res layout.Resul
 	if grid == 0 {
 		grid = 8
 	}
-	for i := range d.Vertices {
-		a := &d.Vertices[i]
-		if !a.Live {
+	for i := range d.VertexSlots() {
+		a := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !a.Live() {
 			continue
 		}
-		if !a.Placed && (math.Mod(a.Pos.X, grid) != 0 || math.Mod(a.Pos.Y, grid) != 0) {
-			t.Errorf("%s: %s off the grid at %v", name, a.ID, a.Pos)
+		if !a.Placed() && (math.Mod(a.Pos().X, grid) != 0 || math.Mod(a.Pos().Y, grid) != 0) {
+			t.Errorf("%s: %s off the grid at %v", name, a.ID(), a.Pos())
 		}
-		for j := i + 1; j < len(d.Vertices); j++ {
-			b := &d.Vertices[j]
-			if b.Live && math.Abs(a.Pos.X-b.Pos.X) < (a.Size.W+b.Size.W)/2 && math.Abs(a.Pos.Y-b.Pos.Y) < (a.Size.H+b.Size.H)/2 {
-				t.Errorf("%s: %s at %v overlaps %s at %v", name, a.ID, a.Pos, b.ID, b.Pos)
+		for j := i + 1; j < d.VertexSlots(); j++ {
+			b := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+			if b.Live() && math.Abs(a.Pos().X-b.Pos().X) < (a.Size().W+b.Size().W)/2 && math.Abs(a.Pos().Y-b.Pos().Y) < (a.Size().H+b.Size().H)/2 {
+				t.Errorf("%s: %s at %v overlaps %s at %v", name, a.ID(), a.Pos(), b.ID(), b.Pos())
 			}
 		}
 	}
-	for i := range d.Edges {
-		e := &d.Edges[i]
-		if !e.Live || reversed(res, gw.EdgeIndex(i)) || d.Vertices[e.From].Placed || d.Vertices[e.To].Placed { //nolint:gosec // bounded
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i))                                                                                 //nolint:gosec // bounded by the capacity
+		if !e.Live() || reversed(res, gw.EdgeIndex(i)) || d.Vertex(e.From()).Placed() || d.Vertex(e.To()).Placed() { //nolint:gosec // bounded
 			continue
 		}
-		if lay(d, d.Vertices[e.To].Pos) <= lay(d, d.Vertices[e.From].Pos) {
-			t.Errorf("%s: edge %s goes backwards: %v to %v", name, e.ID, d.Vertices[e.From].Pos, d.Vertices[e.To].Pos)
+		if lay(d, d.Vertex(e.To()).Pos()) <= lay(d, d.Vertex(e.From()).Pos()) {
+			t.Errorf("%s: edge %s goes backwards: %v to %v", name, e.ID(), d.Vertex(e.From()).Pos(), d.Vertex(e.To()).Pos())
 		}
 	}
 }
@@ -114,9 +114,9 @@ func reversed(res layout.Result, e gw.EdgeIndex) bool {
 
 func positions(d *gw.Document) string {
 	var b strings.Builder
-	for i := range d.Vertices {
-		if v := &d.Vertices[i]; v.Live {
-			b.WriteString(string(v.ID) + "@" + strconv.FormatFloat(v.Pos.X, 'g', -1, 64) + "," + strconv.FormatFloat(v.Pos.Y, 'g', -1, 64) + " ")
+	for i := range d.VertexSlots() {
+		if v := d.Vertex(gw.VertexIndex(i)); v.Live() { //nolint:gosec // bounded by the capacity
+			b.WriteString(string(v.ID()) + "@" + strconv.FormatFloat(v.Pos().X, 'g', -1, 64) + "," + strconv.FormatFloat(v.Pos().Y, 'g', -1, 64) + " ")
 		}
 	}
 	return b.String()
@@ -179,8 +179,8 @@ func TestPlacedStay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Vertices[5].Pos != pin || !d.Vertices[5].Placed {
-		t.Errorf("placed vertex moved to %v", d.Vertices[5].Pos)
+	if d.Vertex(5).Pos() != pin || !d.Vertex(5).Placed() {
+		t.Errorf("placed vertex moved to %v", d.Vertex(5).Pos())
 	}
 	checkInvariants(t, "placed", d, res, layout.Options{})
 	if _, err := d.Apply(gw.Command{Op: gw.Layout, Text: "all"}); err != nil {
@@ -189,8 +189,8 @@ func TestPlacedStay(t *testing.T) {
 	if _, err := l.Run(d, layout.Options{All: true}); err != nil {
 		t.Fatal(err)
 	}
-	if d.Vertices[5].Pos == pin || d.Vertices[5].Placed {
-		t.Errorf("all left the pin: %v placed %v", d.Vertices[5].Pos, d.Vertices[5].Placed)
+	if d.Vertex(5).Pos() == pin || d.Vertex(5).Placed() {
+		t.Errorf("all left the pin: %v placed %v", d.Vertex(5).Pos(), d.Vertex(5).Placed())
 	}
 }
 
@@ -222,7 +222,7 @@ func TestCycleReversed(t *testing.T) {
 	checkInvariants(t, "cycle", d, res, layout.Options{})
 	// The reversed edge from c back to a passes b's layer, so it is
 	// routed around b, against the flow.
-	if len(d.Edges[2].Bends) == 0 {
+	if d.Edge(2).Bends().Len() == 0 {
 		t.Error("the reversed edge has no route around the layer it crosses")
 	}
 	checkBends(t, "cycle", d, res)
@@ -269,9 +269,9 @@ func TestCrossingsCounted(t *testing.T) {
 		t.Errorf("K(3,3): layers %d crossings %d, want 2 and 9", res.Layers, res.Crossings)
 	}
 	d, res := bipartite([][2]gw.VertexIndex{{0, 3}, {1, 2}}, 2)
-	v := d.Vertices
-	if res.Crossings != 0 || (v[0].Pos.Y < v[1].Pos.Y) != (v[3].Pos.Y < v[2].Pos.Y) {
-		t.Errorf("crossed pair: %d crossings, sources at y %v %v, targets at y %v %v", res.Crossings, v[0].Pos.Y, v[1].Pos.Y, v[3].Pos.Y, v[2].Pos.Y)
+	y := func(i gw.VertexIndex) float64 { return d.Vertex(i).Pos().Y }
+	if res.Crossings != 0 || (y(0) < y(1)) != (y(3) < y(2)) {
+		t.Errorf("crossed pair: %d crossings, sources at y %v %v, targets at y %v %v", res.Crossings, y(0), y(1), y(3), y(2))
 	}
 }
 
@@ -452,10 +452,10 @@ func TestLabelRoom(t *testing.T) {
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 			t.Fatal(err)
 		}
-		a, b := d.Vertices[0], d.Vertices[1]
-		gap, want := b.Pos.X-a.Pos.X-(a.Size.W+b.Size.W)/2, float64(len(label)*7+16)
+		a, b := d.Vertex(0), d.Vertex(1)
+		gap, want := b.Pos().X-a.Pos().X-(a.Size().W+b.Size().W)/2, float64(len(label)*7+16)
 		if d.Flow() == gw.TopToBottom {
-			gap, want = b.Pos.Y-a.Pos.Y, 96
+			gap, want = b.Pos().Y-a.Pos().Y, 96
 		}
 		if gap < want || gap >= want+8 {
 			t.Errorf("%s: the gap is %g, want %g out to the grid", flow, gap, want)
@@ -488,8 +488,8 @@ func TestStereotypeRoom(t *testing.T) {
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 			t.Fatal(err)
 		}
-		a, b := d.Vertices[0], d.Vertices[1]
-		gap := b.Pos.X - a.Pos.X - (a.Size.W+b.Size.W)/2
+		a, b := d.Vertex(0), d.Vertex(1)
+		gap := b.Pos().X - a.Pos().X - (a.Size().W+b.Size().W)/2
 		want := float64(max(utf8.RuneCountInString(stereotype), utf8.RuneCountInString(label))*7 + 16)
 		if gap < want || gap >= want+8 {
 			t.Errorf("label %q: the gap is %g, want %g out to the grid", label, gap, want)
@@ -531,8 +531,8 @@ func TestFormattedLabelRoom(t *testing.T) {
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 			t.Fatal(err)
 		}
-		a, b := d.Vertices[0], d.Vertices[1]
-		gap := b.Pos.X - a.Pos.X - (a.Size.W+b.Size.W)/2
+		a, b := d.Vertex(0), d.Vertex(1)
+		gap := b.Pos().X - a.Pos().X - (a.Size().W+b.Size().W)/2
 		want := float64(utf8.RuneCountInString(tc.drawn)*7 + 16)
 		if gap < want || gap >= want+8 {
 			t.Errorf("%q: the gap is %g, want %g out to the grid", tc.drawn, gap, want)

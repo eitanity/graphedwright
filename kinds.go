@@ -187,37 +187,37 @@ func (v VertexKindView) Size() Size {
 	return v.k.Size
 }
 
-// PortCount is the number of the kind's ports.
-func (v VertexKindView) PortCount() int {
+// Ports are the kind's ports.
+func (v VertexKindView) Ports() PortList {
 	if v.k == nil {
-		return 0
+		return PortList{}
 	}
-	return len(v.k.Ports)
+	return PortList{v.k.Ports}
 }
 
-// Port is the jth port; out of range, the zero Port.
-func (v VertexKindView) Port(j int) Port {
-	if v.k == nil || j < 0 || j >= len(v.k.Ports) {
-		return Port{}
-	}
-	return v.k.Ports[j]
-}
-
-// AttrCount is the number of attributes the kind takes.
-func (v VertexKindView) AttrCount() int {
+// Attrs are the specifications of the attributes the kind takes.
+func (v VertexKindView) Attrs() AttrSpecList {
 	if v.k == nil {
-		return 0
+		return AttrSpecList{}
 	}
-	return len(v.k.Attrs)
+	return AttrSpecList{v.k.Attrs}
 }
 
-// Attr is the jth attribute's specification; out of range, every read
-// of it is the zero value.
-func (v VertexKindView) Attr(j int) AttrSpecView {
-	if v.k == nil || j < 0 || j >= len(v.k.Attrs) {
-		return AttrSpecView{}
+// Contains are the kinds a container of the kind may hold: any, when
+// it names none (see Holds).
+func (v VertexKindView) Contains() KindList {
+	if v.k == nil {
+		return KindList{}
 	}
-	return AttrSpecView{&v.k.Attrs[j]}
+	return KindList{v.k.Contains}
+}
+
+// Compartments are the keys of the attributes drawn in compartments.
+func (v VertexKindView) Compartments() StringList {
+	if v.k == nil {
+		return StringList{}
+	}
+	return StringList{v.k.Compartments}
 }
 
 // Root reports whether a vertex of the kind takes no incoming edge.
@@ -246,45 +246,12 @@ func (v VertexKindView) Holds(kind KindIndex) bool {
 	return v.k != nil && v.k.Container && kindIn(v.k.Contains, kind)
 }
 
-// ContainsCount is the number of kinds the kind names as those it may
-// hold.
-func (v VertexKindView) ContainsCount() int {
-	if v.k == nil {
-		return 0
-	}
-	return len(v.k.Contains)
-}
-
-// Contains is the jth kind it may hold; out of range, None.
-func (v VertexKindView) Contains(j int) KindIndex {
-	if v.k == nil || j < 0 || j >= len(v.k.Contains) {
-		return None
-	}
-	return v.k.Contains[j]
-}
-
 // Keyword is drawn on every vertex of the kind, such as «block».
 func (v VertexKindView) Keyword() string {
 	if v.k == nil {
 		return ""
 	}
 	return v.k.Keyword
-}
-
-// CompartmentCount is the number of the kind's compartments.
-func (v VertexKindView) CompartmentCount() int {
-	if v.k == nil {
-		return 0
-	}
-	return len(v.k.Compartments)
-}
-
-// Compartment is the key of the jth compartment; out of range, "".
-func (v VertexKindView) Compartment(j int) string {
-	if v.k == nil || j < 0 || j >= len(v.k.Compartments) {
-		return ""
-	}
-	return v.k.Compartments[j]
 }
 
 // MaxWidth is the width a vertex with compartments grows to at most.
@@ -329,38 +296,30 @@ func (e EdgeKindView) Name() string {
 // first kind to one of the second.
 func (e EdgeKindView) Allows(from, to KindIndex) bool { return e.k != nil && e.k.allows(from, to) }
 
-// FromCount is the number of vertex kinds an edge of the kind may
-// leave: none for any.
-func (e EdgeKindView) FromCount() int {
+// From are the vertex kinds an edge of the kind may leave: any, when it
+// names none.
+func (e EdgeKindView) From() KindList {
 	if e.k == nil {
-		return 0
+		return KindList{}
 	}
-	return len(e.k.From)
+	return KindList{e.k.From}
 }
 
-// From is the jth vertex kind it may leave; out of range, None.
-func (e EdgeKindView) From(j int) KindIndex {
-	if e.k == nil || j < 0 || j >= len(e.k.From) {
-		return None
-	}
-	return e.k.From[j]
-}
-
-// ToCount is the number of vertex kinds an edge of the kind may enter:
-// none for any.
-func (e EdgeKindView) ToCount() int {
+// To are the vertex kinds an edge of the kind may enter: any, when it
+// names none.
+func (e EdgeKindView) To() KindList {
 	if e.k == nil {
-		return 0
+		return KindList{}
 	}
-	return len(e.k.To)
+	return KindList{e.k.To}
 }
 
-// To is the jth vertex kind it may enter; out of range, None.
-func (e EdgeKindView) To(j int) KindIndex {
-	if e.k == nil || j < 0 || j >= len(e.k.To) {
-		return None
+// Attrs are the specifications of the attributes the kind takes.
+func (e EdgeKindView) Attrs() AttrSpecList {
+	if e.k == nil {
+		return AttrSpecList{}
 	}
-	return e.k.To[j]
+	return AttrSpecList{e.k.Attrs}
 }
 
 // Route is how the kind is drawn between its ends.
@@ -399,23 +358,6 @@ func (e EdgeKindView) Stereotype() string {
 		return ""
 	}
 	return e.k.Stereotype
-}
-
-// AttrCount is the number of attributes the kind takes.
-func (e EdgeKindView) AttrCount() int {
-	if e.k == nil {
-		return 0
-	}
-	return len(e.k.Attrs)
-}
-
-// Attr is the jth attribute's specification; out of range, every read
-// of it is the zero value.
-func (e EdgeKindView) Attr(j int) AttrSpecView {
-	if e.k == nil || j < 0 || j >= len(e.k.Attrs) {
-		return AttrSpecView{}
-	}
-	return AttrSpecView{&e.k.Attrs[j]}
 }
 
 // Weighted reports whether an edge of the kind is drawn as wide as its
@@ -461,20 +403,12 @@ func (s AttrSpecView) Kind() AttrKind {
 	return s.a.Kind
 }
 
-// ChoiceCount is the number of choices.
-func (s AttrSpecView) ChoiceCount() int {
+// Choices are the values a choice may take.
+func (s AttrSpecView) Choices() StringList {
 	if s.a == nil {
-		return 0
+		return StringList{}
 	}
-	return len(s.a.Choices)
-}
-
-// Choice is the jth choice; out of range, "".
-func (s AttrSpecView) Choice(j int) string {
-	if s.a == nil || j < 0 || j >= len(s.a.Choices) {
-		return ""
-	}
-	return s.a.Choices[j]
+	return StringList{s.a.Choices}
 }
 
 // Required reports whether the attribute must be present.

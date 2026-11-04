@@ -20,42 +20,43 @@ import (
 // misses every vertex but the ends and the containers that hold them.
 func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 	t.Helper()
-	for i := range d.Edges {
-		e := &d.Edges[i]
-		if !e.Live {
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() {
 			continue
 		}
-		from, to := &d.Vertices[e.From], &d.Vertices[e.To]
+		from, to := d.Vertex(e.From()), d.Vertex(e.To())
 		dir := 1.0
 		if reversed(res, gw.EdgeIndex(i)) { //nolint:gosec // bounded
 			dir = -1
 		}
 		long := between(d, e)
-		if long && len(e.Bends) == 0 {
-			t.Errorf("%s: edge %s from %v to %v crosses a layer without bends", name, e.ID, from.Pos, to.Pos)
+		if long && e.Bends().Len() == 0 {
+			t.Errorf("%s: edge %s from %v to %v crosses a layer without bends", name, e.ID(), from.Pos(), to.Pos())
 		}
-		if !long && lay(d, to.Pos) < lay(d, from.Pos) {
+		if !long && lay(d, to.Pos()) < lay(d, from.Pos()) {
 			dir = -1
 		} else if !long {
 			dir = 1
 		}
-		for k, p := range e.Bends {
+		for k := range e.Bends().Len() {
+			p := e.Bends().At(k)
 			if alongside(d, from, to) {
 				break
 			}
-			if dir*lay(d, p) <= dir*lay(d, from.Pos) || dir*lay(d, p) >= dir*lay(d, to.Pos) || (k > 0 && dir*lay(d, p) < dir*lay(d, e.Bends[k-1])) {
-				t.Errorf("%s: edge %s from %v to %v: bend %d at %v out of order", name, e.ID, from.Pos, to.Pos, k, p)
+			if dir*lay(d, p) <= dir*lay(d, from.Pos()) || dir*lay(d, p) >= dir*lay(d, to.Pos()) || (k > 0 && dir*lay(d, p) < dir*lay(d, e.Bends().At(k-1))) {
+				t.Errorf("%s: edge %s from %v to %v: bend %d at %v out of order", name, e.ID(), from.Pos(), to.Pos(), k, p)
 			}
 		}
-		for k := 1; k < len(e.Bends); k++ {
-			for j := range d.Vertices {
-				v := &d.Vertices[j]
-				u := gw.VertexIndex(j) //nolint:gosec // bounded
-				if !v.Live || d.Within(e.From, u) || d.Within(e.To, u) {
+		for k := 1; k < e.Bends().Len(); k++ {
+			for j := range d.VertexSlots() {
+				v := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+				u := gw.VertexIndex(j)           //nolint:gosec // bounded
+				if !v.Live() || d.Within(e.From(), u) || d.Within(e.To(), u) {
 					continue
 				}
-				if crosses(e.Bends[k-1], e.Bends[k], v) {
-					t.Errorf("%s: edge %s leg %v to %v crosses %s at %v %v", name, e.ID, e.Bends[k-1], e.Bends[k], v.Label, v.Pos, v.Size)
+				if crosses(e.Bends().At(k-1), e.Bends().At(k), v) {
+					t.Errorf("%s: edge %s leg %v to %v crosses %s at %v %v", name, e.ID(), e.Bends().At(k-1), e.Bends().At(k), v.Label(), v.Pos(), v.Size())
 				}
 			}
 		}
@@ -66,23 +67,23 @@ func checkBends(t *testing.T, name string, d *gw.Document, res layout.Result) {
 // end, has its centre between the edge's ends along the flow, by more
 // than a grid step: a container's centre sits a little off its layer's,
 // by the room its title takes, and a layer between is further than that.
-func between(d *gw.Document, e *gw.Edge) bool {
+func between(d *gw.Document, e gw.EdgeView) bool {
 	level := gw.VertexIndex(gw.None)
 	// bound: the parent chain
-	for c := d.Vertices[e.From].Parent; c != gw.None; c = d.Vertices[c].Parent {
-		if d.Within(e.To, c) {
+	for c := d.Vertex(e.From()).Parent(); c != gw.None; c = d.Vertex(c).Parent() {
+		if d.Within(e.To(), c) {
 			level = c
 			break
 		}
 	}
-	a, b := hold(d, e.From, level), hold(d, e.To, level)
-	lo, hi := lay(d, d.Vertices[a].Pos), lay(d, d.Vertices[b].Pos)
+	a, b := hold(d, e.From(), level), hold(d, e.To(), level)
+	lo, hi := lay(d, d.Vertex(a).Pos()), lay(d, d.Vertex(b).Pos())
 	if lo > hi {
 		lo, hi = hi, lo
 	}
-	for j := range d.Vertices {
-		v := &d.Vertices[j]
-		if v.Live && v.Parent == level && lay(d, v.Pos) > lo+8 && lay(d, v.Pos) < hi-8 {
+	for j := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+		if v.Live() && v.Parent() == level && lay(d, v.Pos()) > lo+8 && lay(d, v.Pos()) < hi-8 {
 			return true
 		}
 	}
@@ -92,17 +93,17 @@ func between(d *gw.Document, e *gw.Edge) bool {
 // hold is the vertex directly in c that is v or holds it.
 func hold(d *gw.Document, v, c gw.VertexIndex) gw.VertexIndex {
 	// bound: the parent chain
-	for d.Vertices[v].Parent != c {
-		v = d.Vertices[v].Parent
+	for d.Vertex(v).Parent() != c {
+		v = d.Vertex(v).Parent()
 	}
 	return v
 }
 
 // crosses reports whether the segment pq passes through the inside of
 // the vertex's box, by clipping it to the box shrunk by half a unit.
-func crosses(p, q gw.Point, v *gw.Vertex) bool {
-	x0, x1 := v.Pos.X-v.Size.W/2+0.5, v.Pos.X+v.Size.W/2-0.5
-	y0, y1 := v.Pos.Y-v.Size.H/2+0.5, v.Pos.Y+v.Size.H/2-0.5
+func crosses(p, q gw.Point, v gw.VertexView) bool {
+	x0, x1 := v.Pos().X-v.Size().W/2+0.5, v.Pos().X+v.Size().W/2-0.5
+	y0, y1 := v.Pos().Y-v.Size().H/2+0.5, v.Pos().Y+v.Size().H/2-0.5
 	lo, hi := 0.0, 1.0
 	dx, dy := q.X-p.X, q.Y-p.Y
 	for _, c := range [4][2]float64{{-dx, p.X - x0}, {dx, x1 - p.X}, {-dy, p.Y - y0}, {dy, y1 - p.Y}} {
@@ -178,8 +179,8 @@ func TestBendsCleared(t *testing.T) {
 		if _, err := l.Run(d, layout.Options{}); err != nil {
 			t.Fatal(err)
 		}
-		if len(d.Edges[long].Bends) != 4 {
-			t.Fatalf("the edge across two layers has bends %v", d.Edges[long].Bends)
+		if d.Edge(long).Bends().Len() != 4 {
+			t.Fatalf("the edge across two layers has bends %v", d.Edge(long).Bends())
 		}
 	}
 	if _, err := d.Apply(gw.Command{Op: gw.DeleteVertex, Vertex: v[1]}); err != nil {
@@ -188,8 +189,8 @@ func TestBendsCleared(t *testing.T) {
 	if _, err := l.Run(d, layout.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Edges[long].Bends) != 0 {
-		t.Errorf("between adjacent layers: bends %v", d.Edges[long].Bends)
+	if d.Edge(long).Bends().Len() != 0 {
+		t.Errorf("between adjacent layers: bends %v", d.Edge(long).Bends())
 	}
 }
 
@@ -200,9 +201,9 @@ func TestBendsUndo(t *testing.T) {
 	d := randomDAG(t, 5, 30, 50, gw.Caps{})
 	bentEdges := func() string {
 		s := ""
-		for i := range d.Edges {
-			if len(d.Edges[i].Bends) > 0 {
-				s += string(d.Edges[i].ID) + " "
+		for i := range d.EdgeSlots() {
+			if d.Edge(gw.EdgeIndex(i)).Bends().Len() > 0 { //nolint:gosec // bounded by the capacity
+				s += string(d.Edge(gw.EdgeIndex(i)).ID()) + " " //nolint:gosec // bounded by the capacity
 			}
 		}
 		return s
@@ -219,17 +220,17 @@ func TestBendsUndo(t *testing.T) {
 		t.Fatal("no edge bent")
 	}
 	var long gw.EdgeIndex = gw.None
-	for i := range d.Edges {
-		if len(d.Edges[i].Bends) > 0 {
+	for i := range d.EdgeSlots() {
+		if d.Edge(gw.EdgeIndex(i)).Bends().Len() > 0 { //nolint:gosec // bounded by the capacity
 			long = gw.EdgeIndex(i) //nolint:gosec // bounded
 			break
 		}
 	}
-	end := d.Edges[long].To
+	end := d.Edge(long).To()
 	if _, err := d.Apply(gw.Command{Op: gw.Move, Vertex: end, Pos: gw.Point{X: 0, Y: -400}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Edges[long].Bends) != 0 {
+	if d.Edge(long).Bends().Len() != 0 {
 		t.Error("an edge whose end was dragged kept its bends")
 	}
 	d.Undo()
@@ -264,8 +265,8 @@ func TestTopToBottom(t *testing.T) {
 		checkBends(t, name, d, res)
 		if seed == 1 {
 			ys := map[float64]bool{}
-			for i := range d.Vertices {
-				ys[d.Vertices[i].Pos.Y] = true
+			for i := range d.VertexSlots() {
+				ys[d.Vertex(gw.VertexIndex(i)).Pos().Y] = true //nolint:gosec // bounded by the capacity
 			}
 			if len(ys) != res.Layers || !ys[96] {
 				t.Errorf("%s: %d rows for %d layers, none at 96: %v", name, len(ys), res.Layers, ys)
@@ -278,14 +279,14 @@ func TestTopToBottom(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkBends(t, name+" nested", n, res)
-		for i := range n.Vertices {
-			a := &n.Vertices[i]
-			if a.Live && a.Parent != gw.None && !inside(a, &n.Vertices[a.Parent]) {
-				t.Errorf("%s nested: %s outside its zone", name, a.Label)
+		for i := range n.VertexSlots() {
+			a := n.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+			if a.Live() && a.Parent() != gw.None && !inside(a, n.Vertex(a.Parent())) {
+				t.Errorf("%s nested: %s outside its zone", name, a.Label())
 			}
-			for j := i + 1; j < len(n.Vertices); j++ {
-				if b := &n.Vertices[j]; a.Live && b.Live && a.Parent == b.Parent && overlap(a, b) {
-					t.Errorf("%s nested: %s overlaps %s", name, a.Label, b.Label)
+			for j := i + 1; j < n.VertexSlots(); j++ {
+				if b := n.Vertex(gw.VertexIndex(j)); a.Live() && b.Live() && a.Parent() == b.Parent() && overlap(a, b) { //nolint:gosec // bounded by the capacity
+					t.Errorf("%s nested: %s overlaps %s", name, a.Label(), b.Label())
 				}
 			}
 		}
@@ -331,18 +332,18 @@ func TestContainerEdgeKeepsRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back := d.Edges[2]; len(back.Bends) == 0 {
+	if back := d.Edge(2); back.Bends().Len() == 0 {
 		t.Errorf("the edge from the container back to a has no route; reversed %v", res.Reversed)
 	}
 	checkBends(t, "container cycle", d, res)
 }
 
 // alongside reports whether two vertices' boxes overlap along the flow.
-func alongside(d *gw.Document, a, b *gw.Vertex) bool {
-	ha, hb := a.Size.W/2, b.Size.W/2
+func alongside(d *gw.Document, a, b gw.VertexView) bool {
+	ha, hb := a.Size().W/2, b.Size().W/2
 	if d.Flow() == gw.TopToBottom {
-		ha, hb = a.Size.H/2, b.Size.H/2
+		ha, hb = a.Size().H/2, b.Size().H/2
 	}
-	pa, pb := lay(d, a.Pos), lay(d, b.Pos)
+	pa, pb := lay(d, a.Pos()), lay(d, b.Pos())
 	return pa-ha < pb+hb && pb-hb < pa+ha
 }

@@ -23,7 +23,7 @@ func portSlot(p Port) float64 {
 // OwnPorts reports how many of a vertex's ports are its own, added by
 // AddPort after its kind's.
 func (d *Document) OwnPorts(v VertexIndex) int {
-	x := &d.Vertices[v]
+	x := &d.vertices[v]
 	return len(x.Ports) - len(d.kinds.vertex[x.Kind].Ports)
 }
 
@@ -43,7 +43,7 @@ func (d *Document) portRoom(v VertexIndex) Size {
 	}
 	var n [4]int
 	slot := 0.0
-	for _, p := range d.Vertices[v].Ports {
+	for _, p := range d.vertices[v].Ports {
 		n[p.Side]++
 		if p.Side == Top || p.Side == Bottom {
 			slot = max(slot, portSlot(p))
@@ -61,7 +61,7 @@ func (d *Document) addPort(c Command) error {
 	if !d.vertexLive(c.Vertex) {
 		return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 	}
-	v := &d.Vertices[c.Vertex]
+	v := &d.vertices[c.Vertex]
 	p := c.Port
 	if p.Name == "" || p.Max < 0 || p.Side > Bottom {
 		return refusal("a port needs a name, a side and a non-negative max")
@@ -95,13 +95,13 @@ func (d *Document) deletePort(c Command) error {
 	switch {
 	case i == None:
 		return refusal("vertex " + d.vertexName(c.Vertex) + " has no port " + strconv.Quote(c.Text))
-	case int(i) < len(d.kinds.vertex[d.Vertices[c.Vertex].Kind].Ports):
+	case int(i) < len(d.kinds.vertex[d.vertices[c.Vertex].Kind].Ports):
 		return refusal("port " + strconv.Quote(c.Text) + " is the kind's, not the vertex's own")
 	}
 	if used := d.portUsers(c.Vertex, i); used != "" {
 		return refusal("port " + strconv.Quote(c.Text) + " is used by " + used)
 	}
-	c.Port = d.Vertices[c.Vertex].Ports[i]
+	c.Port = d.vertices[c.Vertex].Ports[i]
 	d.seq++
 	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, at: int(i)})
 	d.removePort(c.Vertex, int(i))
@@ -110,7 +110,7 @@ func (d *Document) deletePort(c Command) error {
 
 // portNamed is the index of a vertex's port with the name, or None.
 func (d *Document) portNamed(v VertexIndex, name string) PortIndex {
-	for i, p := range d.Vertices[v].Ports {
+	for i, p := range d.vertices[v].Ports {
 		if p.Name == name {
 			return PortIndex(i) //nolint:gosec // bounded by the ports per vertex
 		}
@@ -121,8 +121,8 @@ func (d *Document) portNamed(v VertexIndex, name string) PortIndex {
 // portUsers names the live edges at a vertex's port, or is empty.
 func (d *Document) portUsers(v VertexIndex, p PortIndex) string {
 	var names string
-	for i := range d.Edges {
-		e := &d.Edges[i]
+	for i := range d.edges {
+		e := &d.edges[i]
 		if e.Live && ((e.From == v && e.FromPort == p) || (e.To == v && e.ToPort == p)) {
 			if names != "" {
 				names += ", "
@@ -136,12 +136,12 @@ func (d *Document) portUsers(v VertexIndex, p PortIndex) string {
 // insertPort puts a port at index i of a vertex's ports, the edges at
 // its ports from i on following them up, and sizes the vertex to them.
 func (d *Document) insertPort(v VertexIndex, i int, p Port) {
-	x := &d.Vertices[v]
+	x := &d.vertices[v]
 	x.Ports = x.Ports[:len(x.Ports)+1]
 	copy(x.Ports[i+1:], x.Ports[i:])
 	x.Ports[i] = p
-	for k := range d.Edges {
-		e := &d.Edges[k]
+	for k := range d.edges {
+		e := &d.edges[k]
 		if e.From == v {
 			e.FromPort = shiftUp(e.FromPort, i)
 		}
@@ -155,11 +155,11 @@ func (d *Document) insertPort(v VertexIndex, i int, p Port) {
 // removePort takes out port i of a vertex, the edges at its later ports
 // following them down, and sizes the vertex to those left.
 func (d *Document) removePort(v VertexIndex, i int) {
-	x := &d.Vertices[v]
+	x := &d.vertices[v]
 	copy(x.Ports[i:], x.Ports[i+1:])
 	x.Ports = x.Ports[:len(x.Ports)-1]
-	for k := range d.Edges {
-		e := &d.Edges[k]
+	for k := range d.edges {
+		e := &d.edges[k]
 		if e.From == v {
 			e.FromPort = shiftDown(e.FromPort, i)
 		}

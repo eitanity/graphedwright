@@ -50,33 +50,34 @@ func (e *Editor) Properties() (Properties, bool) {
 		return Properties{}, false
 	}
 	p := Properties{Vertex: v, Edge: x}
-	var specs attrSpecs
-	var attrs []gw.Attr
+	var specs gw.AttrSpecList
+	var attrs gw.AttrList
 	if v != gw.None {
-		vx := &e.d.Vertices[v]
-		kind := e.d.Kinds().Vertex(vx.Kind)
-		p.ID, p.Kind, p.Label, specs, attrs = vx.ID, kind.Name(), vx.Label, kind, vx.Attrs
+		vx := e.d.Vertex(v)
+		kind := e.d.Kinds().Vertex(vx.Kind())
+		p.ID, p.Kind, p.Label, specs, attrs = vx.ID(), kind.Name(), vx.Label(), kind.Attrs(), vx.Attrs()
 	} else {
-		ed := &e.d.Edges[x]
-		kind := e.d.Kinds().Edge(ed.Kind)
-		p.ID, p.Kind, p.Label, specs, attrs = ed.ID, kind.Name(), ed.Label, kind, ed.Attrs
-		p.From, p.To = e.d.Vertices[ed.From].ID, e.d.Vertices[ed.To].ID
+		ed := e.d.Edge(x)
+		kind := e.d.Kinds().Edge(ed.Kind())
+		p.ID, p.Kind, p.Label, specs, attrs = ed.ID(), kind.Name(), ed.Label(), kind.Attrs(), ed.Attrs()
+		p.From, p.To = e.d.Vertex(ed.From()).ID(), e.d.Vertex(ed.To()).ID()
 	}
-	p.Attrs = make([]Property, 0, specs.AttrCount()+len(attrs))
+	p.Attrs = make([]Property, 0, specs.Len()+attrs.Len())
 	// bound: the kind's attributes
-	for i := range specs.AttrCount() {
-		s := specs.Attr(i)
-		choices := make([]string, s.ChoiceCount())
+	for i := range specs.Len() {
+		s := specs.At(i)
+		choices := make([]string, s.Choices().Len())
 		for c := range choices {
-			choices[c] = s.Choice(c)
+			choices[c] = s.Choices().At(c)
 		}
 		if len(choices) == 0 {
 			choices = nil
 		}
-		p.Attrs = append(p.Attrs, Property{Key: s.Key(), Value: value(attrs, s.Key()), Kind: s.Kind(), Choices: choices, Required: s.Required(), Known: true, Bounded: s.Bounded(), Min: s.Min(), Max: s.Max()})
+		p.Attrs = append(p.Attrs, Property{Key: s.Key(), Value: attrs.Value(s.Key()), Kind: s.Kind(), Choices: choices, Required: s.Required(), Known: true, Bounded: s.Bounded(), Min: s.Min(), Max: s.Max()})
 	}
-	for _, a := range attrs {
-		if !named(specs, a.Key) {
+	// bound: the element's attributes
+	for i := range attrs.Len() {
+		if a := attrs.At(i); !named(specs, a.Key) {
 			p.Attrs = append(p.Attrs, Property{Key: a.Key, Value: a.Value, Kind: gw.Text})
 		}
 	}
@@ -139,27 +140,11 @@ func (e *Editor) command(c gw.Command) (gw.Change, error) {
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}, err
 }
 
-// value is the value of the attribute with the key, or "".
-func value(attrs []gw.Attr, key string) string {
-	for _, a := range attrs {
-		if a.Key == key {
-			return a.Value
-		}
-	}
-	return ""
-}
-
-// attrSpecs are a vertex or an edge kind's attribute specifications.
-type attrSpecs interface {
-	AttrCount() int
-	Attr(i int) gw.AttrSpecView
-}
-
 // named reports whether the specifications name the key.
-func named(specs attrSpecs, key string) bool {
+func named(specs gw.AttrSpecList, key string) bool {
 	// bound: the kind's attributes
-	for i := range specs.AttrCount() {
-		if specs.Attr(i).Key() == key {
+	for i := range specs.Len() {
+		if specs.At(i).Key() == key {
 			return true
 		}
 	}

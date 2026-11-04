@@ -59,26 +59,26 @@ func TestTails(t *testing.T) {
 		n := 0
 		for _, m := range pathStartRE.FindAllStringSubmatch(buf.String(), -1) {
 			e := d.EdgeByID(gw.ID(m[1]))
-			ed := &d.Edges[e]
-			kind := d.Kinds().Edge(ed.Kind)
+			ed := d.Edge(e)
+			kind := d.Kinds().Edge(ed.Kind())
 			x, _ := strconv.ParseFloat(m[2], 64)
 			y, _ := strconv.ParseFloat(m[3], 64)
 			var lane [1]gw.Point
 			w := wayOf(d, e, &lane)
-			from := &d.Vertices[ed.From]
-			if od := outlineDistance(d.Kinds().Vertex(from.Kind).Shape(), from, w.a); math.Abs(od) > 0.5 {
-				t.Errorf("flow %d: %s leaves %g off its source's outline", flow, ed.ID, od)
+			from := d.Vertex(ed.From())
+			if od := outlineDistance(d.Kinds().Vertex(from.Kind()).Shape(), from, w.a); math.Abs(od) > 0.5 {
+				t.Errorf("flow %d: %s leaves %g off its source's outline", flow, ed.ID(), od)
 			}
 			tl := tailLength(kind.Tail())
 			if got := math.Hypot(x-w.a.X, y-w.a.Y); math.Abs(got-tl) > 0.5 {
-				t.Errorf("flow %d: %s's stroke starts %g from its source, want the tail's %g", flow, ed.ID, got, tl)
+				t.Errorf("flow %d: %s's stroke starts %g from its source, want the tail's %g", flow, ed.ID(), got, tl)
 			}
 			dir := gw.Point{X: (x - w.a.X) / tl, Y: (y - w.a.Y) / tl}
 			p := gw.Point{X: w.a.X + dir.X*(tl-1), Y: w.a.Y + dir.Y*(tl-1)}
 			// Within the outline's band, the vertex's outline is hit
 			// first, as for any edge.
 			if h := HitTest(d, p); math.Abs(outlineDistance(gw.Rect, from, p)) > band(from) && (h.Kind != EdgeHit || h.Edge != e) {
-				t.Errorf("flow %d: %v on %s's tail hits %+v", flow, p, ed.ID, h)
+				t.Errorf("flow %d: %v on %s's tail hits %+v", flow, p, ed.ID(), h)
 			}
 			n++
 		}

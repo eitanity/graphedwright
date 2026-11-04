@@ -18,7 +18,7 @@ type ends struct {
 
 // endsOf is where an edge's ends are now.
 func (d *Document) endsOf(e *Edge) ends {
-	f, t := &d.Vertices[e.From], &d.Vertices[e.To]
+	f, t := &d.vertices[e.From], &d.vertices[e.To]
 	return ends{from: f.Pos, to: t.Pos, fromSize: f.Size, toSize: t.Size}
 }
 
@@ -28,7 +28,7 @@ func (d *Document) endsOf(e *Edge) ends {
 // points per edge capacity, which the edges share and only ClearBends
 // empties, and hold for the ends where they are now. A layout engine
 // that reserved the points with ReserveBends and filled them before
-// placing the ends passes the edge's own Bends back, which keeps them
+// placing the ends passes the reservation back, which keeps them
 // and records the ends afresh. It reports whether the edge was live,
 // the points coordinates (within MaxCoord) and the slab had room; when not, the edge has no
 // bends.
@@ -36,7 +36,7 @@ func (d *Document) SetBends(e EdgeIndex, pts []Point) bool {
 	if d.locked || !d.edgeLive(e) {
 		return false
 	}
-	ed := &d.Edges[e]
+	ed := &d.edges[e]
 	for _, p := range pts {
 		if !point(p) {
 			ed.route, ed.Bends = nil, nil
@@ -63,7 +63,7 @@ func (d *Document) ReserveBends(e EdgeIndex, n int) []Point {
 	if d.locked || !d.edgeLive(e) {
 		return nil
 	}
-	ed := &d.Edges[e]
+	ed := &d.edges[e]
 	ed.route, ed.Bends = nil, nil
 	if n <= 0 || n > len(d.bendSlab)-d.bendN {
 		return nil
@@ -80,8 +80,8 @@ func (d *Document) ClearBends() {
 	if d.locked {
 		return
 	}
-	for i := range d.Edges {
-		e := &d.Edges[i]
+	for i := range d.edges {
+		e := &d.edges[i]
 		if e.Live && len(e.Bends) > 0 {
 			d.touchEdge(EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		}
@@ -96,8 +96,8 @@ func (d *Document) carry(c VertexIndex, dx, dy float64) {
 	if !d.isContainer(c) || (dx == 0 && dy == 0) {
 		return
 	}
-	for i := range d.Edges {
-		e := &d.Edges[i]
+	for i := range d.edges {
+		e := &d.edges[i]
 		if len(e.route) == 0 || !d.Within(e.From, c) || !d.Within(e.To, c) {
 			continue
 		}
@@ -129,7 +129,7 @@ func (d *Document) rebend() {
 }
 
 func (d *Document) rebendEdge(i EdgeIndex) {
-	e := &d.Edges[i]
+	e := &d.edges[i]
 	var b []Point
 	if len(e.route) > 0 && e.routed == d.endsOf(e) {
 		b = e.route

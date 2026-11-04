@@ -55,21 +55,21 @@ func TestPortLabelsClear(t *testing.T) {
 			}
 			view := bounds(d)
 			for _, v := range []gw.VertexIndex{engine, sys} {
-				x := &d.Vertices[v]
-				for p := range x.Ports {
+				x := d.Vertex(v)
+				for p := range x.Ports().Len() {
 					_, _, _, box := portLabel(d, v, gw.PortIndex(p)) //nolint:gosec // a handful
-					name := x.Ports[p].Name
-					if overlaps(box, gw.Viewport{X: x.Pos.X - x.Size.W/2, Y: x.Pos.Y - x.Size.H/2, W: x.Size.W, H: x.Size.H}) {
-						t.Errorf("route %d flow %d: %s's label %v overlaps %s at %v %v", route, flow, name, box, x.ID, x.Pos, x.Size)
+					name := x.Ports().At(p).Name
+					if overlaps(box, gw.Viewport{X: x.Pos().X - x.Size().W/2, Y: x.Pos().Y - x.Size().H/2, W: x.Size().W, H: x.Size().H}) {
+						t.Errorf("route %d flow %d: %s's label %v overlaps %s at %v %v", route, flow, name, box, x.ID(), x.Pos(), x.Size())
 					}
 					if box.X < view.X || box.Y < view.Y || box.X+box.W > view.X+view.W || box.Y+box.H > view.Y+view.H {
 						t.Errorf("route %d flow %d: %s's label %v outside the bounds %v", route, flow, name, box, view)
 					}
-					for e := range d.Edges {
-						ed := &d.Edges[e]
-						at := (ed.From == v && int(ed.FromPort) == p) || (ed.To == v && int(ed.ToPort) == p)
+					for e := range d.EdgeSlots() {
+						ed := d.Edge(gw.EdgeIndex(e)) //nolint:gosec // bounded by the capacity
+						at := (ed.From() == v && int(ed.FromPort()) == p) || (ed.To() == v && int(ed.ToPort()) == p)
 						if at && crossesBox(d, gw.EdgeIndex(e), box) { //nolint:gosec // a handful
-							t.Errorf("route %d flow %d: edge %s crosses %s's label %v", route, flow, ed.ID, name, box)
+							t.Errorf("route %d flow %d: edge %s crosses %s's label %v", route, flow, ed.ID(), name, box)
 						}
 					}
 				}
@@ -84,12 +84,12 @@ func crossesBox(d *gw.Document, i gw.EdgeIndex, box gw.Viewport) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
-	route := d.Kinds().Edge(d.Edges[i].Kind).Route()
+	route := d.Kinds().Edge(d.Edge(i).Kind()).Route()
 	grown := gw.Viewport{X: box.X - 1, Y: box.Y - 1, W: box.W + 2, H: box.H + 2}
-	for k := range len(wy.through) + 1 {
+	for k := range wy.through.Len() + 1 {
 		u, w := leg(wy.a, wy.through, wy.b, k)
 		u, w = f.t(u), f.t(w)
-		r := legRoute(route, len(wy.through) > 0, u, w)
+		r := legRoute(route, wy.through.Len() > 0, u, w)
 		for s := 0; s <= 400; s++ {
 			p := f.t(f.at(r, u, w, float64(s)/400))
 			if p.X > grown.X && p.X < grown.X+grown.W && p.Y > grown.Y && p.Y < grown.Y+grown.H {

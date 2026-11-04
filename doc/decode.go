@@ -686,12 +686,13 @@ func (dec *decoder) resolveEdge(f *edgeFields) error {
 
 // port finds a port of a vertex by name.
 func (dec *decoder) port(v gw.VertexIndex, name string) (gw.PortIndex, error) {
-	for i, p := range dec.d.Vertices[v].Ports {
+	for i := range dec.d.Vertex(v).Ports().Len() {
+		p := dec.d.Vertex(v).Ports().At(i)
 		if p.Name == name {
 			return gw.PortIndex(i), nil //nolint:gosec // bounded by the ports per vertex
 		}
 	}
-	return gw.None, dec.s.errorf("vertex " + strconv.Quote(string(dec.d.Vertices[v].ID)) + " has no port " + strconv.Quote(name))
+	return gw.None, dec.s.errorf("vertex " + strconv.Quote(string(dec.d.Vertex(v).ID())) + " has no port " + strconv.Quote(name))
 }
 
 // flow reads the direction the layers run in.

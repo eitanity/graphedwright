@@ -22,11 +22,11 @@ func TestCompact(t *testing.T) {
 	if len(emap) != 3 || emap[0] != gw.None || emap[1] != gw.None || emap[2] != 0 {
 		t.Errorf("emap %v", emap)
 	}
-	if len(d.Vertices) != 3 || len(d.Edges) != 1 || d.Edges[0].From != 1 || d.Edges[0].To != 2 {
-		t.Errorf("after compact: %d vertices %d edges, edge %+v", len(d.Vertices), len(d.Edges), d.Edges[0])
+	if d.VertexSlots() != 3 || d.EdgeSlots() != 1 || d.Edge(0).From() != 1 || d.Edge(0).To() != 2 {
+		t.Errorf("after compact: %d vertices %d edges, edge %+v", d.VertexSlots(), d.EdgeSlots(), d.Edge(0))
 	}
-	if d.Vertices[1].ID != "b" || d.Vertices[1].Attrs[2].Value != "keep" || d.Vertices[1].Ports[1].Name != "out" {
-		t.Errorf("b after compact: %+v", d.Vertices[1])
+	if d.Vertex(1).ID() != "b" || d.Vertex(1).Attrs().At(2).Value != "keep" || d.Vertex(1).Ports().At(1).Name != "out" {
+		t.Errorf("b after compact: %+v", d.Vertex(1))
 	}
 	if got := snapshot(d); got == before {
 		t.Error("snapshot unchanged though indices moved")

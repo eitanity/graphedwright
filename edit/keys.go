@@ -84,14 +84,14 @@ func (e *Editor) deleteSelection() error {
 	e.d.Group()
 	defer e.d.EndGroup()
 	for _, x := range e.selE {
-		if e.d.Edges[x].Live {
+		if e.d.Edge(x).Live() {
 			if err := e.apply(gw.Command{Op: gw.DeleteEdge, Edge: x}); err != nil {
 				return err
 			}
 		}
 	}
 	for _, v := range e.selV {
-		if e.d.Vertices[v].Live {
+		if e.d.Vertex(v).Live() {
 			if err := e.apply(gw.Command{Op: gw.DeleteVertex, Vertex: v}); err != nil {
 				return err
 			}
@@ -122,7 +122,7 @@ func (e *Editor) nudge(dx, dy float64) error {
 	e.d.Group()
 	defer e.d.EndGroup()
 	for _, v := range e.selV {
-		pos := e.d.Vertices[v].Pos
+		pos := e.d.Vertex(v).Pos()
 		if err := e.apply(gw.Command{Op: gw.Move, Vertex: v, Pos: gw.Point{X: pos.X + dx, Y: pos.Y + dy}}); err != nil {
 			return err
 		}
@@ -151,11 +151,11 @@ func (e *Editor) tab() {
 	if len(e.selV) > 0 {
 		start = int(e.selV[len(e.selV)-1])
 	}
-	n := len(e.d.Vertices)
+	n := e.d.VertexSlots()
 	// bound: the vertex slots
 	for k := 1; k <= n; k++ {
 		i := (start + k) % n
-		if e.d.Vertices[i].Live {
+		if e.d.Vertex(gw.VertexIndex(i)).Live() { //nolint:gosec // bounded by the capacity
 			e.selectVertex(gw.VertexIndex(i), false) //nolint:gosec // bounded by the capacity
 			return
 		}
@@ -189,10 +189,10 @@ func (e *Editor) commitText(text string) error {
 // in place of its label, or "".
 func (e *Editor) editAttr() string {
 	if e.editV != gw.None {
-		return e.d.Kinds().Vertex(e.d.Vertices[e.editV].Kind).EditAttr()
+		return e.d.Kinds().Vertex(e.d.Vertex(e.editV).Kind()).EditAttr()
 	}
 	if e.editE != gw.None {
-		return e.d.Kinds().Edge(e.d.Edges[e.editE].Kind).EditAttr()
+		return e.d.Kinds().Edge(e.d.Edge(e.editE).Kind()).EditAttr()
 	}
 	return ""
 }

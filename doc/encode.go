@@ -19,8 +19,8 @@ func Encode(d *gw.Document, schema string, w io.Writer) error {
 	}
 	e.str(`,"vertices":[`)
 	first := true
-	for i := range d.Vertices {
-		if v := &d.Vertices[i]; v.Live {
+	for i := range d.VertexSlots() {
+		if v := d.Vertex(gw.VertexIndex(i)); v.Live() { //nolint:gosec // bounded by the capacity
 			if !first {
 				e.byte(',')
 			}
@@ -30,8 +30,8 @@ func Encode(d *gw.Document, schema string, w io.Writer) error {
 	}
 	e.str(`],"edges":[`)
 	first = true
-	for i := range d.Edges {
-		if ed := &d.Edges[i]; ed.Live {
+	for i := range d.EdgeSlots() {
+		if ed := d.Edge(gw.EdgeIndex(i)); ed.Live() { //nolint:gosec // bounded by the capacity
 			if !first {
 				e.byte(',')
 			}
@@ -119,26 +119,26 @@ func (e *encoder) field(name string) {
 	e.byte(':')
 }
 
-func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
+func (e *encoder) vertex(d *gw.Document, v gw.VertexView) {
 	e.str(`{"id":`)
-	e.quote(string(v.ID))
+	e.quote(string(v.ID()))
 	e.field("kind")
-	e.quote(d.Kinds().Vertex(v.Kind).Name())
-	if v.Label != "" {
+	e.quote(d.Kinds().Vertex(v.Kind()).Name())
+	if v.Label() != "" {
 		e.field("label")
-		e.quote(v.Label)
+		e.quote(v.Label())
 	}
 	e.field("x")
-	e.num(v.Pos.X)
+	e.num(v.Pos().X)
 	e.field("y")
-	e.num(v.Pos.Y)
+	e.num(v.Pos().Y)
 	// A container's size is its own, which its fit grows from, and so
 	// is a vertex's with compartments or ports of its own; the size it
 	// is drawn at follows from what it holds.
-	size, kind := v.Size, d.Kinds().Vertex(v.Kind)
-	own := v.Ports[kind.PortCount():]
-	if kind.Container() || kind.CompartmentCount() > 0 || len(own) > 0 {
-		size = v.Min
+	size, kind := v.Size(), d.Kinds().Vertex(v.Kind())
+	own := v.Ports().Rest(kind.Ports().Len())
+	if kind.Container() || kind.Compartments().Len() > 0 || own.Len() > 0 {
+		size = v.Min()
 	}
 	if size != kind.Size() && size != (gw.Size{}) {
 		e.field("w")
@@ -146,25 +146,27 @@ func (e *encoder) vertex(d *gw.Document, v *gw.Vertex) {
 		e.field("h")
 		e.num(size.H)
 	}
-	if v.Placed {
+	if v.Placed() {
 		e.str(`,"placed":true`)
 	}
-	if v.Parent != gw.None {
+	if v.Parent() != gw.None {
 		e.field("parent")
-		e.quote(string(d.Vertices[v.Parent].ID))
+		e.quote(string(d.Vertex(v.Parent()).ID()))
 	}
-	e.attrs(v.Attrs)
+	e.attrs(v.Attrs())
 	e.ports(own)
 	e.byte('}')
 }
 
 // ports writes a vertex's own ports, when it has any.
-func (e *encoder) ports(ports []gw.Port) {
-	if len(ports) == 0 {
+func (e *encoder) ports(ports gw.PortList) {
+	if ports.Len() == 0 {
 		return
 	}
 	e.str(`,"ports":[`)
-	for i, p := range ports {
+	// bound: the vertex's own ports
+	for i := range ports.Len() {
+		p := ports.At(i)
 		if i > 0 {
 			e.byte(',')
 		}
@@ -181,35 +183,36 @@ func (e *encoder) ports(ports []gw.Port) {
 	e.byte(']')
 }
 
-func (e *encoder) edge(d *gw.Document, ed *gw.Edge) {
+func (e *encoder) edge(d *gw.Document, ed gw.EdgeView) {
 	e.str(`{"id":`)
-	e.quote(string(ed.ID))
+	e.quote(string(ed.ID()))
 	e.field("kind")
-	e.quote(d.Kinds().Edge(ed.Kind).Name())
+	e.quote(d.Kinds().Edge(ed.Kind()).Name())
 	e.field("from")
-	e.quote(string(d.Vertices[ed.From].ID))
+	e.quote(string(d.Vertex(ed.From()).ID()))
 	e.field("to")
-	e.quote(string(d.Vertices[ed.To].ID))
-	if ed.FromPort != gw.None {
+	e.quote(string(d.Vertex(ed.To()).ID()))
+	if ed.FromPort() != gw.None {
 		e.field("from_port")
-		e.quote(d.Vertices[ed.From].Ports[ed.FromPort].Name)
+		e.quote(d.Vertex(ed.From()).Ports().At(int(ed.FromPort())).Name)
 	}
-	if ed.ToPort != gw.None {
+	if ed.ToPort() != gw.None {
 		e.field("to_port")
-		e.quote(d.Vertices[ed.To].Ports[ed.ToPort].Name)
+		e.quote(d.Vertex(ed.To()).Ports().At(int(ed.ToPort())).Name)
 	}
-	if ed.Label != "" {
+	if ed.Label() != "" {
 		e.field("label")
-		e.quote(ed.Label)
+		e.quote(ed.Label())
 	}
-	if ed.Weight != 0 {
+	if ed.Weight() != 0 {
 		e.field("weight")
-		e.num(ed.Weight)
+		e.num(ed.Weight())
 	}
-	if len(ed.Bends) > 0 {
+	if ed.Bends().Len() > 0 {
 		e.field("bends")
 		e.byte('[')
-		for i, p := range ed.Bends {
+		for i := range ed.Bends().Len() {
+			p := ed.Bends().At(i)
 			if i > 0 {
 				e.byte(',')
 			}
@@ -221,16 +224,18 @@ func (e *encoder) edge(d *gw.Document, ed *gw.Edge) {
 		}
 		e.byte(']')
 	}
-	e.attrs(ed.Attrs)
+	e.attrs(ed.Attrs())
 	e.byte('}')
 }
 
-func (e *encoder) attrs(attrs []gw.Attr) {
-	if len(attrs) == 0 {
+func (e *encoder) attrs(attrs gw.AttrList) {
+	if attrs.Len() == 0 {
 		return
 	}
 	e.str(`,"attrs":{`)
-	for i, a := range attrs {
+	// bound: the element's attributes
+	for i := range attrs.Len() {
+		a := attrs.At(i)
 		if i > 0 {
 			e.byte(',')
 		}

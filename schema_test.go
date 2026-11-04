@@ -133,20 +133,20 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("caps %+v", d.Caps())
 	}
 	a := addVertex(t, d, kNode, "")
-	v := d.Vertices[a]
-	if v.ID != "v1" || v.Size != (gw.Size{W: 120, H: 36}) || len(v.Ports) != 2 || len(v.Attrs) != 2 || v.Attrs[0] != (gw.Attr{Key: "p", Value: "0.5"}) || v.Placed {
+	v := d.Vertex(a)
+	if v.ID() != "v1" || v.Size() != (gw.Size{W: 120, H: 36}) || v.Ports().Len() != 2 || v.Attrs().Len() != 2 || v.Attrs().At(0) != (gw.Attr{Key: "p", Value: "0.5"}) || v.Placed() {
 		t.Errorf("vertex %+v", v)
 	}
 	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: a})
 	b := addVertex(t, d, kNode, "")
-	if d.Vertices[b].ID != "v2" || d.VertexByID("v1") != gw.None || d.VertexByID("v2") != b {
-		t.Errorf("ids after delete: %q %q", d.Vertices[a].ID, d.Vertices[b].ID)
+	if d.Vertex(b).ID() != "v2" || d.VertexByID("v1") != gw.None || d.VertexByID("v2") != b {
+		t.Errorf("ids after delete: %q %q", d.Vertex(a).ID(), d.Vertex(b).ID())
 	}
 	refuse(t, d, gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "v1"}, `id "v1" already used`)
 	addVertex(t, d, kNode, "v3")
 	c := addVertex(t, d, kNode, "")
-	if d.Vertices[c].ID != "v4" {
-		t.Errorf("minting skips a host id: %q", d.Vertices[c].ID)
+	if d.Vertex(c).ID() != "v4" {
+		t.Errorf("minting skips a host id: %q", d.Vertex(c).ID())
 	}
 	if d.LiveVertices() != 3 || d.LiveEdges() != 0 {
 		t.Errorf("live %d %d", d.LiveVertices(), d.LiveEdges())

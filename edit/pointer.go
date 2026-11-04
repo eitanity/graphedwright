@@ -56,7 +56,7 @@ func (e *Editor) pan(p gw.Point) {
 // moveDrag moves the dragged vertices by the pointer's move to p.
 func (e *Editor) moveDrag(p gw.Point) {
 	for _, v := range e.dragV {
-		pos := e.d.Vertices[v].Pos
+		pos := e.d.Vertex(v).Pos()
 		e.d.Place(v, gw.Point{X: pos.X + p.X - e.last.X, Y: pos.Y + p.Y - e.last.Y}, true)
 		e.touch(v)
 		e.changeE = e.d.EdgesAt(v, e.changeE)
@@ -95,9 +95,9 @@ func (e *Editor) startResize() {
 	if !ok {
 		return
 	}
-	x := &e.d.Vertices[v]
+	x := e.d.Vertex(v)
 	e.sizeV = v
-	e.corner = gw.Point{X: x.Pos.X - float64(x.Size.W/2), Y: x.Pos.Y - float64(x.Size.H/2)}
+	e.corner = gw.Point{X: x.Pos().X - float64(x.Size().W/2), Y: x.Pos().Y - float64(x.Size().H/2)}
 }
 
 // onHandle reports whether a point is on a resize handle, or within
@@ -123,11 +123,11 @@ func (e *Editor) sizeBox() gw.Viewport {
 func (e *Editor) endResize() error {
 	v := e.sizeV
 	e.sizeV = gw.None
-	if v == gw.None || !e.d.Vertices[v].Live {
+	if v == gw.None || !e.d.Vertex(v).Live() {
 		return nil
 	}
 	b := e.sizeBox()
-	if (gw.Size{W: b.W, H: b.H}) == e.d.Vertices[v].Size {
+	if (gw.Size{W: b.W, H: b.H}) == e.d.Vertex(v).Size() {
 		return nil
 	}
 	if err := e.apply(gw.Command{Op: gw.Resize, Vertex: v, Size: gw.Size{W: b.W, H: b.H}}); err != nil {
@@ -141,8 +141,8 @@ func (e *Editor) endResize() error {
 
 // holds reports whether a live vertex is in v.
 func (e *Editor) holds(v gw.VertexIndex) bool {
-	for i := range e.d.Vertices {
-		if e.d.Vertices[i].Live && e.d.Vertices[i].Parent == v {
+	for i := range e.d.VertexSlots() {
+		if e.d.Vertex(gw.VertexIndex(i)).Live() && e.d.Vertex(gw.VertexIndex(i)).Parent() == v { //nolint:gosec // bounded by the capacity
 			return true
 		}
 	}
@@ -153,11 +153,11 @@ func (e *Editor) holds(v gw.VertexIndex) bool {
 // ones and what the selected containers hold.
 func (e *Editor) startDrag() {
 	e.dragV = e.dragV[:0]
-	for i := range e.d.Vertices {
-		v := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
-		if e.d.Vertices[i].Live && e.dragged(v) {
+	for i := range e.d.VertexSlots() {
+		v := gw.VertexIndex(i)                                    //nolint:gosec // bounded by the capacity
+		if e.d.Vertex(gw.VertexIndex(i)).Live() && e.dragged(v) { //nolint:gosec // bounded by the capacity
 			e.dragV = append(e.dragV, v)
-			e.orig[v] = e.d.Vertices[i].Pos
+			e.orig[v] = e.d.Vertex(gw.VertexIndex(i)).Pos() //nolint:gosec // bounded by the capacity
 		}
 	}
 }
@@ -186,7 +186,7 @@ func (e *Editor) root(s gw.VertexIndex) bool {
 // restoreDrag puts the dragged vertices back where the drag began.
 func (e *Editor) restoreDrag() {
 	for _, v := range e.dragV {
-		e.d.Place(v, e.orig[v], e.d.Vertices[v].Placed)
+		e.d.Place(v, e.orig[v], e.d.Vertex(v).Placed())
 		e.touch(v)
 	}
 }
@@ -203,7 +203,7 @@ func (e *Editor) endDrag() error {
 	defer e.d.EndGroup()
 	for _, v := range e.selV {
 		if e.root(v) {
-			e.dropTo[v] = svg.ContainerAt(e.d, e.d.Vertices[v].Pos, v)
+			e.dropTo[v] = svg.ContainerAt(e.d, e.d.Vertex(v).Pos(), v)
 		}
 	}
 	dx, dy := e.last.X-e.down.X, e.last.Y-e.down.Y
@@ -216,7 +216,7 @@ func (e *Editor) endDrag() error {
 		if err := e.apply(gw.Command{Op: gw.Move, Vertex: v, Pos: to}); err != nil {
 			return err
 		}
-		if c := e.dropTo[v]; c != e.d.Vertices[v].Parent {
+		if c := e.dropTo[v]; c != e.d.Vertex(v).Parent() {
 			if err := e.apply(gw.Command{Op: gw.SetParent, Vertex: v, To: c}); err != nil {
 				return err
 			}
@@ -243,7 +243,7 @@ func (e *Editor) endConnect(p gw.Point, shift bool) error {
 		toPort = hit.Port
 	case svg.OutlineHit:
 	case svg.VertexHit:
-		if len(e.d.Vertices[hit.Vertex].Ports) > 0 {
+		if e.d.Vertex(hit.Vertex).Ports().Len() > 0 {
 			return nil
 		}
 	case svg.EdgeHit, svg.Background:
@@ -264,13 +264,13 @@ func (e *Editor) joins(from, to gw.VertexIndex) bool {
 	if e.connKind == gw.None {
 		return e.edgeKindFor(from, to) != gw.None
 	}
-	return e.d.Kinds().Edge(e.connKind).Allows(e.d.Vertices[from].Kind, e.d.Vertices[to].Kind)
+	return e.d.Kinds().Edge(e.connKind).Allows(e.d.Vertex(from).Kind(), e.d.Vertex(to).Kind())
 }
 
 // edgeKindFor is the first edge kind the schema allows between two
 // vertices' kinds, or None.
 func (e *Editor) edgeKindFor(from, to gw.VertexIndex) gw.KindIndex {
-	fk, tk := e.d.Vertices[from].Kind, e.d.Vertices[to].Kind
+	fk, tk := e.d.Vertex(from).Kind(), e.d.Vertex(to).Kind()
 	kinds := e.d.Kinds()
 	// bound: the edge kinds
 	for i := range kinds.EdgeKinds() {

@@ -61,7 +61,7 @@ func TestKeywordClear(t *testing.T) {
 		checked := 0
 		for _, m := range vertexRE.FindAllStringSubmatch(buf.String(), -1) {
 			v := d.VertexByID(gw.ID(m[1]))
-			kind := d.Kinds().Vertex(d.Vertices[v].Kind)
+			kind := d.Kinds().Vertex(d.Vertex(v).Kind())
 			var kw, label gw.Viewport
 			found := 0
 			for _, tm := range kwRE.FindAllStringSubmatch(m[4], -1) {
@@ -89,7 +89,7 @@ func TestKeywordClear(t *testing.T) {
 				continue
 			}
 			checked++
-			size := d.Vertices[v].Size
+			size := d.Vertex(v).Size()
 			if overlaps(kw, label) {
 				t.Errorf("flow %d: %s's keyword %v overlaps its label %v", flow, m[1], kw, label)
 			}

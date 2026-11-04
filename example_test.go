@@ -49,7 +49,7 @@ func Example() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(d.Vertices[0].Pos, d.Vertices[1].Pos)
+	fmt.Println(d.Vertex(0).Pos(), d.Vertex(1).Pos())
 	fmt.Println(strings.HasPrefix(out.String(), "<svg"))
 	// Output:
 	// {0 16} {160 16}
@@ -130,7 +130,7 @@ func Example_dependencyTree() {
 		fmt.Println(err)
 	}
 	d.Undo()
-	fmt.Println(d.Vertices[db].Label)
+	fmt.Println(d.Vertex(db).Label())
 
 	// 5. A layout, top to bottom as a dependency tree is drawn.
 	if _, err := d.Apply(gw.Command{Op: gw.Layout, Text: "all", Value: "top-to-bottom"}); err != nil {
@@ -141,7 +141,7 @@ func Example_dependencyTree() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(res.Layers, "layers; app at", d.Vertices[app].Pos, "log at", d.Vertices[logs].Pos)
+	fmt.Println(res.Layers, "layers; app at", d.Vertex(app).Pos(), "log at", d.Vertex(logs).Pos())
 
 	// 6. Draw it, with the default stylesheet embedded.
 	var picture bytes.Buffer

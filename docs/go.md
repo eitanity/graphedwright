@@ -41,19 +41,26 @@ d.Redo()
 - **`Kinds()`** is the document's kinds. They are read by index, as
   values: `k.Vertex(i)` and `k.Edge(i)`, with `VertexKinds()` and
   `EdgeKinds()` their numbers and `VertexNamed` and `EdgeNamed` an
-  index by name. A kind's lists are read by position, such as
-  `PortCount()` and `Port(j)`, or `AttrCount()` and `Attr(j)`. Out of
-  range, a read is the zero value, or `None` for an index.
+  index by name. A kind's lists, such as `Ports()` and `Attrs()`, are
+  read-only lists (below).
 - **`Apply(cmd)`** applies a command or refuses it, leaving the document
   as it was. It returns the `Change`: the vertices and edges touched,
   and whether the layout is stale. The commands are listed in
   [Concepts](concepts.md#commands-and-undo).
 - **`Undo()`, `Redo()`, `CanUndo()`, `CanRedo()`, `ClearUndo()`** work
   the undo log.
-- **`Vertices` and `Edges`** are slices you can read directly, by index.
-  Deleted elements stay as tombstones (`Live == false`) until
-  `Compact()`, which renumbers and returns the maps from old indices to
-  new.
+- **`Vertex(v)` and `Edge(e)`** read an element by index, as a value:
+  `d.Vertex(v).Label()`, `d.Edge(e).From()`. `VertexSlots()` and
+  `EdgeSlots()` are the number of indices in use. Deleted elements stay
+  as tombstones (`Live()` false) until `Compact()`, which renumbers and
+  returns the maps from old indices to new.
+- **Lists** an element or a kind holds, its ports, attributes and
+  bends, are read-only lists: `Len()` and `At(i)`, and `Value(key)` for
+  attributes, such as `d.Edge(e).Bends().At(0)`. They copy nothing and
+  give no way to change the document. Out of range, a read is the zero
+  value, or `None` for an index. `gw.PortsOf`, `gw.AttrsOf` and
+  `gw.PointsOf` read a caller's own slice the same way, for the
+  functions that take a list, such as `gw.LabelRunes`.
 - **`VertexByID`, `EdgeByID`, `EdgesAt`, `LiveVertices`, `LiveEdges`**
   answer common questions, **`FirstOut(v)` and `NextOut(e)`** walk a
   vertex's out edges without allocating, and **`Parallel(e)`** gives an

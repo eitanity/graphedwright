@@ -73,7 +73,7 @@ func (t *host) Changed(ch gw.Change) (gw.Command, bool) {
 		t.first = ch.Vertices[0]
 		_, t.reentered = t.h.Apply(gw.Command{Op: gw.Relabel, Vertex: t.first, Text: "again"})
 		_, t.locked = t.h.Document().Apply(gw.Command{Op: gw.Relabel, Vertex: t.first, Text: "again"})
-		notes := make([]svg.Annotation, len(t.h.Document().Vertices))
+		notes := make([]svg.Annotation, t.h.Document().VertexSlots())
 		notes[t.first] = svg.Annotation{Text: "seen by Go"}
 		t.annotated = t.h.Annotate(notes, nil)
 		return gw.Command{Op: gw.Relabel, Vertex: t.first, Text: "moved"}, true
@@ -96,11 +96,11 @@ func (t *host) Selected(sv []gw.VertexIndex, se []gw.EdgeIndex) {
 	d := t.h.Document()
 	t.selected = ""
 	for i, v := range sv {
-		t.selected += string(d.Vertices[v].ID)
+		t.selected += string(d.Vertex(v).ID())
 		sv[i] = gw.None
 	}
 	for i, x := range se {
-		t.selected += string(d.Edges[x].ID)
+		t.selected += string(d.Edge(x).ID())
 		se[i] = gw.None
 	}
 }
@@ -155,21 +155,21 @@ func run(page js.Value, r *report) {
 	// in refused, the document locked, an annotation taken, and the
 	// relabel asked for applied as a tail call.
 	t.mode = followOnce
-	before := d.Vertices[a].Pos
+	before := d.Vertex(a).Pos()
 	drag(el, "a", 80)
-	moved := d.Vertices[a].Pos
+	moved := d.Vertex(a).Pos()
 	r.check("a drag reaches Changed with the vertex", t.first == a && moved != before, "pos "+num(moved.X)+" from "+num(before.X))
 	r.check("a call back in is refused", errors.Is(t.reentered, dom.ErrReentered), errText(t.reentered))
 	r.check("the document is locked in Changed", errors.Is(t.locked, gw.ErrLocked), errText(t.locked))
 	r.check("annotate works in Changed and is drawn", t.annotated == nil && strings.Contains(el.Get("textContent").String(), "seen by Go"), errText(t.annotated))
 	r.check("the drag's progress is reported, and a follow-up during it refused", t.moving == 2 && t.gesture && len(t.refusals) == 2 && strings.Contains(t.refusals[0], "gesture"), "moving "+strconv.Itoa(t.moving)+", refusals "+strings.Join(t.refusals, "; "))
-	r.check("the follow-up is applied, drawn and reported", d.Vertices[a].Label == "moved" && t.changed == t.moving+2 && strings.Contains(el.Get("textContent").String(), "moved"), "label "+d.Vertices[a].Label+", changes "+strconv.Itoa(t.changed))
+	r.check("the follow-up is applied, drawn and reported", d.Vertex(a).Label() == "moved" && t.changed == t.moving+2 && strings.Contains(el.Get("textContent").String(), "moved"), "label "+d.Vertex(a).Label()+", changes "+strconv.Itoa(t.changed))
 	r.check("no lock left", !d.Locked(), "")
 
 	// Ctrl+Z from the keyboard takes back the drag and its follow-up.
 	t.mode = followNone
 	el.Call("dispatchEvent", js.Global().Get("KeyboardEvent").New("keydown", obj(map[string]any{"key": "z", "ctrlKey": true, "bubbles": true})))
-	r.check("one undo takes back the edit and its follow-up", d.Vertices[a].Pos == before && d.Vertices[a].Label == "a", "label "+d.Vertices[a].Label+" pos "+num(d.Vertices[a].Pos.X))
+	r.check("one undo takes back the edit and its follow-up", d.Vertex(a).Pos() == before && d.Vertex(a).Label() == "a", "label "+d.Vertex(a).Label()+" pos "+num(d.Vertex(a).Pos().X))
 	chains(page, el, h, t, a, r)
 	lifecycle(el, h, t, r)
 }
@@ -183,7 +183,7 @@ func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *repo
 	// every follow-up are taken back, and the take-back is reported.
 	t.mode, t.changed, t.refusals = followAlways, 0, nil
 	_, err := h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "start"})
-	r.check("a chain past the bound is taken back with its edit", strings.Contains(errText(err), "taken back") && t.changed == dom.DefaultMaxFollow+2 && len(t.refusals) == 1 && d.Vertices[a].Label == "a", "changes "+strconv.Itoa(t.changed)+", refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertices[a].Label+", "+errText(err))
+	r.check("a chain past the bound is taken back with its edit", strings.Contains(errText(err), "taken back") && t.changed == dom.DefaultMaxFollow+2 && len(t.refusals) == 1 && d.Vertex(a).Label() == "a", "changes "+strconv.Itoa(t.changed)+", refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertex(a).Label()+", "+errText(err))
 	drawn := el.Call("querySelector", "#a").Get("textContent").String()
 	r.check("nothing of it is drawn or left to undo or redo", !d.CanUndo() && !d.CanRedo() && drawn == "aseen by Go", "a drawn as "+strconv.Quote(drawn))
 
@@ -191,7 +191,7 @@ func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *repo
 	// follow-ups before it, and the refusal names both.
 	t.mode, t.changed, t.refusals = followBad, 0, nil
 	_, err = h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "edit"})
-	r.check("a refused follow-up takes back its edit", len(t.refusals) == 1 && strings.Contains(t.refusals[0], "refused, so the edit was taken back") && strings.Contains(t.refusals[0], "9999") && err != nil && d.Vertices[a].Label == "a" && !d.CanUndo(), "refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertices[a].Label)
+	r.check("a refused follow-up takes back its edit", len(t.refusals) == 1 && strings.Contains(t.refusals[0], "refused, so the edit was taken back") && strings.Contains(t.refusals[0], "9999") && err != nil && d.Vertex(a).Label() == "a" && !d.CanUndo(), "refusals "+strings.Join(t.refusals, "; ")+", label "+d.Vertex(a).Label())
 	t.mode = followNone
 
 	// A host's own bound.

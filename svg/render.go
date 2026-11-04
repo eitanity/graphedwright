@@ -172,14 +172,14 @@ func (r *Renderer) Render(d *gw.Document, opts Options, w io.Writer) error {
 		r.vertex(d, opts, v)
 	}
 	o.str(`</g><g class="edges">`)
-	for i := range d.Edges {
-		if d.Edges[i].Live {
+	for i := range d.EdgeSlots() {
+		if d.Edge(gw.EdgeIndex(i)).Live() { //nolint:gosec // bounded by the capacity
 			r.edge(d, opts, gw.EdgeIndex(i), maxW) //nolint:gosec // bounded by the capacity
 		}
 	}
 	o.str(`</g><g class="vertices">`)
-	for i := range d.Vertices {
-		if d.Vertices[i].Live && !d.Kinds().Vertex(d.Vertices[i].Kind).Container() {
+	for i := range d.VertexSlots() {
+		if d.Vertex(gw.VertexIndex(i)).Live() && !d.Kinds().Vertex(d.Vertex(gw.VertexIndex(i)).Kind()).Container() { //nolint:gosec // bounded by the capacity
 			r.vertex(d, opts, gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -305,12 +305,12 @@ func (r *Renderer) tailMarker(i int, k gw.EdgeKindView, prefix string) {
 // annotations, for the stroke scale; 1 when there is none.
 func maxWeight(d *gw.Document, opts Options) float64 {
 	m := 0.0
-	for i := range d.Edges {
-		e := &d.Edges[i]
-		if !e.Live || !d.Kinds().Edge(e.Kind).Weighted() {
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() || !d.Kinds().Edge(e.Kind()).Weighted() {
 			continue
 		}
-		w := e.Weight
+		w := e.Weight()
 		if i < len(opts.EdgeNotes) && noteWeight(opts.EdgeNotes[i].Weight) {
 			w = opts.EdgeNotes[i].Weight
 		}
@@ -332,11 +332,11 @@ func noteWeight(w float64) bool { return w > 0 && w <= gw.MaxCoord }
 // strokeWidth is an edge's stroke width: the default, or for a weighted
 // edge 1 to 7 by its weight against the largest.
 func strokeWidth(d *gw.Document, opts Options, i int, maxW float64) float64 {
-	e := &d.Edges[i]
-	if !d.Kinds().Edge(e.Kind).Weighted() {
+	e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+	if !d.Kinds().Edge(e.Kind()).Weighted() {
 		return opts.DefaultWeight
 	}
-	w := e.Weight
+	w := e.Weight()
 	if i < len(opts.EdgeNotes) && noteWeight(opts.EdgeNotes[i].Weight) {
 		w = opts.EdgeNotes[i].Weight
 	}
@@ -351,8 +351,8 @@ func strokeWidth(d *gw.Document, opts Options, i int, maxW float64) float64 {
 // annotation at the midpoint.
 func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float64) {
 	o := r.o
-	e := &d.Edges[i]
-	kind := d.Kinds().Edge(e.Kind)
+	e := d.Edge(i)
+	kind := d.Kinds().Edge(e.Kind())
 	note := noteOf(opts.EdgeNotes, int(i))
 	o.str(`<g class="edge `)
 	r.kindClass(kind.Name())
@@ -365,15 +365,15 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	}
 	o.str(`" id="`)
 	o.name(opts.DocIDPrefix)
-	o.attr(string(e.ID))
+	o.attr(string(e.ID()))
 	o.str(`" data-kind="`)
 	o.attr(kind.Name())
 	o.str(`" data-from="`)
-	o.attr(string(d.Vertices[e.From].ID))
+	o.attr(string(d.Vertex(e.From()).ID()))
 	o.str(`" data-to="`)
-	o.attr(string(d.Vertices[e.To].ID))
+	o.attr(string(d.Vertex(e.To()).ID()))
 	o.byte('"')
-	r.dataAttrs(e.Attrs)
+	r.dataAttrs(e.Attrs())
 	o.byte('>')
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
@@ -385,14 +385,14 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 		o.str(` marker-start="url(#`)
 		o.name(opts.IDPrefix)
 		o.str(`tail-`)
-		o.int(int(e.Kind))
+		o.int(int(e.Kind()))
 		o.str(`)"`)
 	}
 	if kind.Arrow() {
 		o.str(` marker-end="url(#`)
 		o.name(opts.IDPrefix)
 		o.str(`arrow-`)
-		o.int(int(e.Kind))
+		o.int(int(e.Kind()))
 		o.str(`)"`)
 	}
 	o.str(`/>`)
@@ -410,7 +410,7 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 // stereotype and then the label above the stroke at the middle, the
 // annotation below it; on side -1, for a lane below the others, the
 // other way about, so that they are outside the lanes.
-func (r *Renderer) levelLabels(kind gw.EdgeKindView, e *gw.Edge, note Annotation, mid gw.Point, width, side float64, opts Options) {
+func (r *Renderer) levelLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annotation, mid gw.Point, width, side float64, opts Options) {
 	above, below := mid.Y-float64(width/2)-4, mid.Y+float64(width/2)+opts.FontSize
 	near, step, far := above, -opts.FontSize, below
 	if side < 0 {
@@ -420,8 +420,8 @@ func (r *Renderer) levelLabels(kind gw.EdgeKindView, e *gw.Edge, note Annotation
 		r.label("stereotype", kind.Stereotype(), mid.X, near, 0, opts)
 		near += step
 	}
-	if gw.LabelRunes(kind.LabelFormat(), e.Label, e.Attrs) > 0 {
-		r.formatted("label", kind.LabelFormat(), e.Label, e.Attrs, mid.X, near, 0, "middle", opts)
+	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
+		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), mid.X, near, 0, "middle", opts)
 	}
 	if note.Text != "" {
 		r.label("annotation", note.Text, mid.X, far, 0, opts)
@@ -432,15 +432,15 @@ func (r *Renderer) levelLabels(kind gw.EdgeKindView, e *gw.Edge, note Annotation
 // edges mostly run down: the label to the right of the stroke at the
 // middle, the stereotype above the label, the annotation to the left;
 // on side -1, for a lane left of the others, the other way about.
-func (r *Renderer) besideLabels(kind gw.EdgeKindView, e *gw.Edge, note Annotation, mid gw.Point, width, side float64, opts Options) {
+func (r *Renderer) besideLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annotation, mid gw.Point, width, side float64, opts Options) {
 	x, other, y := mid.X+float64(width/2)+4, mid.X-float64(width/2)-4, mid.Y+opts.FontSize/3
 	anchor, otherAnchor := "start", anchorEnd
 	if side < 0 {
 		x, other, anchor, otherAnchor = other, x, otherAnchor, anchor
 	}
 	above := y
-	if gw.LabelRunes(kind.LabelFormat(), e.Label, e.Attrs) > 0 {
-		r.formatted("label", kind.LabelFormat(), e.Label, e.Attrs, x, y, 0, anchor, opts)
+	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
+		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), x, y, 0, anchor, opts)
 		above -= opts.FontSize
 	}
 	if kind.Stereotype() != "" {
@@ -454,7 +454,7 @@ func (r *Renderer) besideLabels(kind gw.EdgeKindView, e *gw.Edge, note Annotatio
 // path writes the opening of an edge's path element with its route
 // from a through the bends to b, leg by leg, each worked out in the
 // frame and written back in the document's axes.
-func (r *Renderer) path(f frame, kind gw.EdgeKindView, a gw.Point, bends []gw.Point, b gw.Point) {
+func (r *Renderer) path(f frame, kind gw.EdgeKindView, a gw.Point, bends gw.PointList, b gw.Point) {
 	o := r.o
 	o.str(`<path d="M `)
 	o.point(a.X, a.Y)
@@ -462,10 +462,10 @@ func (r *Renderer) path(f frame, kind gw.EdgeKindView, a gw.Point, bends []gw.Po
 	if f.down {
 		across, down = down, across
 	}
-	for k := range len(bends) + 1 {
+	for k := range bends.Len() + 1 {
 		p, q := leg(a, bends, b, k)
 		p, q = f.t(p), f.t(q)
-		switch legRoute(kind.Route(), len(bends) > 0, p, q) {
+		switch legRoute(kind.Route(), bends.Len() > 0, p, q) {
 		case gw.Straight:
 			r.at(f, ` L `, q)
 		case gw.Curve:
@@ -504,8 +504,8 @@ func noteOf(notes []Annotation, i int) Annotation {
 // shape, its texts and the ports.
 func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	o := r.o
-	v := &d.Vertices[i]
-	kind := d.Kinds().Vertex(v.Kind)
+	v := d.Vertex(i)
+	kind := d.Kinds().Vertex(v.Kind())
 	note := noteOf(opts.VertexNotes, int(i))
 	o.str(`<g class="vertex `)
 	r.kindClass(kind.Name())
@@ -519,20 +519,20 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 		o.byte(' ')
 		o.name(note.Class)
 	}
-	if !v.Placed {
+	if !v.Placed() {
 		o.str(" unplaced")
 	}
 	o.str(`" id="`)
 	o.name(opts.DocIDPrefix)
-	o.attr(string(v.ID))
+	o.attr(string(v.ID()))
 	o.str(`" data-kind="`)
 	o.attr(kind.Name())
 	o.str(`" transform="translate(`)
-	o.point(v.Pos.X, v.Pos.Y)
+	o.point(v.Pos().X, v.Pos().Y)
 	o.str(`)"`)
-	r.dataAttrs(v.Attrs)
+	r.dataAttrs(v.Attrs())
 	o.byte('>')
-	r.shape(shapeClass, kind.Shape(), v.Size)
+	r.shape(shapeClass, kind.Shape(), v.Size())
 	r.texts(d, opts, i)
 	r.ports(d, i)
 	o.str(`</g>`)
@@ -542,17 +542,17 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 // full text as its title: the keyword and label, the container's
 // title or the compartments, and the annotation.
 func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
-	v := &d.Vertices[i]
-	kind := d.Kinds().Vertex(v.Kind)
+	v := d.Vertex(i)
+	kind := d.Kinds().Vertex(v.Kind())
 	note := noteOf(opts.VertexNotes, int(i))
-	labelY, labelW := 4.0, v.Size.W-8
+	labelY, labelW := 4.0, v.Size().W-8
 	if note.Text != "" {
 		labelY = -2
 	}
 	if kind.Shape() == gw.Actor {
 		// An actor's label is at the foot of its box, under the
 		// figure, as wide as it needs.
-		labelY, labelW = float64(v.Size.H/2)-4, 0
+		labelY, labelW = float64(v.Size().H/2)-4, 0
 	}
 	switch {
 	case kind.Container():
@@ -567,16 +567,16 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 			half := float64(opts.FontSize/2) + 1
 			kwY := labelY - half
 			if kind.Shape() == gw.Actor {
-				kwY = float64(-v.Size.H/2) - 4
+				kwY = float64(-v.Size().H/2) - 4
 			} else {
 				labelY += half
 			}
 			r.label("keyword", kw, 0, kwY, labelW, opts)
 		}
-		r.formatted("label", kind.LabelFormat(), v.Label, v.Attrs, 0, labelY, labelW, "middle", opts)
+		r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), 0, labelY, labelW, "middle", opts)
 	}
 	if note.Text != "" {
-		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size.W-8, opts)
+		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size().W-8, opts)
 	}
 }
 
@@ -585,20 +585,20 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 // a rule across the vertex, then a line of text for each line of the
 // value, cut at the vertex's width as a label is. The sizes are the
 // document's, by which the vertex was sized to hold them.
-func (r *Renderer) compartments(v *gw.Vertex, kind gw.VertexKindView, labelW float64, opts Options) {
+func (r *Renderer) compartments(v gw.VertexView, kind gw.VertexKindView, labelW float64, opts Options) {
 	o := r.o
-	top, room := float64(-v.Size.H/2), gw.TitleRoom(kind)
+	top, room := float64(-v.Size().H/2), gw.TitleRoom(kind)
 	if kind.Keyword() != "" {
 		r.label("keyword", kind.Keyword(), 0, top+gw.CompartmentTitle-8, labelW, opts)
 	}
-	r.formatted("label", kind.LabelFormat(), v.Label, v.Attrs, 0, top+room-8, labelW, "middle", opts)
+	r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), 0, top+room-8, labelW, "middle", opts)
 	fixed := opts
 	fixed.CharWidth = gw.CharWidth
-	left, w, y := float64(-v.Size.W/2), v.Size.W, top+room
+	left, w, y := float64(-v.Size().W/2), v.Size().W, top+room
 	// bound: the kind's compartments
-	for c := range kind.CompartmentCount() {
-		key := kind.Compartment(c)
-		val := gw.AttrValue(v.Attrs, key)
+	for c := range kind.Compartments().Len() {
+		key := kind.Compartments().At(c)
+		val := v.Attrs().Value(key)
 		if val == "" {
 			continue
 		}
@@ -629,9 +629,9 @@ func (r *Renderer) compartments(v *gw.Vertex, kind gw.VertexKindView, labelW flo
 
 // title draws a container's label, its title, in the room at its top,
 // after its kind's keyword if it has one.
-func (r *Renderer) title(v *gw.Vertex, kind gw.VertexKindView, opts Options) {
+func (r *Renderer) title(v gw.VertexView, kind gw.VertexKindView, opts Options) {
 	keyword := kind.Keyword()
-	x, y, w := float64(-v.Size.W/2)+8, float64(-v.Size.H/2)+gw.ContainerTitle-6, v.Size.W-16
+	x, y, w := float64(-v.Size().W/2)+8, float64(-v.Size().H/2)+gw.ContainerTitle-6, v.Size().W-16
 	if keyword != "" {
 		r.labelAt("keyword", keyword, x, y, w, "start", opts)
 		// A keyword is drawn smaller than a label, at about nine
@@ -639,7 +639,7 @@ func (r *Renderer) title(v *gw.Vertex, kind gw.VertexKindView, opts Options) {
 		kw := math.Min(w, float64(float64(runeCount(keyword))*float64(opts.CharWidth*0.9))+float64(opts.CharWidth/2))
 		x, w = x+kw, w-kw
 	}
-	r.formatted("label", kind.LabelFormat(), v.Label, v.Attrs, x, y, w, "start", opts)
+	r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), x, y, w, "start", opts)
 }
 
 // shapeClass is the class of a vertex's own shape, as against the
@@ -768,13 +768,13 @@ func (r *Renderer) label(class, text string, x, y, width float64, opts Options) 
 
 // labelAt is label anchored at the start, middle or end of the text.
 func (r *Renderer) labelAt(class, text string, x, y, width float64, anchor string, opts Options) {
-	r.formatted(class, "", text, nil, x, y, width, anchor, opts)
+	r.formatted(class, "", text, gw.AttrList{}, x, y, width, anchor, opts)
 }
 
 // formatted is labelAt for the label a kind's format draws from the
 // label as set and the attributes, written part by part, with nothing
 // built.
-func (r *Renderer) formatted(class, format, text string, attrs []gw.Attr, x, y, width float64, anchor string, opts Options) {
+func (r *Renderer) formatted(class, format, text string, attrs gw.AttrList, x, y, width float64, anchor string, opts Options) {
 	o := r.o
 	// The fit is converted only below the text's length, so that it is
 	// within an int on every target.
@@ -843,7 +843,7 @@ func (r *Renderer) textOpen(class, mark string, x, y float64, anchor string) {
 // expanded writes a cut text in full for the overlay, at its place in
 // the hovered vertex, over a box as wide as its estimated width, the
 // width it was cut by.
-func (r *Renderer) expanded(class, format, text string, attrs []gw.Attr, x, y float64, runes int, anchor string, opts Options) {
+func (r *Renderer) expanded(class, format, text string, attrs gw.AttrList, x, y float64, runes int, anchor string, opts Options) {
 	o := r.o
 	w := float64(float64(runes)*opts.CharWidth) + 4
 	left := x - 2
@@ -863,7 +863,7 @@ func (r *Renderer) expanded(class, format, text string, attrs []gw.Attr, x, y fl
 }
 
 // parts writes the first n characters of the label a format draws.
-func (r *Renderer) parts(format, label string, attrs []gw.Attr, n int) {
+func (r *Renderer) parts(format, label string, attrs gw.AttrList, n int) {
 	// bound: the format's parts, at most its length
 	for more := true; more; {
 		var before, value, after string
@@ -908,42 +908,44 @@ func (r *Renderer) textRunes(s string, n int) {
 
 // ports writes a vertex's ports as circles on its sides.
 func (r *Renderer) ports(d *gw.Document, vi gw.VertexIndex) {
-	v := &d.Vertices[vi]
-	if len(v.Ports) == 0 {
+	v := d.Vertex(vi)
+	if v.Ports().Len() == 0 {
 		return
 	}
 	o := r.o
 	o.str(`<g class="ports">`)
-	for i := range v.Ports {
+	for i := range v.Ports().Len() {
 		p := portAt(v, gw.PortIndex(i)) //nolint:gosec // bounded by the ports per vertex
 		o.str(`<circle class="port" data-port="`)
-		o.attr(v.Ports[i].Name)
+		o.attr(v.Ports().At(i).Name)
 		o.byte('"')
-		o.numAttr("cx", p.X-v.Pos.X)
-		o.numAttr("cy", p.Y-v.Pos.Y)
+		o.numAttr("cx", p.X-v.Pos().X)
+		o.numAttr("cy", p.Y-v.Pos().Y)
 		o.numAttr("r", portRadius)
 		o.str(`/>`)
 	}
 	// A vertex's own ports are named beside them; its kind's are
 	// known from the kind.
-	for i := d.Kinds().Vertex(v.Kind).PortCount(); i < len(v.Ports); i++ {
+	// bound: the vertex's own ports, at most the ports per vertex
+	for i := d.Kinds().Vertex(v.Kind()).Ports().Len(); i < v.Ports().Len(); i++ {
 		x, y, anchor, _ := portLabel(d, vi, gw.PortIndex(i)) //nolint:gosec // bounded by the ports per vertex
 		o.str(`<text class="port-label"`)
-		o.numAttr("x", x-v.Pos.X)
-		o.numAttr("y", y-v.Pos.Y)
+		o.numAttr("x", x-v.Pos().X)
+		o.numAttr("y", y-v.Pos().Y)
 		o.str(` text-anchor="`)
 		o.str(anchor)
 		o.str(`">`)
-		o.text(v.Ports[i].Name)
+		o.text(v.Ports().At(i).Name)
 		o.str(`</text>`)
 	}
 	o.str(`</g>`)
 }
 
 // dataAttrs writes an element's attributes as data-* attributes.
-func (r *Renderer) dataAttrs(attrs []gw.Attr) {
+func (r *Renderer) dataAttrs(attrs gw.AttrList) {
 	o := r.o
-	for _, a := range attrs {
+	for i := range attrs.Len() {
+		a := attrs.At(i)
 		o.str(` data-`)
 		o.name(a.Key)
 		o.str(`="`)
@@ -970,7 +972,7 @@ func (r *Renderer) overlay(d *gw.Document, opts Options, maxW float64) {
 			o.str(`"/>`)
 		}
 		if opts.HasTarget && vertexLive(d, opts.Target) {
-			r.target(d, &d.Vertices[opts.Target])
+			r.target(d, d.Vertex(opts.Target))
 		}
 		if opts.HasMarquee {
 			r.rect(`<rect class="marquee"`, opts.Marquee)
@@ -979,7 +981,7 @@ func (r *Renderer) overlay(d *gw.Document, opts Options, maxW float64) {
 	// The hovered vertex's cut texts are drawn in full over everything,
 	// in either mode.
 	if opts.HasHover && vertexLive(d, opts.Hover) {
-		r.expand, r.centre = true, d.Vertices[opts.Hover].Pos
+		r.expand, r.centre = true, d.Vertex(opts.Hover).Pos()
 		r.texts(d, opts, opts.Hover)
 		r.expand = false
 	}
@@ -994,19 +996,19 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 	}
 	o := r.o
 	nv, ne := opts.Selection.SelectedCount()
-	nv, ne = min(nv, len(d.Vertices)), min(ne, len(d.Edges))
+	nv, ne = min(nv, d.VertexSlots()), min(ne, d.EdgeSlots())
 	// bound: the selected vertices, at most the document's capacity
 	for i := range nv {
 		v := opts.Selection.SelectedVertex(i)
 		if !vertexLive(d, v) {
 			continue
 		}
-		vx := &d.Vertices[v]
+		vx := d.Vertex(v)
 		o.str(`<rect class="selection"`)
-		o.numAttr("x", vx.Pos.X-float64(vx.Size.W/2)-3)
-		o.numAttr("y", vx.Pos.Y-float64(vx.Size.H/2)-3)
-		o.numAttr("width", vx.Size.W+6)
-		o.numAttr("height", vx.Size.H+6)
+		o.numAttr("x", vx.Pos().X-float64(vx.Size().W/2)-3)
+		o.numAttr("y", vx.Pos().Y-float64(vx.Size().H/2)-3)
+		o.numAttr("width", vx.Size().W+6)
+		o.numAttr("height", vx.Size().H+6)
 		o.str(`/>`)
 	}
 	// bound: the selected edges, at most the document's capacity
@@ -1015,8 +1017,8 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 		if !edgeLive(d, e) {
 			continue
 		}
-		ed := &d.Edges[e]
-		kind := d.Kinds().Edge(ed.Kind)
+		ed := d.Edge(e)
+		kind := d.Kinds().Edge(ed.Kind())
 		var lane [1]gw.Point
 		w := wayOf(d, e, &lane)
 		r.path(w.f, kind, w.a, w.through, w.shortened(kind))
@@ -1039,21 +1041,21 @@ func (r *Renderer) rect(start string, b gw.Viewport) {
 
 // target rings a vertex where an edge can start or end: its shape again,
 // stroked as wide as the band the hit test takes as its outline.
-func (r *Renderer) target(d *gw.Document, v *gw.Vertex) {
+func (r *Renderer) target(d *gw.Document, v gw.VertexView) {
 	o := r.o
 	o.str(`<g class="target" transform="translate(`)
-	o.point(v.Pos.X, v.Pos.Y)
+	o.point(v.Pos().X, v.Pos().Y)
 	o.str(`)"`)
 	o.numAttr("stroke-width", 2*band(v))
 	o.byte('>')
-	r.shape("ring", d.Kinds().Vertex(v.Kind).Shape(), v.Size)
+	r.shape("ring", d.Kinds().Vertex(v.Kind()).Shape(), v.Size())
 	o.str(`</g>`)
 }
 
 func vertexLive(d *gw.Document, v gw.VertexIndex) bool {
-	return v >= 0 && int(v) < len(d.Vertices) && d.Vertices[v].Live
+	return v >= 0 && int(v) < d.VertexSlots() && d.Vertex(v).Live()
 }
 
 func edgeLive(d *gw.Document, e gw.EdgeIndex) bool {
-	return e >= 0 && int(e) < len(d.Edges) && d.Edges[e].Live
+	return e >= 0 && int(e) < d.EdgeSlots() && d.Edge(e).Live()
 }

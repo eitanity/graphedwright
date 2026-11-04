@@ -20,7 +20,7 @@ viewport.
 - **IDs** are strings. A host can give its own; otherwise the document
   mints `v1, v2, …` and `e1, e2, …`. An ID is never reused within a
   document, so an undo can bring an element back as it was.
-- **Indices** name elements in Go: `d.Vertices[v]`, `d.Edges[e]`. A
+- **Indices** name elements in Go: `d.Vertex(v)`, `d.Edge(e)`. A
   deleted element stays in place as a tombstone until `Compact`, which
   renumbers and returns the map from old indices to new.
 

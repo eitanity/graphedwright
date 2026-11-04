@@ -31,7 +31,7 @@ const insidePts = 2 * maxCross * 4
 func crossed(d *gw.Document, v, c gw.VertexIndex) int {
 	n := 0
 	// bound: the parent chain is acyclic, so at most the vertex count
-	for p, k := d.Vertices[v].Parent, 0; p != gw.None && p != c && n < maxCross && k <= len(d.Vertices); p, k = d.Vertices[p].Parent, k+1 {
+	for p, k := d.Vertex(v).Parent(), 0; p != gw.None && p != c && n < maxCross && k <= d.VertexSlots(); p, k = d.Vertex(p).Parent(), k+1 {
 		n++
 	}
 	return n
@@ -40,9 +40,9 @@ func crossed(d *gw.Document, v, c gw.VertexIndex) int {
 // frameBox is a vertex's box in the frame's axes: layers along x.
 type frameBox struct{ x0, x1, y0, y1, cy float64 }
 
-func (l *Layouter) frame(v *gw.Vertex) frameBox {
-	x, y := l.swap(v.Pos.X, v.Pos.Y)
-	w, h := l.swap(v.Size.W, v.Size.H)
+func (l *Layouter) frame(v gw.VertexView) frameBox {
+	x, y := l.swap(v.Pos().X, v.Pos().Y)
+	w, h := l.swap(v.Size().W, v.Size().H)
 	return frameBox{x0: x - float64(w/2), x1: x + float64(w/2), y0: y - float64(h/2), y1: y + float64(h/2), cy: y}
 }
 
@@ -62,7 +62,7 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	if len(buf) < 4 {
 		return 0
 	}
-	mb, cb := l.frame(&d.Vertices[m]), l.frame(&d.Vertices[c])
+	mb, cb := l.frame(d.Vertex(m)), l.frame(d.Vertex(c))
 	low := !r.up // entered from the low side, going to higher x
 	if (low && r.fx >= cb.x0) || (!low && r.fx <= cb.x1) {
 		return 0
@@ -108,9 +108,9 @@ func (l *Layouter) span(d *gw.Document, c, m gw.VertexIndex, mb frameBox, low bo
 	if !low {
 		sp.near = math.Inf(1)
 	}
-	for i := range d.Vertices {
-		o := &d.Vertices[i]
-		if !o.Live || o.Parent != c || gw.VertexIndex(i) == m { //nolint:gosec // bounded by the capacity
+	for i := range d.VertexSlots() {
+		o := d.Vertex(gw.VertexIndex(i))                            //nolint:gosec // bounded by the capacity
+		if !o.Live() || o.Parent() != c || gw.VertexIndex(i) == m { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		ob := l.frame(o)
@@ -152,9 +152,9 @@ func (l *Layouter) alongPad(d *gw.Document, r run, cb, mb frameBox, low bool, g 
 // frame, misses every member of c but m.
 func (l *Layouter) clearRun(d *gw.Document, c, m gw.VertexIndex, gx, y0, y1 float64) bool {
 	lo, hi := math.Min(y0, y1), math.Max(y0, y1)
-	for i := range d.Vertices {
-		o := &d.Vertices[i]
-		if !o.Live || o.Parent != c || gw.VertexIndex(i) == m { //nolint:gosec // bounded by the capacity
+	for i := range d.VertexSlots() {
+		o := d.Vertex(gw.VertexIndex(i))                            //nolint:gosec // bounded by the capacity
+		if !o.Live() || o.Parent() != c || gw.VertexIndex(i) == m { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		if ob := l.frame(o); ob.x0 < gx && gx < ob.x1 && ob.y0 < hi && lo < ob.y1 {
@@ -167,11 +167,11 @@ func (l *Layouter) clearRun(d *gw.Document, c, m gw.VertexIndex, gx, y0, y1 floa
 // clearLeg reports whether the leg from (x0, y0) to (x1, y1), in the
 // frame, misses every vertex that holds neither end of edge e.
 func (l *Layouter) clearLeg(d *gw.Document, e gw.EdgeIndex, x0, y0, x1, y1 float64) bool {
-	ed := &d.Edges[e]
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		u := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
-		if !v.Live || d.Within(ed.From, u) || d.Within(ed.To, u) {
+	ed := d.Edge(e)
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		u := gw.VertexIndex(i)           //nolint:gosec // bounded by the capacity
+		if !v.Live() || d.Within(ed.From(), u) || d.Within(ed.To(), u) {
 			continue
 		}
 		if meets(x0, y0, x1, y1, l.frame(v)) {
@@ -217,7 +217,7 @@ func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, 
 	n := 0
 	m := v
 	// bound: the parent chain, at most maxCross containers
-	for p := d.Vertices[v].Parent; p != gw.None && p != level && n < maxCross; p = d.Vertices[p].Parent {
+	for p := d.Vertex(v).Parent(); p != gw.None && p != level && n < maxCross; p = d.Vertex(p).Parent() {
 		chain[n], box[n] = m, p
 		n++
 		m = p
@@ -237,10 +237,10 @@ func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, 
 // eLevelOf is the container whose level an edge is laid out at: the
 // innermost holding both its ends, or None at the top.
 func eLevelOf(d *gw.Document, e gw.EdgeIndex) gw.VertexIndex {
-	ed := &d.Edges[e]
+	ed := d.Edge(e)
 	// bound: the parent chain is acyclic, so at most the vertex count
-	for c, k := d.Vertices[ed.From].Parent, 0; c != gw.None && k <= len(d.Vertices); c, k = d.Vertices[c].Parent, k+1 {
-		if d.Within(ed.To, c) {
+	for c, k := d.Vertex(ed.From()).Parent(), 0; c != gw.None && k <= d.VertexSlots(); c, k = d.Vertex(c).Parent(), k+1 {
+		if d.Within(ed.To(), c) {
 			return c
 		}
 	}

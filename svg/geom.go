@@ -25,34 +25,41 @@ const outlineBand = 6
 const edgeSamples = 16
 
 // PortAt is the absolute position of port p of vertex v, as drawn.
-func PortAt(v *gw.Vertex, p gw.PortIndex) gw.Point { return portAt(v, p) }
+func PortAt(v gw.VertexView, p gw.PortIndex) gw.Point { return portAt(v, p) }
 
 // portAt is the absolute position of port p of vertex v: ports on a side
 // are spaced evenly along it.
-func portAt(v *gw.Vertex, p gw.PortIndex) gw.Point {
-	side := v.Ports[p].Side
+func portAt(v gw.VertexView, p gw.PortIndex) gw.Point {
+	ports, pos := v.Ports(), v.Pos()
+	side := ports.At(int(p)).Side
 	n, k := 0, 0
-	for i := range v.Ports {
-		if v.Ports[i].Side == side {
+	for i := range ports.Len() {
+		if ports.At(i).Side == side {
 			if gw.PortIndex(i) == p { //nolint:gosec // bounded by the ports per vertex
 				k = n
 			}
 			n++
 		}
 	}
+	return sidePoint(pos, v.Size(), side, k, n)
+}
+
+// sidePoint is where the kth of n ports on a side of a vertex at pos of
+// the size is: the side divided evenly among them.
+func sidePoint(pos gw.Point, size gw.Size, side gw.Side, k, n int) gw.Point {
 	t := float64(k+1) / float64(n+1)
-	w, h := v.Size.W, v.Size.H
+	w, h := size.W, size.H
 	switch side {
 	case gw.Left:
-		return gw.Point{X: v.Pos.X - float64(w/2), Y: v.Pos.Y - float64(h/2) + float64(h*t)}
+		return gw.Point{X: pos.X - float64(w/2), Y: pos.Y - float64(h/2) + float64(h*t)}
 	case gw.Right:
-		return gw.Point{X: v.Pos.X + float64(w/2), Y: v.Pos.Y - float64(h/2) + float64(h*t)}
+		return gw.Point{X: pos.X + float64(w/2), Y: pos.Y - float64(h/2) + float64(h*t)}
 	case gw.Top:
-		return gw.Point{X: v.Pos.X - float64(w/2) + float64(w*t), Y: v.Pos.Y - float64(h/2)}
+		return gw.Point{X: pos.X - float64(w/2) + float64(w*t), Y: pos.Y - float64(h/2)}
 	case gw.Bottom:
-		return gw.Point{X: v.Pos.X - float64(w/2) + float64(w*t), Y: v.Pos.Y + float64(h/2)}
+		return gw.Point{X: pos.X - float64(w/2) + float64(w*t), Y: pos.Y + float64(h/2)}
 	}
-	return v.Pos
+	return pos
 }
 
 // ends are the points an edge leaves from and arrives at: its ports, or
@@ -62,49 +69,49 @@ func portAt(v *gw.Vertex, p gw.PortIndex) gw.Point {
 // centres, or the bottom and top in a top-to-bottom flow, the way the
 // layers run; for a backward edge, the left and right, or the top and
 // bottom.
-func ends(d *gw.Document, e *gw.Edge, through []gw.Point) (a, b gw.Point) {
-	from, to := &d.Vertices[e.From], &d.Vertices[e.To]
-	if d.Kinds().Edge(e.Kind).Route() == gw.Straight && e.From != e.To {
-		a, b = from.Pos, to.Pos
-		if e.FromPort != gw.None {
-			a = portAt(from, e.FromPort)
+func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
+	from, to := d.Vertex(e.From()), d.Vertex(e.To())
+	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight && e.From() != e.To() {
+		a, b = from.Pos(), to.Pos()
+		if e.FromPort() != gw.None {
+			a = portAt(from, e.FromPort())
 		}
-		if e.ToPort != gw.None {
-			b = portAt(to, e.ToPort)
+		if e.ToPort() != gw.None {
+			b = portAt(to, e.ToPort())
 		}
 		ta, tb := b, a
-		if n := len(through); n > 0 {
-			ta, tb = through[0], through[n-1]
+		if n := through.Len(); n > 0 {
+			ta, tb = through.At(0), through.At(n-1)
 		}
 		ca, cb := a, b
-		if e.FromPort == gw.None {
-			ca = clip(d.Kinds().Vertex(from.Kind).Shape(), from, ta)
+		if e.FromPort() == gw.None {
+			ca = clip(d.Kinds().Vertex(from.Kind()).Shape(), from, ta)
 		}
-		if e.ToPort == gw.None {
-			cb = clip(d.Kinds().Vertex(to.Kind).Shape(), to, tb)
+		if e.ToPort() == gw.None {
+			cb = clip(d.Kinds().Vertex(to.Kind()).Shape(), to, tb)
 		}
 		return ca, cb
 	}
 	down := d.Flow() == gw.TopToBottom
-	fromH, fromW, toH, toW := float64(from.Size.H/2), float64(from.Size.W/2), float64(to.Size.H/2), float64(to.Size.W/2)
+	fromH, fromW, toH, toW := float64(from.Size().H/2), float64(from.Size().W/2), float64(to.Size().H/2), float64(to.Size().W/2)
 	if backward(d, e) {
 		fromH, fromW, toH, toW = -fromH, -fromW, -toH, -toW
 	}
 	switch {
-	case e.FromPort != gw.None:
-		a = portAt(from, e.FromPort)
+	case e.FromPort() != gw.None:
+		a = portAt(from, e.FromPort())
 	case down:
-		a = gw.Point{X: from.Pos.X, Y: from.Pos.Y + fromH}
+		a = gw.Point{X: from.Pos().X, Y: from.Pos().Y + fromH}
 	default:
-		a = gw.Point{X: from.Pos.X + fromW, Y: from.Pos.Y}
+		a = gw.Point{X: from.Pos().X + fromW, Y: from.Pos().Y}
 	}
 	switch {
-	case e.ToPort != gw.None:
-		b = portAt(to, e.ToPort)
+	case e.ToPort() != gw.None:
+		b = portAt(to, e.ToPort())
 	case down:
-		b = gw.Point{X: to.Pos.X, Y: to.Pos.Y - toH}
+		b = gw.Point{X: to.Pos().X, Y: to.Pos().Y - toH}
 	default:
-		b = gw.Point{X: to.Pos.X - toW, Y: to.Pos.Y}
+		b = gw.Point{X: to.Pos().X - toW, Y: to.Pos().Y}
 	}
 	return a, b
 }
@@ -115,11 +122,11 @@ func ends(d *gw.Document, e *gw.Edge, through []gw.Point) (a, b gw.Point) {
 // runs, so that it passes back through its bends with no hook at each;
 // beside an edge the other way between the same two vertices, its lane
 // keeps it apart. An edge with a port keeps the side its port is on.
-func backward(d *gw.Document, e *gw.Edge) bool {
-	if e.FromPort != gw.None || e.ToPort != gw.None {
+func backward(d *gw.Document, e gw.EdgeView) bool {
+	if e.FromPort() != gw.None || e.ToPort() != gw.None {
 		return false
 	}
-	from, to := d.Vertices[e.From].Pos, d.Vertices[e.To].Pos
+	from, to := d.Vertex(e.From()).Pos(), d.Vertex(e.To()).Pos()
 	if d.Flow() == gw.TopToBottom {
 		return to.Y < from.Y
 	}
@@ -135,7 +142,7 @@ func backward(d *gw.Document, e *gw.Edge) bool {
 type frame struct{ down, back bool }
 
 // frameOf is the frame of an edge in the document's flow.
-func frameOf(d *gw.Document, e *gw.Edge) frame {
+func frameOf(d *gw.Document, e gw.EdgeView) frame {
 	return frame{down: d.Flow() == gw.TopToBottom, back: backward(d, e)}
 }
 
@@ -207,7 +214,7 @@ func (f frame) at(route gw.Route, a, b gw.Point, t float64) gw.Point {
 type way struct {
 	f       frame
 	a, b    gw.Point
-	through []gw.Point
+	through gw.PointList
 	k, n    int
 	ownLeg  bool // its label goes on its last leg: an orthogonal edge whose turn another shares
 }
@@ -218,9 +225,9 @@ const laneGap = labelHeight
 
 // wayOf is the way of edge i; lane holds its lane's point.
 func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
-	e := &d.Edges[i]
-	w := way{f: frameOf(d, e), through: e.Bends, n: 1}
-	w.a, w.b = ends(d, e, e.Bends)
+	e := d.Edge(i)
+	w := way{f: frameOf(d, e), through: e.Bends(), n: 1}
+	w.a, w.b = ends(d, e, e.Bends())
 	k, n := d.Parallel(i)
 	if n < 2 {
 		w.ownLeg = sharesTurn(d, i, w)
@@ -234,12 +241,12 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	if run <= 0 {
 		return w // it loops, and its lane would only add a turn
 	}
-	if d.Kinds().Edge(e.Kind).Route() == gw.Straight {
-		p, q = w.f.t(d.Vertices[e.From].Pos), w.f.t(d.Vertices[e.To].Pos)
+	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight {
+		p, q = w.f.t(d.Vertex(e.From()).Pos()), w.f.t(d.Vertex(e.To()).Pos())
 	}
 	off := float64((float64(k) - float64(float64(n-1)/2)) * laneGap)
 	lane[0] = w.f.t(gw.Point{X: float64((p.X + q.X) / 2), Y: float64((p.Y+q.Y)/2) + off})
-	w.through, w.k, w.n = lane[:], k, n
+	w.through, w.k, w.n = gw.PointsOf(lane[:]), k, n
 	w.a, w.b = ends(d, e, w.through)
 	return w
 }
@@ -249,14 +256,14 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 // route draws a whole edge: a line, a curve leaving and arriving level,
 // or an elbow at its middle.
 
-// leg is the k-th of the len(bends)+1 legs from a through the bends to b.
-func leg(a gw.Point, bends []gw.Point, b gw.Point, k int) (p, q gw.Point) {
+// leg is the k-th of the bends.Len()+1 legs from a through the bends to b.
+func leg(a gw.Point, bends gw.PointList, b gw.Point, k int) (p, q gw.Point) {
 	p, q = a, b
 	if k > 0 {
-		p = bends[k-1]
+		p = bends.At(k - 1)
 	}
-	if k < len(bends) {
-		q = bends[k]
+	if k < bends.Len() {
+		q = bends.At(k)
 	}
 	return p, q
 }
@@ -273,13 +280,13 @@ func legRoute(route gw.Route, bent bool, p, q gw.Point) gw.Route {
 
 // along is the point at parameter t in [0, 1] of the route from a
 // through the bends to b, each leg an equal share of t.
-func along(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point, t float64) gw.Point {
-	n := len(bends) + 1
+func along(f frame, route gw.Route, a gw.Point, bends gw.PointList, b gw.Point, t float64) gw.Point {
+	n := bends.Len() + 1
 	s := float64(t * float64(n))
 	k := min(int(s), n-1)
 	p, q := leg(a, bends, b, k)
 	p, q = f.t(p), f.t(q)
-	return f.t(f.at(legRoute(route, len(bends) > 0, p, q), p, q, s-float64(k)))
+	return f.t(f.at(legRoute(route, bends.Len() > 0, p, q), p, q, s-float64(k)))
 }
 
 // side is the side of its lane an edge's texts go on: away from the
@@ -310,7 +317,7 @@ func (w *way) side() float64 {
 // stack.
 func (w *way) middle(route gw.Route) gw.Point {
 	if w.n > 1 {
-		p := w.f.t(w.through[0])
+		p := w.f.t(w.through.At(0))
 		if w.f.down {
 			p.X += float64((float64(w.k) - float64(float64(w.n-1)/2)) * labelHeight)
 		}
@@ -335,21 +342,21 @@ func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }
 // keeps its label at the turn, clear of any edge that its last leg runs
 // beside into the same target.
 func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
-	e := &d.Edges[i]
-	if d.Kinds().Edge(e.Kind).Route() != gw.Orthogonal || len(w.through) > 0 {
+	e := d.Edge(i)
+	if d.Kinds().Edge(e.Kind()).Route() != gw.Orthogonal || w.through.Len() > 0 {
 		return false
 	}
 	turn := turnAt(w.f.t(w.a), w.f.t(w.b))
 	// bound: the out list visits each edge of the vertex once
-	for o := d.FirstOut(e.From); o != gw.None; o = d.NextOut(o) {
-		x := &d.Edges[o]
-		if o == i || d.Kinds().Edge(x.Kind).Route() != gw.Orthogonal || len(x.Bends) > 0 {
+	for o := d.FirstOut(e.From()); o != gw.None; o = d.NextOut(o) {
+		x := d.Edge(o)
+		if o == i || d.Kinds().Edge(x.Kind()).Route() != gw.Orthogonal || x.Bends().Len() > 0 {
 			continue
 		}
 		if _, n := d.Parallel(o); n > 1 {
 			continue
 		}
-		a, b := ends(d, x, nil)
+		a, b := ends(d, x, gw.PointList{})
 		if math.Abs(turnAt(w.f.t(a), w.f.t(b))-turn) < 0.5 {
 			return true
 		}
@@ -358,19 +365,19 @@ func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
 }
 
 // middle is the middle of a route for its label, as way.middle says.
-func middle(f frame, route gw.Route, a gw.Point, bends []gw.Point, b gw.Point) gw.Point {
-	if len(bends) < 2 {
+func middle(f frame, route gw.Route, a gw.Point, bends gw.PointList, b gw.Point) gw.Point {
+	if bends.Len() < 2 {
 		return along(f, route, a, bends, b, 0.5)
 	}
-	k := len(bends)/2 | 1
-	p, q := f.t(bends[k-1]), f.t(bends[k])
+	k := bends.Len()/2 | 1
+	p, q := f.t(bends.At(k-1)), f.t(bends.At(k))
 	return f.t(f.at(legRoute(route, true, p, q), p, q, 0.5))
 }
 
 // lastFrom is where an edge's last leg starts: its last bend, or a.
-func lastFrom(a gw.Point, bends []gw.Point) gw.Point {
-	if n := len(bends); n > 0 {
-		return bends[n-1]
+func lastFrom(a gw.Point, bends gw.PointList) gw.Point {
+	if n := bends.Len(); n > 0 {
+		return bends.At(n - 1)
 	}
 	return a
 }
@@ -396,12 +403,12 @@ func (w *way) started(kind gw.EdgeKindView) gw.Point {
 	}
 	f := w.f
 	next := w.b
-	if len(w.through) > 0 {
-		next = w.through[0]
+	if w.through.Len() > 0 {
+		next = w.through.At(0)
 	}
 	a, b := f.t(w.a), f.t(next)
 	var dx, dy float64
-	switch legRoute(kind.Route(), len(w.through) > 0, a, b) {
+	switch legRoute(kind.Route(), w.through.Len() > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -430,7 +437,7 @@ func (w *way) shortened(kind gw.EdgeKindView) gw.Point {
 	}
 	a, b := f.t(lastFrom(w.a, w.through)), f.t(w.b)
 	var dx, dy float64
-	switch legRoute(kind.Route(), len(w.through) > 0, a, b) {
+	switch legRoute(kind.Route(), w.through.Len() > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -449,17 +456,17 @@ func (w *way) shortened(kind gw.EdgeKindView) gw.Point {
 // band is the vertex's outline band: outlineBand, or a quarter of its
 // smaller side when that is less, so a small vertex keeps an inside to
 // drag it by.
-func band(v *gw.Vertex) float64 {
-	return math.Min(outlineBand, math.Min(v.Size.W, v.Size.H)/4)
+func band(v gw.VertexView) float64 {
+	return math.Min(outlineBand, math.Min(v.Size().W, v.Size().H)/4)
 }
 
 // outlineDistance is how far p lies from the outline of the shape drawn
 // for the vertex, negative inside: to the box for the rectangles, to
 // the side in p's quadrant for a diamond, along the radius scaled to
 // the smaller semi-axis for an ellipse.
-func outlineDistance(shape gw.Shape, v *gw.Vertex, p gw.Point) float64 {
-	dx, dy := math.Abs(p.X-v.Pos.X), math.Abs(p.Y-v.Pos.Y)
-	a, b := float64(v.Size.W/2), float64(v.Size.H/2)
+func outlineDistance(shape gw.Shape, v gw.VertexView, p gw.Point) float64 {
+	dx, dy := math.Abs(p.X-v.Pos().X), math.Abs(p.Y-v.Pos().Y)
+	a, b := float64(v.Size().W/2), float64(v.Size().H/2)
 	if a > 0 && b > 0 {
 		switch shape {
 		case gw.Diamond:
@@ -474,11 +481,11 @@ func outlineDistance(shape gw.Shape, v *gw.Vertex, p gw.Point) float64 {
 
 // clip is where the line from the vertex's centre towards p leaves the
 // shape drawn for it; the centre itself when p is the centre.
-func clip(shape gw.Shape, v *gw.Vertex, p gw.Point) gw.Point {
-	dx, dy := p.X-v.Pos.X, p.Y-v.Pos.Y
-	a, b := v.Size.W/2, v.Size.H/2
+func clip(shape gw.Shape, v gw.VertexView, p gw.Point) gw.Point {
+	dx, dy := p.X-v.Pos().X, p.Y-v.Pos().Y
+	a, b := v.Size().W/2, v.Size().H/2
 	if dx == 0 && dy == 0 || !(a > 0) || !(b > 0) {
-		return v.Pos
+		return v.Pos()
 	}
 	var t float64
 	switch shape {
@@ -489,12 +496,12 @@ func clip(shape gw.Shape, v *gw.Vertex, p gw.Point) gw.Point {
 	case gw.Rect, gw.RoundRect, gw.Pill, gw.Actor, gw.DataStore:
 		t = math.Min(a/math.Abs(dx), b/math.Abs(dy))
 	}
-	return gw.Point{X: v.Pos.X + float64(dx*t), Y: v.Pos.Y + float64(dy*t)}
+	return gw.Point{X: v.Pos().X + float64(dx*t), Y: v.Pos().Y + float64(dy*t)}
 }
 
 // inBox reports whether p lies within the vertex's box.
-func inBox(v *gw.Vertex, p gw.Point) bool {
-	return math.Abs(p.X-v.Pos.X) <= v.Size.W/2 && math.Abs(p.Y-v.Pos.Y) <= v.Size.H/2
+func inBox(v gw.VertexView, p gw.Point) bool {
+	return math.Abs(p.X-v.Pos().X) <= v.Size().W/2 && math.Abs(p.Y-v.Pos().Y) <= v.Size().H/2
 }
 
 // segmentDistance is the distance from p to the segment ab.
@@ -516,7 +523,7 @@ func segmentDistance(p, a, b gw.Point) float64 {
 func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	kind := d.Kinds().Edge(d.Edges[i].Kind)
+	kind := d.Kinds().Edge(d.Edge(i).Kind())
 	route := kind.Route()
 	f := wy.f
 	// A tail lies between the source and the stroke's start, along the
@@ -526,10 +533,10 @@ func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 		return true
 	}
 	p = f.t(p)
-	for k := range len(wy.through) + 1 {
+	for k := range wy.through.Len() + 1 {
 		u, w := leg(start, wy.through, wy.b, k)
 		u, w = f.t(u), f.t(w)
-		r := legRoute(route, len(wy.through) > 0, u, w)
+		r := legRoute(route, wy.through.Len() > 0, u, w)
 		n := edgeSamples
 		if r == gw.Straight {
 			n = 1
@@ -570,27 +577,29 @@ func usable(v gw.Viewport) bool {
 func bounds(d *gw.Document) gw.Viewport {
 	const margin = Margin
 	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		if !v.Live {
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() {
 			continue
 		}
-		half := v.Size.W / 2
-		if d.Kinds().Vertex(v.Kind).Shape() == gw.Actor {
+		half := v.Size().W / 2
+		if d.Kinds().Vertex(v.Kind()).Shape() == gw.Actor {
 			half = math.Max(half, float64(d.VertexLabelRunes(gw.VertexIndex(i)))*defaultCharWidth/2) //nolint:gosec // bounded by the capacity
 		}
-		x0 = math.Min(x0, v.Pos.X-half)
-		y0 = math.Min(y0, v.Pos.Y-float64(v.Size.H/2))
-		x1 = math.Max(x1, v.Pos.X+half)
-		y1 = math.Max(y1, v.Pos.Y+float64(v.Size.H/2))
-		for p := d.Kinds().Vertex(v.Kind).PortCount(); p < len(v.Ports); p++ {
+		x0 = math.Min(x0, v.Pos().X-half)
+		y0 = math.Min(y0, v.Pos().Y-float64(v.Size().H/2))
+		x1 = math.Max(x1, v.Pos().X+half)
+		y1 = math.Max(y1, v.Pos().Y+float64(v.Size().H/2))
+		// bound: the vertex's own ports, at most the ports per vertex
+		for p := d.Kinds().Vertex(v.Kind()).Ports().Len(); p < v.Ports().Len(); p++ {
 			_, _, _, b := portLabel(d, gw.VertexIndex(i), gw.PortIndex(p)) //nolint:gosec // bounded by the capacities
 			x0, y0, x1, y1 = math.Min(x0, b.X), math.Min(y0, b.Y), math.Max(x1, b.X+b.W), math.Max(y1, b.Y+b.H)
 		}
 	}
-	for i := range d.Edges {
-		if e := &d.Edges[i]; e.Live {
-			for _, p := range e.Bends {
+	for i := range d.EdgeSlots() {
+		if e := d.Edge(gw.EdgeIndex(i)); e.Live() { //nolint:gosec // bounded by the capacity
+			for at := range e.Bends().Len() {
+				p := e.Bends().At(at)
 				x0, y0, x1, y1 = math.Min(x0, p.X), math.Min(y0, p.Y), math.Max(x1, p.X), math.Max(y1, p.Y)
 			}
 		}

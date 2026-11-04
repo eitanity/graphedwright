@@ -240,14 +240,14 @@ func (e *Editor) EditText() string {
 	}
 	if key := e.editAttr(); key != "" {
 		if e.editV != gw.None {
-			return gw.AttrValue(e.d.Vertices[e.editV].Attrs, key)
+			return e.d.Vertex(e.editV).Attrs().Value(key)
 		}
-		return gw.AttrValue(e.d.Edges[e.editE].Attrs, key)
+		return e.d.Edge(e.editE).Attrs().Value(key)
 	}
 	if e.editV != gw.None {
-		return e.d.Vertices[e.editV].Label
+		return e.d.Vertex(e.editV).Label()
 	}
-	return e.d.Edges[e.editE].Label
+	return e.d.Edge(e.editE).Label()
 }
 
 // Typed is the character whose key began the label editing, which the
@@ -280,7 +280,7 @@ func (e *Editor) Target() (gw.VertexIndex, bool) {
 		return h.Vertex, h.Kind == svg.OutlineHit
 	case Connecting:
 		ok := h.Kind == svg.PortHit || h.Kind == svg.OutlineHit ||
-			h.Kind == svg.VertexHit && len(e.d.Vertices[h.Vertex].Ports) == 0
+			h.Kind == svg.VertexHit && e.d.Vertex(h.Vertex).Ports().Len() == 0
 		return h.Vertex, ok && h.Vertex != e.connFrom && e.joins(e.connFrom, h.Vertex)
 	case Selecting, Dragging, Placing, Panning, EditingText, Resizing:
 		return gw.None, false
@@ -331,7 +331,7 @@ func (e *Editor) ResizeHandle() (gw.VertexIndex, bool) {
 // onlyVertex is the one selected vertex, when it is all that is selected
 // and live.
 func (e *Editor) onlyVertex() (gw.VertexIndex, bool) {
-	if len(e.selV) != 1 || len(e.selE) != 0 || !e.d.Vertices[e.selV[0]].Live {
+	if len(e.selV) != 1 || len(e.selE) != 0 || !e.d.Vertex(e.selV[0]).Live() {
 		return gw.None, false
 	}
 	return e.selV[0], true
@@ -424,9 +424,9 @@ func rect(a, b gw.Point) gw.Viewport {
 // portPoint is where a port of a vertex is, or the vertex's centre.
 func (e *Editor) portPoint(v gw.VertexIndex, p gw.PortIndex) gw.Point {
 	if p == gw.None {
-		return e.d.Vertices[v].Pos
+		return e.d.Vertex(v).Pos()
 	}
-	return svg.PortAt(&e.d.Vertices[v], p)
+	return svg.PortAt(e.d.Vertex(v), p)
 }
 
 // record merges a command's change into the event's.

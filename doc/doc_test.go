@@ -70,15 +70,15 @@ func TestRoundTrip(t *testing.T) {
 	if d.LiveVertices() != 3 || d.LiveEdges() != 2 || d.View().W != 600 {
 		t.Fatalf("decoded %d vertices %d edges view %+v", d.LiveVertices(), d.LiveEdges(), d.View())
 	}
-	a := d.Vertices[d.VertexByID("a")]
-	if a.Label != `claim "big"` || a.Size != (gw.Size{W: 140, H: 40}) || a.Placed || a.Pos != (gw.Point{X: 220, Y: 100}) || len(a.Attrs) != 2 || a.Attrs[0].Value != "0.25" || a.Attrs[1].Value != "tab\there" {
+	a := d.Vertex(d.VertexByID("a"))
+	if a.Label() != `claim "big"` || a.Size() != (gw.Size{W: 140, H: 40}) || a.Placed() || a.Pos() != (gw.Point{X: 220, Y: 100}) || a.Attrs().Len() != 2 || a.Attrs().At(0).Value != "0.25" || a.Attrs().At(1).Value != "tab\there" {
 		t.Errorf("a: %+v", a)
 	}
-	if s := d.Vertices[d.VertexByID("s")]; !s.Placed {
+	if s := d.Vertex(d.VertexByID("s")); !s.Placed() {
 		t.Error("s not placed")
 	}
-	e := d.Edges[d.EdgeByID("e2")]
-	if e.FromPort != 1 || e.ToPort != gw.None || e.Weight != 0.7 || e.Label != "pays" || len(e.Attrs) != 1 {
+	e := d.Edge(d.EdgeByID("e2"))
+	if e.FromPort() != 1 || e.ToPort() != gw.None || e.Weight() != 0.7 || e.Label() != "pays" || e.Attrs().Len() != 1 {
 		t.Errorf("e2: %+v", e)
 	}
 	var first, second bytes.Buffer
@@ -112,8 +112,8 @@ func TestContainersRoundTrip(t *testing.T) {
 		{"id":"z","kind":"zone","x":0,"y":0}]}`
 	d := decode(t, text)
 	z := d.VertexByID("z")
-	if d.Vertices[d.VertexByID("a")].Parent != z || d.Vertices[z].Size.W != 470-160+2*gw.ContainerPad || d.CanUndo() {
-		t.Errorf("zone %v %v, undo %v", d.Vertices[z].Pos, d.Vertices[z].Size, d.CanUndo())
+	if d.Vertex(d.VertexByID("a")).Parent() != z || d.Vertex(z).Size().W != 470-160+2*gw.ContainerPad || d.CanUndo() {
+		t.Errorf("zone %v %v, undo %v", d.Vertex(z).Pos(), d.Vertex(z).Size(), d.CanUndo())
 	}
 	var first, second bytes.Buffer
 	if err := doc.Encode(d, "model", &first); err != nil {
@@ -129,8 +129,8 @@ func TestContainersRoundTrip(t *testing.T) {
 	// the zone grows right and down from the fit's corner (144,46).
 	d = decode(t, strings.Replace(text, `"x":0,"y":0`, `"x":0,"y":0,"w":600,"h":200`, 1))
 	z = d.VertexByID("z")
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 600, H: 200}) || v.Pos != (gw.Point{X: 444, Y: 146}) || v.Min != v.Size {
-		t.Errorf("own size: zone %v %v %v", v.Pos, v.Size, v.Min)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 600, H: 200}) || v.Pos() != (gw.Point{X: 444, Y: 146}) || v.Min() != v.Size() {
+		t.Errorf("own size: zone %v %v %v", v.Pos(), v.Size(), v.Min())
 	}
 	first.Reset()
 	if err := doc.Encode(d, "model", &first); err != nil || !strings.Contains(first.String(), `"w":600,"h":200`) {
@@ -138,8 +138,8 @@ func TestContainersRoundTrip(t *testing.T) {
 	}
 	d = decode(t, `{"schema":"model","vertices":[{"id":"a","kind":"node","parent":"z"},{"id":"d","kind":"leaf"},{"id":"z","kind":"zone"}],
 		"edges":[{"kind":"outcome","from":"a","to":"d","from_port":"out"}]}`)
-	if a, zv := d.Vertices[d.VertexByID("a")], d.Vertices[d.VertexByID("z")]; a.Pos.X-a.Size.W/2 < zv.Pos.X-zv.Size.W/2 || a.Pos.X+a.Size.W/2 > zv.Pos.X+zv.Size.W/2 {
-		t.Errorf("laid out on load: a %v outside z %v %v", a.Pos, zv.Pos, zv.Size)
+	if a, zv := d.Vertex(d.VertexByID("a")), d.Vertex(d.VertexByID("z")); a.Pos().X-a.Size().W/2 < zv.Pos().X-zv.Size().W/2 || a.Pos().X+a.Size().W/2 > zv.Pos().X+zv.Size().W/2 {
+		t.Errorf("laid out on load: a %v outside z %v %v", a.Pos(), zv.Pos(), zv.Size())
 	}
 }
 
@@ -148,16 +148,16 @@ func TestContainersRoundTrip(t *testing.T) {
 func TestLayoutOnLoad(t *testing.T) {
 	text := `{"schema":"basic","vertices":[{"id":"a","kind":"box"},{"id":"b","kind":"box"}],"edges":[{"kind":"arrow","from":"a","to":"b"}]}`
 	d := decode(t, text)
-	if d.Vertices[1].Pos.X <= d.Vertices[0].Pos.X {
-		t.Errorf("not laid out: %v %v", d.Vertices[0].Pos, d.Vertices[1].Pos)
+	if d.Vertex(1).Pos().X <= d.Vertex(0).Pos().X {
+		t.Errorf("not laid out: %v %v", d.Vertex(0).Pos(), d.Vertex(1).Pos())
 	}
 	d, err := doc.Decode([]byte(text), doc.Options{Schemas: schemas(), NoLayout: true})
-	if err != nil || d.Vertices[1].Pos != (gw.Point{}) {
-		t.Errorf("NoLayout: %v %v", err, d.Vertices[1].Pos)
+	if err != nil || d.Vertex(1).Pos() != (gw.Point{}) {
+		t.Errorf("NoLayout: %v %v", err, d.Vertex(1).Pos())
 	}
 	d = decode(t, example)
-	if d.Vertices[2].Pos != (gw.Point{X: 420, Y: 100}) {
-		t.Errorf("positioned document moved: %v", d.Vertices[2].Pos)
+	if d.Vertex(2).Pos() != (gw.Point{X: 420, Y: 100}) {
+		t.Errorf("positioned document moved: %v", d.Vertex(2).Pos())
 	}
 	if d.CanUndo() {
 		t.Error("a decoded document can undo what built it")
@@ -327,7 +327,7 @@ func TestBendsRoundTrip(t *testing.T) {
 	text := `{"schema":"basic","vertices":[{"id":"a","kind":"box","x":0,"y":0},{"id":"b","kind":"box","x":400,"y":0}],
 		"edges":[{"id":"e1","kind":"line","from":"a","to":"b","bends":[[100,80], [300.5,80]]}]}`
 	d := decode(t, text)
-	if b := d.Edges[0].Bends; len(b) != 2 || b[1] != (gw.Point{X: 300.5, Y: 80}) {
+	if b := d.Edge(0).Bends(); b.Len() != 2 || b.At(1) != (gw.Point{X: 300.5, Y: 80}) {
 		t.Fatalf("bends %v", b)
 	}
 	var first, second bytes.Buffer
@@ -354,7 +354,7 @@ func TestEscapes(t *testing.T) {
 	}
 	d := decode(t, `{"schema":"basic","vertices":[{"kind":"box","label":"a\"b\\c\/d\n\r\t\u00e9\u007f"}]}`)
 	want := "a\"b\\c/d\n\r\té\x7f"
-	if got := d.Vertices[0].Label; got != want {
+	if got := d.Vertex(0).Label(); got != want {
 		t.Errorf("label %q, want %q", got, want)
 	}
 	var buf bytes.Buffer
@@ -362,15 +362,13 @@ func TestEscapes(t *testing.T) {
 		t.Fatal(err)
 	}
 	d2 := decode(t, buf.String())
-	if d2.Vertices[0].Label != want {
-		t.Errorf("after encode: %q", d2.Vertices[0].Label)
+	if d2.Vertex(0).Label() != want {
+		t.Errorf("after encode: %q", d2.Vertex(0).Label())
 	}
-	// A control character written into the document past its checks is
-	// still written as valid JSON, which the reader then refuses.
-	d2.Vertices[0].Label = "a\x01\x1f"
-	buf.Reset()
-	if err := doc.Encode(d2, "basic", &buf); err != nil || !strings.Contains(buf.String(), `"label":"a\u0001\u001f"`) {
-		t.Errorf("control characters written as %v\n%s", err, buf.String())
+	// A control character, which the encoder writes as an escape, is
+	// refused by the reader.
+	if _, err := doc.Decode([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box","label":"a\u0001"}]}`), doc.Options{Schemas: doc.Builtin()}); err == nil {
+		t.Error("a label with a control character decoded")
 	}
 }
 
@@ -467,9 +465,9 @@ func FuzzLayout(f *testing.F) {
 			if _, err := l.Run(d, layout.Options{All: true}); err != nil {
 				continue
 			}
-			for i := range d.Vertices {
-				if v := &d.Vertices[i]; v.Live && !(math.Abs(v.Pos.X) <= gw.MaxCoord && math.Abs(v.Pos.Y) <= gw.MaxCoord) {
-					t.Fatalf("flow %v: vertex %s at %v", flow, v.ID, v.Pos)
+			for i := range d.VertexSlots() {
+				if v := d.Vertex(gw.VertexIndex(i)); v.Live() && !(math.Abs(v.Pos().X) <= gw.MaxCoord && math.Abs(v.Pos().Y) <= gw.MaxCoord) { //nolint:gosec // bounded by the capacity
+					t.Fatalf("flow %v: vertex %s at %v", flow, v.ID(), v.Pos())
 				}
 			}
 			buf.Reset()
@@ -547,7 +545,7 @@ func TestExamples(t *testing.T) {
 func TestFlowRoundTrip(t *testing.T) {
 	text := `{"schema":"basic","flow":"top-to-bottom","vertices":[{"id":"a","kind":"box"},{"id":"b","kind":"box"}],"edges":[{"kind":"arrow","from":"a","to":"b"}]}`
 	d := decode(t, text)
-	a, b := d.Vertices[d.VertexByID("a")].Pos, d.Vertices[d.VertexByID("b")].Pos
+	a, b := d.Vertex(d.VertexByID("a")).Pos(), d.Vertex(d.VertexByID("b")).Pos()
 	if d.Flow() != gw.TopToBottom || b.Y <= a.Y || b.X != a.X {
 		t.Errorf("flow %v: a at %v, b at %v, not below it", d.Flow(), a, b)
 	}
@@ -580,8 +578,8 @@ func TestPortsRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := d.VertexByID("l")
-	if n := d.OwnPorts(l); n != 4 || d.Vertices[l].Ports[0] != (gw.Port{Name: "in", Side: gw.Left, Max: 2}) {
-		t.Fatalf("%d ports of its own: %v", n, d.Vertices[l].Ports)
+	if n := d.OwnPorts(l); n != 4 || d.Vertex(l).Ports().At(0) != (gw.Port{Name: "in", Side: gw.Left, Max: 2}) {
+		t.Fatalf("%d ports of its own: %v", n, d.Vertex(l).Ports())
 	}
 	var out bytes.Buffer
 	if err := doc.Encode(d, "model", &out); err != nil {
@@ -594,10 +592,10 @@ func TestPortsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := again.Vertices[again.VertexByID("l")], d.Vertices[l]; got.Size != want.Size || len(got.Ports) != len(want.Ports) {
-		t.Errorf("read back at %v with %d ports, written at %v with %d", got.Size, len(got.Ports), want.Size, len(want.Ports))
+	if got, want := again.Vertex(again.VertexByID("l")), d.Vertex(l); got.Size() != want.Size() || got.Ports().Len() != want.Ports().Len() {
+		t.Errorf("read back at %v with %d ports, written at %v with %d", got.Size(), got.Ports().Len(), want.Size(), want.Ports().Len())
 	}
-	if e := again.Edges[again.EdgeByID(d.Edges[0].ID)]; e.ToPort != 0 {
-		t.Errorf("edge read back at port %d", e.ToPort)
+	if e := again.Edge(again.EdgeByID(d.Edge(0).ID())); e.ToPort() != 0 {
+		t.Errorf("edge read back at port %d", e.ToPort())
 	}
 }

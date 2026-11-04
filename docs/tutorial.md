@@ -143,7 +143,7 @@ record back and forth:
 ```go
 d.Apply(gw.Command{Op: gw.Relabel, Vertex: db, Text: "database"})
 d.Undo()
-fmt.Println(d.Vertices[db].Label) // db
+fmt.Println(d.Vertex(db).Label()) // db
 ```
 
 ### 5. Lay it out, top to bottom

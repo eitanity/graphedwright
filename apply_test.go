@@ -131,8 +131,8 @@ func TestEdgeWithoutPorts(t *testing.T) {
 	c := addVertex(t, d, kLeaf, "c")
 	refuse(t, d, gw.Command{Op: gw.AddEdge, Kind: eOutcome, From: a, To: c, FromPort: 1, ToPort: 0}, `port 0 of vertex "c" out of range`)
 	e := addEdge(t, d, eOutcome, a, c, 1, gw.None)
-	if d.Edges[e].ID != "e1" || d.EdgeByID("e1") != e || d.EdgeByID("e9") != gw.None {
-		t.Errorf("edge %+v", d.Edges[e])
+	if d.Edge(e).ID() != "e1" || d.EdgeByID("e1") != e || d.EdgeByID("e9") != gw.None {
+		t.Errorf("edge %+v", d.Edge(e))
 	}
 }
 
@@ -142,7 +142,7 @@ func TestChange(t *testing.T) {
 	d := newDoc(t, gw.Caps{})
 	_, a, b, _ := chain(t, d)
 	ch := apply(t, d, gw.Command{Op: gw.Move, Vertex: a, Pos: gw.Point{X: 8, Y: 16}})
-	if len(ch.Vertices) != 1 || ch.Vertices[0] != a || len(ch.Edges) != 2 || ch.Layout || !d.Vertices[a].Placed {
+	if len(ch.Vertices) != 1 || ch.Vertices[0] != a || len(ch.Edges) != 2 || ch.Layout || !d.Vertex(a).Placed() {
 		t.Errorf("move change %+v", ch)
 	}
 	ch = apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: b})
@@ -150,8 +150,8 @@ func TestChange(t *testing.T) {
 		t.Errorf("delete change %+v, live edges %d", ch, d.LiveEdges())
 	}
 	ch = apply(t, d, gw.Command{Op: gw.Layout, Text: "all"})
-	if !ch.Layout || d.Vertices[a].Placed || len(ch.Vertices) != 4 {
-		t.Errorf("layout change %+v placed %v", ch, d.Vertices[a].Placed)
+	if !ch.Layout || d.Vertex(a).Placed() || len(ch.Vertices) != 4 {
+		t.Errorf("layout change %+v placed %v", ch, d.Vertex(a).Placed())
 	}
 }
 
@@ -238,7 +238,7 @@ func TestOutWalk(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: out[1]})
 	seen := map[gw.EdgeIndex]bool{}
 	for e := d.FirstOut(s); e != gw.None; e = d.NextOut(e) {
-		if seen[e] || d.Edges[e].From != s || !d.Edges[e].Live {
+		if seen[e] || d.Edge(e).From() != s || !d.Edge(e).Live() {
 			t.Fatalf("walk gave %d twice, or not a live edge out of s", e)
 		}
 		seen[e] = true
@@ -249,7 +249,7 @@ func TestOutWalk(t *testing.T) {
 	if e := d.FirstOut(out2v(d, out[0])); e != gw.None {
 		t.Errorf("a vertex with no out edges gave %d", e)
 	}
-	if d.NextOut(-1) != gw.None || d.NextOut(gw.EdgeIndex(len(d.Edges))) != gw.None { //nolint:gosec // the edge capacity
+	if d.NextOut(-1) != gw.None || d.NextOut(gw.EdgeIndex(d.EdgeSlots())) != gw.None { //nolint:gosec // the edge capacity
 		t.Error("an edge index out of range gave an edge")
 	}
 	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: s})
@@ -259,4 +259,4 @@ func TestOutWalk(t *testing.T) {
 }
 
 // out2v is the target of an edge.
-func out2v(d *gw.Document, e gw.EdgeIndex) gw.VertexIndex { return d.Edges[e].To }
+func out2v(d *gw.Document, e gw.EdgeIndex) gw.VertexIndex { return d.Edge(e).To() }

@@ -135,13 +135,14 @@ func DefaultCaps() Caps {
 
 // Document is a directed graph with typed vertices and edges, a schema
 // that says what is allowed, positions for drawing, and a viewport.
-// Vertices and Edges are by index; a deleted entry is a tombstone until
-// Compact. Every change goes through Apply, but for the viewport, the
-// flow, the positions and the bends, which have methods of their own.
+// Vertices and edges are read by index, through Vertex and Edge; a
+// deleted one is a tombstone until Compact. Every change goes through
+// Apply, but for the viewport, the flow, the positions and the bends,
+// which have methods of their own.
 type Document struct {
 	kinds    *Kinds
-	Vertices []Vertex
-	Edges    []Edge
+	vertices []Vertex // by index, tombstones included: read through Vertex
+	edges    []Edge   // by index, tombstones included: read through Edge
 	view     Viewport
 	flow     Flow // the way the layers run: set by a Layout command, or by SetFlow
 	caps     Caps
@@ -217,8 +218,8 @@ func New(kinds *Kinds, caps Caps) (*Document, error) {
 		return nil, err
 	}
 	d := &Document{kinds: kinds, caps: caps}
-	d.Vertices = make([]Vertex, 0, caps.Vertices)
-	d.Edges = make([]Edge, 0, caps.Edges)
+	d.vertices = make([]Vertex, 0, caps.Vertices)
+	d.edges = make([]Edge, 0, caps.Edges)
 	d.portSlab = make([]Port, caps.Vertices*caps.PortsPerVertex)
 	d.vattrSlab = make([]Attr, caps.Vertices*caps.AttrsPerElement)
 	d.eattrSlab = make([]Attr, caps.Edges*caps.AttrsPerElement)
@@ -343,18 +344,18 @@ func (c Caps) checkBytes() error {
 
 // Live reports whether vertex v is in range and not a tombstone.
 func (d *Document) vertexLive(v VertexIndex) bool {
-	return v >= 0 && int(v) < len(d.Vertices) && d.Vertices[v].Live
+	return v >= 0 && int(v) < len(d.vertices) && d.vertices[v].Live
 }
 
 // edgeLive reports whether edge e is in range and not a tombstone.
 func (d *Document) edgeLive(e EdgeIndex) bool {
-	return e >= 0 && int(e) < len(d.Edges) && d.Edges[e].Live
+	return e >= 0 && int(e) < len(d.edges) && d.edges[e].Live
 }
 
 // VertexByID finds a live vertex by its ID, or None.
 func (d *Document) VertexByID(id ID) VertexIndex {
-	for i := range d.Vertices {
-		if d.Vertices[i].Live && d.Vertices[i].ID == id {
+	for i := range d.vertices {
+		if d.vertices[i].Live && d.vertices[i].ID == id {
 			return VertexIndex(i) //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -363,8 +364,8 @@ func (d *Document) VertexByID(id ID) VertexIndex {
 
 // EdgeByID finds a live edge by its ID, or None.
 func (d *Document) EdgeByID(id ID) EdgeIndex {
-	for i := range d.Edges {
-		if d.Edges[i].Live && d.Edges[i].ID == id {
+	for i := range d.edges {
+		if d.edges[i].Live && d.edges[i].ID == id {
 			return EdgeIndex(i) //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -374,13 +375,13 @@ func (d *Document) EdgeByID(id ID) EdgeIndex {
 // idUsed reports whether any vertex or edge, live or not, carries the ID.
 // A tombstone keeps its ID so that an undo can bring it back unchanged.
 func (d *Document) idUsed(id ID) bool {
-	for i := range d.Vertices {
-		if d.Vertices[i].ID == id {
+	for i := range d.vertices {
+		if d.vertices[i].ID == id {
 			return true
 		}
 	}
-	for i := range d.Edges {
-		if d.Edges[i].ID == id {
+	for i := range d.edges {
+		if d.edges[i].ID == id {
 			return true
 		}
 	}
@@ -414,8 +415,8 @@ func (d *Document) mintEdgeID() ID {
 // LiveVertices counts the vertices that are not tombstones.
 func (d *Document) LiveVertices() int {
 	n := 0
-	for i := range d.Vertices {
-		if d.Vertices[i].Live {
+	for i := range d.vertices {
+		if d.vertices[i].Live {
 			n++
 		}
 	}
@@ -425,8 +426,8 @@ func (d *Document) LiveVertices() int {
 // LiveEdges counts the edges that are not tombstones.
 func (d *Document) LiveEdges() int {
 	n := 0
-	for i := range d.Edges {
-		if d.Edges[i].Live {
+	for i := range d.edges {
+		if d.edges[i].Live {
 			n++
 		}
 	}
@@ -443,6 +444,6 @@ func (d *Document) Place(v VertexIndex, p Point, placed bool) bool {
 	if d.locked || !d.vertexLive(v) || !point(p) {
 		return false
 	}
-	d.Vertices[v].Pos, d.Vertices[v].Placed = p, placed
+	d.vertices[v].Pos, d.vertices[v].Placed = p, placed
 	return true
 }

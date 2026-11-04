@@ -233,11 +233,11 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 	case DeleteVertex:
 		d.reviveVertex(en.vertex, en.seq)
 	case AddEdge:
-		d.Edges[en.edge].Live = false
-		d.Edges[en.edge].diedBy = en.seq
+		d.edges[en.edge].Live = false
+		d.edges[en.edge].diedBy = en.seq
 		d.touchEdge(en.edge)
 	case DeleteEdge:
-		d.Edges[en.edge].Live = true
+		d.edges[en.edge].Live = true
 		d.touchEdge(en.edge)
 	case Move:
 		d.moveTo(en.vertex, en.prev.Pos, en.placed)
@@ -248,7 +248,7 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 	case SetAttr:
 		d.undoAttr(en)
 	case SetPorts:
-		v := &d.Vertices[en.vertex]
+		v := &d.vertices[en.vertex]
 		v.Ports = v.Ports[:len(en.ports)]
 		copy(v.Ports, en.ports)
 		d.portsChanged(en.vertex)
@@ -312,11 +312,11 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 	case DeleteVertex:
 		d.killVertex(en.vertex, en.seq)
 	case AddEdge:
-		d.Edges[en.edge].Live = true
+		d.edges[en.edge].Live = true
 		d.touchEdge(en.edge)
 	case DeleteEdge:
-		d.Edges[en.edge].Live = false
-		d.Edges[en.edge].diedBy = en.seq
+		d.edges[en.edge].Live = false
+		d.edges[en.edge].diedBy = en.seq
 		d.touchEdge(en.edge)
 	case Move:
 		d.moveTo(en.vertex, en.cmd.Pos, true)
@@ -327,7 +327,7 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 	case SetAttr:
 		d.redoAttr(en)
 	case SetPorts:
-		v := &d.Vertices[en.vertex]
+		v := &d.vertices[en.vertex]
 		kind := d.kinds.vertex[v.Kind]
 		v.Ports = v.Ports[:len(kind.Ports)]
 		copy(v.Ports, kind.Ports)
@@ -349,11 +349,11 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 // setLabel writes a label on a vertex, or on an edge when v is None.
 func (d *Document) setLabel(v VertexIndex, e EdgeIndex, text string) {
 	if v != None {
-		d.Vertices[v].Label = text
+		d.vertices[v].Label = text
 		d.touchVertex(v)
 		return
 	}
-	d.Edges[e].Label = text
+	d.edges[e].Label = text
 	d.touchEdge(e)
 }
 

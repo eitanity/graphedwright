@@ -30,11 +30,11 @@ func TestLabelFormat(t *testing.T) {
 		{"part {label} of {owner}", "wheel", nil, "part wheel of "},
 		{"«{label}»", "ünïcode", nil, "«ünïcode»"},
 	} {
-		got := string(gw.AppendLabel(nil, tc.format, tc.label, tc.attrs))
+		got := string(gw.AppendLabel(nil, tc.format, tc.label, gw.AttrsOf(tc.attrs)))
 		if got != tc.want {
 			t.Errorf("%q with %q %v: %q, want %q", tc.format, tc.label, tc.attrs, got, tc.want)
 		}
-		if n := gw.LabelRunes(tc.format, tc.label, tc.attrs); n != len([]rune(tc.want)) {
+		if n := gw.LabelRunes(tc.format, tc.label, gw.AttrsOf(tc.attrs)); n != len([]rune(tc.want)) {
 			t.Errorf("%q with %q %v: %d characters, want %d", tc.format, tc.label, tc.attrs, n, len([]rune(tc.want)))
 		}
 	}

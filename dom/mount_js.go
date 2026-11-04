@@ -435,17 +435,17 @@ func (h *Handle) patchElements(ch gw.Change) {
 			continue
 		}
 		group := ":scope > g.vertices"
-		if h.d.Kinds().Vertex(h.d.Vertices[v].Kind).Container() {
+		if h.d.Kinds().Vertex(h.d.Vertex(v).Kind()).Container() {
 			group = ":scope > g.containers"
 		}
-		h.patchOne(string(h.d.Vertices[v].ID), h.d.Vertices[v].Live, group)
+		h.patchOne(string(h.d.Vertex(v).ID()), h.d.Vertex(v).Live(), group)
 	}
 	for _, e := range ch.Edges {
 		h.buf.Reset()
 		if err := h.r.RenderEdge(h.d, h.opts, e, &h.buf); err != nil {
 			continue
 		}
-		h.patchOne(string(h.d.Edges[e].ID), h.d.Edges[e].Live, ":scope > g.edges")
+		h.patchOne(string(h.d.Edge(e).ID()), h.d.Edge(e).Live(), ":scope > g.edges")
 	}
 }
 

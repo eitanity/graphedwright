@@ -113,39 +113,41 @@ func chain(t *testing.T, d *gw.Document) (s, a, b, c gw.VertexIndex) {
 // that two states can be compared.
 func snapshot(d *gw.Document) string {
 	var b strings.Builder
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		if !v.Live {
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() {
 			continue
 		}
-		b.WriteString("v " + strconv.Itoa(i) + " " + string(v.ID) + " k" + strconv.Itoa(int(v.Kind)) + " " + strconv.Quote(v.Label))
-		b.WriteString(" @" + ftoa(v.Pos.X) + "," + ftoa(v.Pos.Y) + " " + ftoa(v.Size.W) + "x" + ftoa(v.Size.H))
-		if v.Placed {
+		b.WriteString("v " + strconv.Itoa(i) + " " + string(v.ID()) + " k" + strconv.Itoa(int(v.Kind())) + " " + strconv.Quote(v.Label()))
+		b.WriteString(" @" + ftoa(v.Pos().X) + "," + ftoa(v.Pos().Y) + " " + ftoa(v.Size().W) + "x" + ftoa(v.Size().H))
+		if v.Placed() {
 			b.WriteString(" placed")
 		}
-		if v.Parent != gw.None {
-			b.WriteString(" in " + strconv.Itoa(int(v.Parent)))
+		if v.Parent() != gw.None {
+			b.WriteString(" in " + strconv.Itoa(int(v.Parent())))
 		}
-		for _, p := range v.Ports {
+		for at := range v.Ports().Len() {
+			p := v.Ports().At(at)
 			b.WriteString(" port " + p.Name + "/" + strconv.Itoa(int(p.Side)) + "/" + strconv.Itoa(p.Max))
 		}
-		writeAttrs(&b, v.Attrs)
+		writeAttrs(&b, v.Attrs())
 		b.WriteByte('\n')
 	}
-	for i := range d.Edges {
-		e := &d.Edges[i]
-		if !e.Live {
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() {
 			continue
 		}
-		b.WriteString("e " + strconv.Itoa(i) + " " + string(e.ID) + " k" + strconv.Itoa(int(e.Kind)) + " " + strconv.Itoa(int(e.From)) + ":" + strconv.Itoa(int(e.FromPort)) + "->" + strconv.Itoa(int(e.To)) + ":" + strconv.Itoa(int(e.ToPort)) + " " + strconv.Quote(e.Label) + " w" + ftoa(e.Weight))
-		writeAttrs(&b, e.Attrs)
+		b.WriteString("e " + strconv.Itoa(i) + " " + string(e.ID()) + " k" + strconv.Itoa(int(e.Kind())) + " " + strconv.Itoa(int(e.From())) + ":" + strconv.Itoa(int(e.FromPort())) + "->" + strconv.Itoa(int(e.To())) + ":" + strconv.Itoa(int(e.ToPort())) + " " + strconv.Quote(e.Label()) + " w" + ftoa(e.Weight()))
+		writeAttrs(&b, e.Attrs())
 		b.WriteByte('\n')
 	}
 	return b.String()
 }
 
-func writeAttrs(b *strings.Builder, attrs []gw.Attr) {
-	for _, a := range attrs {
+func writeAttrs(b *strings.Builder, attrs gw.AttrList) {
+	for i := range attrs.Len() {
+		a := attrs.At(i)
 		b.WriteString(" " + a.Key + "=" + strconv.Quote(a.Value))
 	}
 }

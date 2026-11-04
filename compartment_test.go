@@ -58,17 +58,17 @@ func TestCompartmentSize(t *testing.T) {
 		{"fields", "", gw.Size{W: 100, H: 40}},
 	} {
 		set(tc.key, tc.value)
-		if got := d.Vertices[v].Size; got != tc.want {
+		if got := d.Vertex(v).Size(); got != tc.want {
 			t.Errorf("%s = %q: size %v, want %v", tc.key, tc.value, got, tc.want)
 		}
-		if got := d.Vertices[v].Pos; got != (gw.Point{X: 200, Y: 100}) {
+		if got := d.Vertex(v).Pos(); got != (gw.Point{X: 200, Y: 100}) {
 			t.Errorf("%s = %q: moved to %v", tc.key, tc.value, got)
 		}
 	}
 	// A key that is not a compartment's changes no size and leaves the
 	// layout as it is.
-	if ch := set("note", "a long note that would need a wide vertex to hold it"); ch.Layout || d.Vertices[v].Size != (gw.Size{W: 100, H: 40}) {
-		t.Errorf("a key not shown: layout stale %v, size %v", ch.Layout, d.Vertices[v].Size)
+	if ch := set("note", "a long note that would need a wide vertex to hold it"); ch.Layout || d.Vertex(v).Size() != (gw.Size{W: 100, H: 40}) {
+		t.Errorf("a key not shown: layout stale %v, size %v", ch.Layout, d.Vertex(v).Size())
 	}
 }
 
@@ -84,30 +84,30 @@ func TestCompartmentStale(t *testing.T) {
 	a := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: 0, ID: "a", Text: "a", Pos: gw.Point{X: 100, Y: 100}}).Vertices[0]
 	b := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: 0, ID: "b", Text: "b", Pos: gw.Point{X: 300, Y: 100}}).Vertices[0]
 	e := mustApply(t, d, gw.Command{Op: gw.AddEdge, Kind: 0, From: a, To: b, FromPort: gw.None, ToPort: gw.None}).Edges[0]
-	before := d.Vertices[a].Size
+	before := d.Vertex(a).Size()
 	ch := mustApply(t, d, gw.Command{Op: gw.SetAttr, Vertex: a, Key: "fields", Value: "x\ny\nz"})
-	grown := d.Vertices[a].Size
+	grown := d.Vertex(a).Size()
 	if !ch.Layout || grown == before || !slices.Contains(ch.Vertices, a) || !slices.Contains(ch.Edges, e) {
 		t.Fatalf("set: layout stale %v, size %v from %v, change %+v", ch.Layout, grown, before, ch)
 	}
 	ch, ok := d.Undo()
-	if !ok || !ch.Layout || d.Vertices[a].Size != before || !slices.Contains(ch.Vertices, a) {
-		t.Fatalf("undo: layout stale %v, size %v, want %v", ch.Layout, d.Vertices[a].Size, before)
+	if !ok || !ch.Layout || d.Vertex(a).Size() != before || !slices.Contains(ch.Vertices, a) {
+		t.Fatalf("undo: layout stale %v, size %v, want %v", ch.Layout, d.Vertex(a).Size(), before)
 	}
 	ch, ok = d.Redo()
-	if !ok || !ch.Layout || d.Vertices[a].Size != grown {
-		t.Fatalf("redo: layout stale %v, size %v, want %v", ch.Layout, d.Vertices[a].Size, grown)
+	if !ok || !ch.Layout || d.Vertex(a).Size() != grown {
+		t.Fatalf("redo: layout stale %v, size %v, want %v", ch.Layout, d.Vertex(a).Size(), grown)
 	}
 
 	// A resize below the compartments is to them; one above them is
 	// kept when they shrink.
 	mustApply(t, d, gw.Command{Op: gw.Resize, Vertex: a, Size: gw.Size{W: 60, H: 30}})
-	if got := d.Vertices[a].Size; got != (gw.Size{W: 60, H: grown.H}) {
+	if got := d.Vertex(a).Size(); got != (gw.Size{W: 60, H: grown.H}) {
 		t.Errorf("resize below: %v, want %v", got, gw.Size{W: 60, H: grown.H})
 	}
 	mustApply(t, d, gw.Command{Op: gw.Resize, Vertex: a, Size: gw.Size{W: 150, H: 120}})
-	if ch := mustApply(t, d, gw.Command{Op: gw.SetAttr, Vertex: a, Key: "fields", Value: ""}); ch.Layout || d.Vertices[a].Size != (gw.Size{W: 150, H: 120}) {
-		t.Errorf("shrunk below its own size: layout stale %v, size %v", ch.Layout, d.Vertices[a].Size)
+	if ch := mustApply(t, d, gw.Command{Op: gw.SetAttr, Vertex: a, Key: "fields", Value: ""}); ch.Layout || d.Vertex(a).Size() != (gw.Size{W: 150, H: 120}) {
+		t.Errorf("shrunk below its own size: layout stale %v, size %v", ch.Layout, d.Vertex(a).Size())
 	}
 	mustApply(t, d, gw.Command{Op: gw.SetAttr, Vertex: a, Key: "fields", Value: "1\n2\n3\n4\n5\n6\n7"})
 	mustApply(t, d, gw.Command{Op: gw.SetAttr, Vertex: b, Key: "methods", Value: "a method with a long name"})
@@ -121,9 +121,9 @@ func TestCompartmentStale(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range []gw.VertexIndex{a, b} {
-		w := again.VertexByID(d.Vertices[v].ID)
-		if got, want := again.Vertices[w], d.Vertices[v]; got.Pos != want.Pos || got.Size != want.Size {
-			t.Errorf("%s loaded at %v %v, saved at %v %v", want.ID, got.Pos, got.Size, want.Pos, want.Size)
+		w := again.VertexByID(d.Vertex(v).ID())
+		if got, want := again.Vertex(w), d.Vertex(v); got.Pos() != want.Pos() || got.Size() != want.Size() {
+			t.Errorf("%s loaded at %v %v, saved at %v %v", want.ID(), got.Pos(), got.Size(), want.Pos(), want.Size())
 		}
 	}
 }

@@ -22,7 +22,7 @@ const ContainerTitle = 20
 func (d *Document) Depth(v VertexIndex) int {
 	n := 0
 	// bound: the parent chain is acyclic, so at most the vertex count
-	for p := d.Vertices[v].Parent; p != None && n < len(d.Vertices); p = d.Vertices[p].Parent {
+	for p := d.vertices[v].Parent; p != None && n < len(d.vertices); p = d.vertices[p].Parent {
 		n++
 	}
 	return n
@@ -32,18 +32,18 @@ func (d *Document) Depth(v VertexIndex) int {
 // containers between.
 func (d *Document) Within(v, c VertexIndex) bool {
 	// bound: the parent chain is acyclic, so at most the vertex count
-	for n := 0; v != None && n <= len(d.Vertices); n++ {
+	for n := 0; v != None && n <= len(d.vertices); n++ {
 		if v == c {
 			return true
 		}
-		v = d.Vertices[v].Parent
+		v = d.vertices[v].Parent
 	}
 	return false
 }
 
 // isContainer reports whether the vertex's kind is a container.
 func (d *Document) isContainer(v VertexIndex) bool {
-	return d.kinds.vertex[d.Vertices[v].Kind].Container
+	return d.kinds.vertex[d.vertices[v].Kind].Container
 }
 
 // hasContainers reports whether the document holds a live container.
@@ -67,18 +67,18 @@ func (d *Document) setParent(c Command) error {
 		if !d.vertexLive(c.To) {
 			return refusal("vertex " + itoa(int(c.To)) + " is not live")
 		}
-		k := d.kinds.vertex[d.Vertices[c.To].Kind]
+		k := d.kinds.vertex[d.vertices[c.To].Kind]
 		if !k.Container {
-			return refusal("vertex " + d.vertexName(c.To) + " of kind " + d.kindName(d.Vertices[c.To].Kind) + " is not a container")
+			return refusal("vertex " + d.vertexName(c.To) + " of kind " + d.kindName(d.vertices[c.To].Kind) + " is not a container")
 		}
 		if d.Within(c.To, c.Vertex) {
 			return refusal("vertex " + d.vertexName(c.Vertex) + " cannot go inside itself or what it holds")
 		}
-		if !kindIn(k.Contains, d.Vertices[c.Vertex].Kind) {
-			return refusal("container kind " + d.kindName(d.Vertices[c.To].Kind) + " cannot hold kind " + d.kindName(d.Vertices[c.Vertex].Kind))
+		if !kindIn(k.Contains, d.vertices[c.Vertex].Kind) {
+			return refusal("container kind " + d.kindName(d.vertices[c.To].Kind) + " cannot hold kind " + d.kindName(d.vertices[c.Vertex].Kind))
 		}
 	}
-	v := &d.Vertices[c.Vertex]
+	v := &d.vertices[c.Vertex]
 	if v.Parent == c.To {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (d *Document) setParent(c Command) error {
 
 // putIn sets a vertex's container and names it and its edges as changed.
 func (d *Document) putIn(v, parent VertexIndex) {
-	d.Vertices[v].Parent = parent
+	d.vertices[v].Parent = parent
 	d.touchVertex(v)
 	d.touchEdgesAt(v)
 }
@@ -101,11 +101,11 @@ func (d *Document) shift(c VertexIndex, dx, dy float64) {
 	if !d.isContainer(c) || (dx == 0 && dy == 0) {
 		return
 	}
-	for i := range d.Vertices {
+	for i := range d.vertices {
 		u := VertexIndex(i) //nolint:gosec // bounded by the capacity
-		if u != c && d.Vertices[i].Live && d.Within(u, c) {
-			d.Vertices[i].Pos.X += dx
-			d.Vertices[i].Pos.Y += dy
+		if u != c && d.vertices[i].Live && d.Within(u, c) {
+			d.vertices[i].Pos.X += dx
+			d.vertices[i].Pos.Y += dy
 			d.touchVertex(u)
 			d.touchEdgesAt(u)
 		}
@@ -134,8 +134,8 @@ func (d *Document) fit() {
 		return
 	}
 	deepest := 0
-	for i := range d.Vertices {
-		if d.Vertices[i].Live {
+	for i := range d.vertices {
+		if d.vertices[i].Live {
 			d.depth[i] = int32(d.Depth(VertexIndex(i))) //nolint:gosec // bounded by the capacity
 			deepest = max(deepest, int(d.depth[i]))
 		}
@@ -144,8 +144,8 @@ func (d *Document) fit() {
 	}
 	// bound: the deepest nesting, at most the vertex count
 	for k := deepest; k >= 0; k-- {
-		for i := range d.Vertices {
-			if d.Vertices[i].Live && int(d.depth[i]) == k {
+		for i := range d.vertices {
+			if d.vertices[i].Live && int(d.depth[i]) == k {
 				d.fitOne(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 			}
 		}
@@ -159,7 +159,7 @@ func (d *Document) fitOne(i VertexIndex) {
 	if d.holdsCompartments(i) && !d.isContainer(i) {
 		d.fitContent(i)
 	}
-	v := &d.Vertices[i]
+	v := &d.vertices[i]
 	if b := d.box[4*i : 4*i+4]; d.isContainer(i) {
 		var pos Point
 		var size Size
@@ -206,10 +206,10 @@ func grow(pos Point, size, least Size) (Point, Size) {
 // ownSize is the size of a container that holds nothing, or of a vertex
 // whose compartments are empty: its own, or its kind's when it has none.
 func (d *Document) ownSize(c VertexIndex) Size {
-	if m := d.Vertices[c].Min; m != (Size{}) {
+	if m := d.vertices[c].Min; m != (Size{}) {
 		return m
 	}
-	return d.kinds.vertex[d.Vertices[c].Kind].Size
+	return d.kinds.vertex[d.vertices[c].Kind].Size
 }
 
 // Containers lists the live containers in the order they are drawn,
@@ -228,17 +228,17 @@ func (d *Document) reorder() {
 	if !d.hasContainers() {
 		return
 	}
-	for i := range d.Vertices {
+	for i := range d.vertices {
 		d.kid[i] = None
 	}
 	root := VertexIndex(None)
 	// Backwards, so that each list of children is in index order.
-	for i := len(d.Vertices) - 1; i >= 0; i-- {
+	for i := len(d.vertices) - 1; i >= 0; i-- {
 		c := VertexIndex(i) //nolint:gosec // bounded by the capacity
-		if !d.Vertices[i].Live || !d.isContainer(c) {
+		if !d.vertices[i].Live || !d.isContainer(c) {
 			continue
 		}
-		if p := d.Vertices[i].Parent; p == None {
+		if p := d.vertices[i].Parent; p == None {
 			d.sib[i], root = root, c
 		} else {
 			d.sib[i], d.kid[p] = d.kid[p], c
@@ -253,8 +253,8 @@ func (d *Document) reorder() {
 			continue
 		}
 		// bound: the parent chain is acyclic, so at most the vertex count
-		for n := 0; c != None && d.sib[c] == None && n <= len(d.Vertices); n++ {
-			c = d.Vertices[c].Parent
+		for n := 0; c != None && d.sib[c] == None && n <= len(d.vertices); n++ {
+			c = d.vertices[c].Parent
 		}
 		if c != None {
 			c = d.sib[c]

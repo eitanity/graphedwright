@@ -594,9 +594,9 @@ func (j *jsHost) EditingLabel(v gw.VertexIndex, e gw.EdgeIndex, text string) {
 	}
 	id := ""
 	if v != gw.None {
-		id = string(j.h.d.Vertices[v].ID)
+		id = string(j.h.d.Vertex(v).ID())
 	} else if e != gw.None {
-		id = string(j.h.d.Edges[e].ID)
+		id = string(j.h.d.Edge(e).ID())
 	}
 	arg := js.Global().Get("Object").New()
 	arg.Set("id", id)
@@ -621,11 +621,11 @@ func (j *jsHost) changeObject(ch gw.Change) js.Value {
 	out := js.Global().Get("Object").New()
 	vs := js.Global().Get("Array").New()
 	for _, v := range ch.Vertices {
-		vs.Call("push", string(j.h.d.Vertices[v].ID))
+		vs.Call("push", string(j.h.d.Vertex(v).ID()))
 	}
 	es := js.Global().Get("Array").New()
 	for _, e := range ch.Edges {
-		es.Call("push", string(j.h.d.Edges[e].ID))
+		es.Call("push", string(j.h.d.Edge(e).ID()))
 	}
 	out.Set("vertices", vs)
 	out.Set("edges", es)
@@ -637,11 +637,11 @@ func (j *jsHost) selectionObject(sv []gw.VertexIndex, se []gw.EdgeIndex) js.Valu
 	out := js.Global().Get("Object").New()
 	vs := js.Global().Get("Array").New()
 	for _, v := range sv {
-		vs.Call("push", string(j.h.d.Vertices[v].ID))
+		vs.Call("push", string(j.h.d.Vertex(v).ID()))
 	}
 	es := js.Global().Get("Array").New()
 	for _, e := range se {
-		es.Call("push", string(j.h.d.Edges[e].ID))
+		es.Call("push", string(j.h.d.Edge(e).ID()))
 	}
 	out.Set("vertices", vs)
 	out.Set("edges", es)

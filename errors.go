@@ -35,7 +35,7 @@ func refusal(msg string) error { return errors.New(msg) }
 
 // vertexName is how a refusal names a vertex: its quoted ID.
 func (d *Document) vertexName(v VertexIndex) string {
-	return strconv.Quote(string(d.Vertices[v].ID))
+	return strconv.Quote(string(d.vertices[v].ID))
 }
 
 // kindName is the quoted name of a vertex kind.

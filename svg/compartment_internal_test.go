@@ -60,8 +60,8 @@ func TestCompartmentsInside(t *testing.T) {
 		}
 		shown := 0
 		for _, m := range partRE.FindAllStringSubmatch(buf.String(), -1) {
-			x := d.Vertices[d.VertexByID(gw.ID(m[1]))]
-			w, h := x.Size.W, x.Size.H
+			x := d.Vertex(d.VertexByID(gw.ID(m[1])))
+			w, h := x.Size().W, x.Size().H
 			rules := ruleRE.FindAllStringSubmatch(m[2], -1)
 			texts := entryRE.FindAllStringSubmatch(m[2], -1)
 			if len(texts) == 0 || texts[0][1] != "label" {

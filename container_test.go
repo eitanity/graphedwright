@@ -48,14 +48,14 @@ func TestContainerFit(t *testing.T) {
 	a := at(t, d, cBox, "a", 0, 0)
 	b := at(t, d, cBox, "b", 100, 40)
 	z := at(t, d, cZone, "z", 500, 500)
-	if d.Vertices[z].Size != (gw.Size{W: 100, H: 60}) {
-		t.Errorf("empty zone: %v", d.Vertices[z].Size)
+	if d.Vertex(z).Size() != (gw.Size{W: 100, H: 60}) {
+		t.Errorf("empty zone: %v", d.Vertex(z).Size())
 	}
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: z})
 	ch := apply(t, d, gw.Command{Op: gw.SetParent, Vertex: b, To: z})
 	// a [-20,-10,20,10] and b [80,30,120,50]: the box [-20,-10,120,50].
-	if v := d.Vertices[z]; v.Pos != (gw.Point{X: 50, Y: 10}) || v.Size != (gw.Size{W: 172, H: 112}) {
-		t.Errorf("fitted zone: %v %v", v.Pos, v.Size)
+	if v := d.Vertex(z); v.Pos() != (gw.Point{X: 50, Y: 10}) || v.Size() != (gw.Size{W: 172, H: 112}) {
+		t.Errorf("fitted zone: %v %v", v.Pos(), v.Size())
 	}
 	seen := map[gw.VertexIndex]int{}
 	for _, v := range ch.Vertices {
@@ -65,15 +65,15 @@ func TestContainerFit(t *testing.T) {
 		t.Errorf("change %+v", ch)
 	}
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: b, Pos: gw.Point{X: 200, Y: 40}})
-	if d.Vertices[z].Size.W != 272 {
-		t.Errorf("zone after its box moved: %v", d.Vertices[z].Size)
+	if d.Vertex(z).Size().W != 272 {
+		t.Errorf("zone after its box moved: %v", d.Vertex(z).Size())
 	}
 	// Nested: an outer zone around z.
 	o := at(t, d, cZone, "o", 900, 900)
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: z, To: o})
-	zv, ov := d.Vertices[z], d.Vertices[o]
-	if ov.Size.W != zv.Size.W+2*gw.ContainerPad || ov.Size.H != zv.Size.H+2*gw.ContainerPad+gw.ContainerTitle || d.Depth(a) != 2 || !d.Within(a, o) || d.Within(o, a) {
-		t.Errorf("outer %v %v around %v %v, depth %d", ov.Pos, ov.Size, zv.Pos, zv.Size, d.Depth(a))
+	zv, ov := d.Vertex(z), d.Vertex(o)
+	if ov.Size().W != zv.Size().W+2*gw.ContainerPad || ov.Size().H != zv.Size().H+2*gw.ContainerPad+gw.ContainerTitle || d.Depth(a) != 2 || !d.Within(a, o) || d.Within(o, a) {
+		t.Errorf("outer %v %v around %v %v, depth %d", ov.Pos(), ov.Size(), zv.Pos(), zv.Size(), d.Depth(a))
 	}
 }
 
@@ -94,17 +94,17 @@ func TestSetParentRefusals(t *testing.T) {
 	refuse(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: 99}, "vertex 99 is not live")
 	refuse(t, d, gw.Command{Op: gw.SetParent, Vertex: 99, To: z}, "vertex 99 is not live")
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: s})
-	if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: a, To: s}); err != nil || d.Vertices[a].Parent != s {
+	if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: a, To: s}); err != nil || d.Vertex(a).Parent() != s {
 		t.Errorf("into the container it is in: %v", err)
 	}
-	if d.Vertices[s].Size != (gw.Size{W: 40 + 2*gw.ContainerPad, H: 20 + 2*gw.ContainerPad + gw.ContainerTitle}) {
-		t.Errorf("fitted around a: %v", d.Vertices[s].Size)
+	if d.Vertex(s).Size() != (gw.Size{W: 40 + 2*gw.ContainerPad, H: 20 + 2*gw.ContainerPad + gw.ContainerTitle}) {
+		t.Errorf("fitted around a: %v", d.Vertex(s).Size())
 	}
 	// Emptied, the system is its kind's size again, its top left corner
 	// (-36,-46) where the fit had it.
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: gw.None})
-	if v := d.Vertices[s]; d.Vertices[a].Parent != gw.None || v.Size != (gw.Size{W: 100, H: 60}) || v.Pos != (gw.Point{X: 14, Y: -16}) {
-		t.Errorf("out again: parent %d, system %v %v", d.Vertices[a].Parent, v.Pos, v.Size)
+	if v := d.Vertex(s); d.Vertex(a).Parent() != gw.None || v.Size() != (gw.Size{W: 100, H: 60}) || v.Pos() != (gw.Point{X: 14, Y: -16}) {
+		t.Errorf("out again: parent %d, system %v %v", d.Vertex(a).Parent(), v.Pos(), v.Size())
 	}
 }
 
@@ -127,10 +127,10 @@ func TestContainerMoveDeleteUndo(t *testing.T) {
 	addEdge(t, d, 0, x, a, gw.None, gw.None)
 	addEdge(t, d, 0, a, b, gw.None, gw.None)
 	before := snapshot(d)
-	zp := d.Vertices[z].Pos
+	zp := d.Vertex(z).Pos()
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: z, Pos: gw.Point{X: zp.X + 30, Y: zp.Y - 10}})
-	if d.Vertices[a].Pos != (gw.Point{X: 30, Y: -10}) || d.Vertices[b].Pos != (gw.Point{X: 130, Y: 30}) || d.Vertices[z].Pos != (gw.Point{X: zp.X + 30, Y: zp.Y - 10}) {
-		t.Errorf("moved zone: a %v b %v z %v", d.Vertices[a].Pos, d.Vertices[b].Pos, d.Vertices[z].Pos)
+	if d.Vertex(a).Pos() != (gw.Point{X: 30, Y: -10}) || d.Vertex(b).Pos() != (gw.Point{X: 130, Y: 30}) || d.Vertex(z).Pos() != (gw.Point{X: zp.X + 30, Y: zp.Y - 10}) {
+		t.Errorf("moved zone: a %v b %v z %v", d.Vertex(a).Pos(), d.Vertex(b).Pos(), d.Vertex(z).Pos())
 	}
 	moved := snapshot(d)
 	d.Undo()
@@ -158,8 +158,8 @@ func TestContainerMoveDeleteUndo(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: x})
 	apply(t, d, gw.Command{Op: gw.Compact})
 	z2 := d.VertexByID("z")
-	if a2, b2 := d.VertexByID("a"), d.VertexByID("b"); z2 != 2 || d.Vertices[a2].Parent != z2 || d.Vertices[b2].Parent != z2 {
-		t.Errorf("after compact: z %d, parents %d %d", z2, d.Vertices[a2].Parent, d.Vertices[b2].Parent)
+	if a2, b2 := d.VertexByID("a"), d.VertexByID("b"); z2 != 2 || d.Vertex(a2).Parent() != z2 || d.Vertex(b2).Parent() != z2 {
+		t.Errorf("after compact: z %d, parents %d %d", z2, d.Vertex(a2).Parent(), d.Vertex(b2).Parent())
 	}
 }
 
@@ -194,34 +194,34 @@ func TestContainerOwnSize(t *testing.T) {
 	a := at(t, d, cBox, "a", 0, 0)
 	z := at(t, d, cZone, "z", 500, 500)
 	apply(t, d, gw.Command{Op: gw.Resize, Vertex: z, Size: gw.Size{W: 200, H: 100}})
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 200, H: 100}) || v.Min != v.Size || v.Pos != (gw.Point{X: 500, Y: 500}) {
-		t.Errorf("resized empty zone: %v %v own %v", v.Pos, v.Size, v.Min)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 200, H: 100}) || v.Min() != v.Size() || v.Pos() != (gw.Point{X: 500, Y: 500}) {
+		t.Errorf("resized empty zone: %v %v own %v", v.Pos(), v.Size(), v.Min())
 	}
 	// a [-20,-10,20,10] fits to the corner (-36,-46); the zone is
 	// 200 by 100 from there.
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: a, To: z})
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 200, H: 100}) || v.Pos != (gw.Point{X: 64, Y: 4}) {
-		t.Errorf("zone holding a: %v %v", v.Pos, v.Size)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 200, H: 100}) || v.Pos() != (gw.Point{X: 64, Y: 4}) {
+		t.Errorf("zone holding a: %v %v", v.Pos(), v.Size())
 	}
 	// a moved far right and down is held; the zone grows past its own
 	// size to fit it.
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: a, Pos: gw.Point{X: 300, Y: 100}})
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 200, H: 100}) || v.Pos != (gw.Point{X: 364, Y: 104}) {
-		t.Errorf("zone around a moved: %v %v", v.Pos, v.Size)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 200, H: 100}) || v.Pos() != (gw.Point{X: 364, Y: 104}) {
+		t.Errorf("zone around a moved: %v %v", v.Pos(), v.Size())
 	}
 	d.Undo()
 	apply(t, d, gw.Command{Op: gw.Resize, Vertex: z, Size: gw.Size{W: 50, H: 50}})
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 72, H: 72}) || v.Min != (gw.Size{W: 50, H: 50}) {
-		t.Errorf("resized below what it holds: %v own %v", v.Size, v.Min)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 72, H: 72}) || v.Min() != (gw.Size{W: 50, H: 50}) {
+		t.Errorf("resized below what it holds: %v own %v", v.Size(), v.Min())
 	}
 	d.Undo()
-	if v := d.Vertices[z]; v.Size != (gw.Size{W: 200, H: 100}) || v.Min != v.Size || v.Pos != (gw.Point{X: 64, Y: 4}) {
-		t.Errorf("undo of the resize: %v %v own %v", v.Pos, v.Size, v.Min)
+	if v := d.Vertex(z); v.Size() != (gw.Size{W: 200, H: 100}) || v.Min() != v.Size() || v.Pos() != (gw.Point{X: 64, Y: 4}) {
+		t.Errorf("undo of the resize: %v %v own %v", v.Pos(), v.Size(), v.Min())
 	}
 	for _, out := range []gw.Command{{Op: gw.SetParent, Vertex: a, To: gw.None}, {Op: gw.DeleteVertex, Vertex: a}} {
 		apply(t, d, out)
-		if v := d.Vertices[z]; v.Size != (gw.Size{W: 200, H: 100}) || v.Pos != (gw.Point{X: 64, Y: 4}) {
-			t.Errorf("after %v: zone %v %v", out.Op, v.Pos, v.Size)
+		if v := d.Vertex(z); v.Size() != (gw.Size{W: 200, H: 100}) || v.Pos() != (gw.Point{X: 64, Y: 4}) {
+			t.Errorf("after %v: zone %v %v", out.Op, v.Pos(), v.Size())
 		}
 		d.Undo()
 	}
@@ -230,8 +230,8 @@ func TestContainerOwnSize(t *testing.T) {
 	y := at(t, d, cZone, "y", 0, 0)
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: b, To: y})
 	apply(t, d, gw.Command{Op: gw.SetParent, Vertex: b, To: gw.None})
-	if v := d.Vertices[y]; v.Size != (gw.Size{W: 100, H: 60}) || v.Pos != (gw.Point{X: 14, Y: -16}) || v.Min != (gw.Size{}) {
-		t.Errorf("emptied zone: %v %v own %v", v.Pos, v.Size, v.Min)
+	if v := d.Vertex(y); v.Size() != (gw.Size{W: 100, H: 60}) || v.Pos() != (gw.Point{X: 14, Y: -16}) || v.Min() != (gw.Size{}) {
+		t.Errorf("emptied zone: %v %v own %v", v.Pos(), v.Size(), v.Min())
 	}
 }
 
@@ -249,7 +249,7 @@ func TestContainerOrder(t *testing.T) {
 	order := func() string {
 		s := ""
 		for _, c := range d.Containers() {
-			s += string(d.Vertices[c].ID) + " "
+			s += string(d.Vertex(c).ID()) + " "
 		}
 		return s
 	}

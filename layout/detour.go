@@ -99,14 +99,14 @@ func newDetour(vertices int) *detour {
 func (l *Layouter) index(d *gw.Document) {
 	dt := l.dt
 	dt.byX, dt.wide, dt.maxW = dt.byX[:0], dt.wide[:0], 0
-	for i := range d.Vertices {
-		v := &d.Vertices[i]
-		if !v.Live {
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() {
 			continue
 		}
 		b := l.frame(v)
 		dt.boxes[i] = b
-		if d.Kinds().Vertex(v.Kind).Container() {
+		if d.Kinds().Vertex(v.Kind()).Container() {
 			dt.wide = append(dt.wide, int32(i)) //nolint:gosec // bounded by the capacity
 			continue
 		}
@@ -129,10 +129,10 @@ func (l *Layouter) detours(d *gw.Document) {
 		return
 	}
 	l.index(d)
-	for i := range d.Edges {
-		e := &d.Edges[i]
-		ei := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
-		if !e.Live || e.From == e.To || e.FromPort != gw.None || e.ToPort != gw.None {
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		ei := gw.EdgeIndex(i)        //nolint:gosec // bounded by the capacity
+		if !e.Live() || e.From() == e.To() || e.FromPort() != gw.None || e.ToPort() != gw.None {
 			continue
 		}
 		if k, n := d.Parallel(ei); n > 1 {
@@ -158,8 +158,8 @@ const maxLanes = 8
 func (l *Layouter) lanes(d *gw.Document, e gw.EdgeIndex) {
 	var group [maxLanes]gw.EdgeIndex
 	n, hit := 0, false
-	ed := &d.Edges[e]
-	for _, v := range [2]gw.VertexIndex{ed.From, ed.To} {
+	ed := d.Edge(e)
+	for _, v := range [2]gw.VertexIndex{ed.From(), ed.To()} {
 		// bound: the out list visits each edge of the vertex once
 		for o := d.FirstOut(v); o != gw.None; o = d.NextOut(o) {
 			k, m := d.Parallel(o)
@@ -184,13 +184,13 @@ func (l *Layouter) lanes(d *gw.Document, e gw.EdgeIndex) {
 // sameEnds reports whether edges e and o join the same two vertices,
 // either way.
 func sameEnds(d *gw.Document, e, o gw.EdgeIndex) bool {
-	a, b := &d.Edges[e], &d.Edges[o]
-	return a.From == b.From && a.To == b.To || a.From == b.To && a.To == b.From
+	a, b := d.Edge(e), d.Edge(o)
+	return a.From() == b.From() && a.To() == b.To() || a.From() == b.To() && a.To() == b.From()
 }
 
 func hasContainer(d *gw.Document) bool {
-	for i := range d.Vertices {
-		if d.Vertices[i].Live && d.Kinds().Vertex(d.Vertices[i].Kind).Container() {
+	for i := range d.VertexSlots() {
+		if d.Vertex(gw.VertexIndex(i)).Live() && d.Kinds().Vertex(d.Vertex(gw.VertexIndex(i)).Kind()).Container() { //nolint:gosec // bounded by the capacity
 			return true
 		}
 	}
@@ -205,10 +205,10 @@ type drawn struct {
 	a, b  gw.Point
 }
 
-func (l *Layouter) drawnOf(d *gw.Document, e *gw.Edge) drawn {
-	fb, tb := l.frame(&d.Vertices[e.From]), l.frame(&d.Vertices[e.To])
+func (l *Layouter) drawnOf(d *gw.Document, e gw.EdgeView) drawn {
+	fb, tb := l.frame(d.Vertex(e.From())), l.frame(d.Vertex(e.To()))
 	fx, tx := (fb.x0+fb.x1)/2, (tb.x0+tb.x1)/2
-	w := drawn{route: d.Kinds().Edge(e.Kind).Route(), back: tx < fx}
+	w := drawn{route: d.Kinds().Edge(e.Kind()).Route(), back: tx < fx}
 	w.a, w.b = gw.Point{X: fx, Y: fb.cy}, gw.Point{X: tx, Y: tb.cy}
 	if w.route != gw.Straight {
 		w.a.X, w.b.X = fb.x1, tb.x0
@@ -222,15 +222,15 @@ func (l *Layouter) drawnOf(d *gw.Document, e *gw.Edge) drawn {
 // crosses reports whether edge e, drawn through its bends, passes
 // through a vertex that holds neither of its ends.
 func (l *Layouter) crosses(d *gw.Document, e gw.EdgeIndex) bool {
-	ed := &d.Edges[e]
+	ed := d.Edge(e)
 	w := l.drawnOf(d, ed)
 	l.walls(d, ed)
 	var through [1]gw.Point
-	bends := ed.Bends
-	n := len(bends)
+	bends := ed.Bends()
+	n, onLane := bends.Len(), false
 	if k, m := d.Parallel(e); m > 1 {
 		if lane, ok := w.lane(k, m); ok {
-			through[0], bends, n = lane, nil, 1
+			through[0], onLane, n = lane, true, 1
 		}
 	}
 	var pts [curveSteps + 1]gw.Point
@@ -238,10 +238,10 @@ func (l *Layouter) crosses(d *gw.Document, e gw.EdgeIndex) bool {
 	for k := 0; k <= n; k++ {
 		p, q := w.a, w.b
 		if k > 0 {
-			p = l.point(bends, through[:], k-1)
+			p = l.point(bends, through[:], onLane, k-1)
 		}
 		if k < n {
-			q = l.point(bends, through[:], k)
+			q = l.point(bends, through[:], onLane, k)
 		}
 		m := legPoints(w, n > 0, p, q, &pts)
 		// bound: the leg's points, curveSteps + 1 at most
@@ -254,13 +254,14 @@ func (l *Layouter) crosses(d *gw.Document, e gw.EdgeIndex) bool {
 	return false
 }
 
-// point is bend k in the frame: of bends, or of through, already in the
-// frame, when there are no bends.
-func (l *Layouter) point(bends, through []gw.Point, k int) gw.Point {
-	if bends == nil {
+// point is bend k in the frame: of bends, or, on a lane, of through,
+// already in the frame.
+func (l *Layouter) point(bends gw.PointList, through []gw.Point, onLane bool, k int) gw.Point {
+	if onLane {
 		return through[k]
 	}
-	x, y := l.swap(bends[k].X, bends[k].Y)
+	b := bends.At(k)
+	x, y := l.swap(b.X, b.Y)
 	return gw.Point{X: x, Y: y}
 }
 
@@ -325,7 +326,7 @@ func legPoints(w drawn, bent bool, p, q gw.Point, pts *[curveSteps + 1]gw.Point)
 
 // hit is a vertex that holds neither end of edge e and that the line
 // from p to q, in the frame, passes more than half a unit into, or None.
-func (l *Layouter) hit(d *gw.Document, e *gw.Edge, p, q gw.Point) gw.VertexIndex {
+func (l *Layouter) hit(d *gw.Document, e gw.EdgeView, p, q gw.Point) gw.VertexIndex {
 	dt := l.dt
 	x0, x1 := math.Min(p.X, q.X), math.Max(p.X, q.X)
 	for _, u := range dt.wide {
@@ -352,13 +353,13 @@ func (l *Layouter) hit(d *gw.Document, e *gw.Edge, p, q gw.Point) gw.VertexIndex
 
 // into reports whether the line from p to q passes more than half a
 // unit into vertex u, which holds neither end of edge e.
-func (l *Layouter) into(d *gw.Document, e *gw.Edge, p, q gw.Point, u int32) bool {
+func (l *Layouter) into(d *gw.Document, e gw.EdgeView, p, q gw.Point, u int32) bool {
 	b := l.dt.boxes[u]
 	if b.x1 < math.Min(p.X, q.X) || b.x0 > math.Max(p.X, q.X) || b.y1 < math.Min(p.Y, q.Y) || b.y0 > math.Max(p.Y, q.Y) {
 		return false
 	}
 	v := gw.VertexIndex(u)
-	if d.Within(e.From, v) || d.Within(e.To, v) {
+	if d.Within(e.From(), v) || d.Within(e.To(), v) {
 		return false
 	}
 	b.x0, b.x1, b.y0, b.y1 = b.x0+0.5, b.x1-0.5, b.y0+0.5, b.y1-0.5
@@ -372,7 +373,7 @@ func (l *Layouter) into(d *gw.Document, e *gw.Edge, p, q gw.Point, u int32) bool
 // edges between the same two vertices run apart. Where vertices stand
 // too close for the gap, half of it is tried.
 func (l *Layouter) reroute(d *gw.Document, e gw.EdgeIndex, j, n int) {
-	ed := &d.Edges[e]
+	ed := d.Edge(e)
 	w := l.drawnOf(d, ed)
 	dt := l.dt
 	for _, base := range [2]float64{detourGap, detourGap / 2} {
@@ -388,13 +389,13 @@ func (l *Layouter) reroute(d *gw.Document, e gw.EdgeIndex, j, n int) {
 // find finds a detour for edge e, drawn as w, at the detour's gap and
 // off its ends' middles by off, and returns how many corners it has, or
 // 0 when there is none.
-func (l *Layouter) find(d *gw.Document, ed *gw.Edge, w drawn, off float64) int {
+func (l *Layouter) find(d *gw.Document, ed gw.EdgeView, w drawn, off float64) int {
 	dt := l.dt
 	fwd := 1.0
 	if w.back {
 		fwd = -1
 	}
-	fb, tb := l.frame(&d.Vertices[ed.From]), l.frame(&d.Vertices[ed.To])
+	fb, tb := l.frame(d.Vertex(ed.From())), l.frame(d.Vertex(ed.To()))
 	ax, bx := fb.x1, tb.x0
 	if w.back {
 		ax, bx = fb.x0, tb.x1
@@ -425,7 +426,7 @@ func (l *Layouter) find(d *gw.Document, ed *gw.Edge, w drawn, off float64) int {
 		if dt.nObs == detourObs {
 			return 0
 		}
-		dt.obs[dt.nObs] = l.frame(&d.Vertices[u])
+		dt.obs[dt.nObs] = l.frame(d.Vertex(u))
 		dt.nObs++
 	}
 	return 0
@@ -437,14 +438,14 @@ const detourRounds = 4
 
 // missed is the obstacle that the detour's first m corners, with its
 // legs to and from the ends, pass through, or None.
-func (l *Layouter) missed(d *gw.Document, ed *gw.Edge, m int) gw.VertexIndex {
+func (l *Layouter) missed(d *gw.Document, ed gw.EdgeView, m int) gw.VertexIndex {
 	dt := l.dt
 	// bound: the detour's legs
 	for k := 1; k < m; k++ {
 		if u := l.hit(d, ed, dt.path[k-1], dt.path[k]); u != gw.None {
 			// bound: the parent chain, at most the vertex count
-			for n := 0; !l.obstacle(d, ed, u) && n < len(d.Vertices); n++ {
-				u = d.Vertices[u].Parent
+			for n := 0; !l.obstacle(d, ed, u) && n < d.VertexSlots(); n++ {
+				u = d.Vertex(u).Parent()
 			}
 			return u
 		}
@@ -478,7 +479,7 @@ func (l *Layouter) setDetour(d *gw.Document, e gw.EdgeIndex, w drawn, m int) {
 // vertices that hold neither end and stand in no other such vertex, that
 // meet the box round s and t grown by those that meet it. It reports
 // false when there are too many, or when s or t is inside one.
-func (l *Layouter) obstacles(d *gw.Document, e *gw.Edge, s, t gw.Point) bool {
+func (l *Layouter) obstacles(d *gw.Document, e gw.EdgeView, s, t gw.Point) bool {
 	r := frameBox{x0: math.Min(s.X, t.X), x1: math.Max(s.X, t.X), y0: math.Min(s.Y, t.Y), y1: math.Max(s.Y, t.Y)}
 	dt := l.dt
 	l.walls(d, e)
@@ -486,12 +487,12 @@ func (l *Layouter) obstacles(d *gw.Document, e *gw.Edge, s, t gw.Point) bool {
 	for pass := 0; pass < 3; pass++ {
 		dt.nObs = 0
 		grown := r
-		for i := range d.Vertices {
+		for i := range d.VertexSlots() {
 			u := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
 			if !l.obstacle(d, e, u) {
 				continue
 			}
-			b := l.frame(&d.Vertices[i])
+			b := l.frame(d.Vertex(gw.VertexIndex(i))) //nolint:gosec // bounded by the capacity
 			if b.x1 < r.x0-dt.gap || b.x0 > r.x1+dt.gap || b.y1 < r.y0-dt.gap || b.y0 > r.y1+dt.gap {
 				continue
 			}
@@ -512,13 +513,13 @@ func (l *Layouter) obstacles(d *gw.Document, e *gw.Edge, s, t gw.Point) bool {
 
 // walls finds the containers that hold an end of e: a detour may cross
 // their sides, to get in or out, but not run along them.
-func (l *Layouter) walls(d *gw.Document, e *gw.Edge) {
+func (l *Layouter) walls(d *gw.Document, e gw.EdgeView) {
 	dt := l.dt
 	dt.nWalls = 0
-	for _, v := range [2]gw.VertexIndex{e.From, e.To} {
+	for _, v := range [2]gw.VertexIndex{e.From(), e.To()} {
 		// bound: the parent chain, at most detourWalls containers
-		for p := d.Vertices[v].Parent; p != gw.None && dt.nWalls < detourWalls; p = d.Vertices[p].Parent {
-			dt.walls[dt.nWalls] = l.frame(&d.Vertices[p])
+		for p := d.Vertex(v).Parent(); p != gw.None && dt.nWalls < detourWalls; p = d.Vertex(p).Parent() {
+			dt.walls[dt.nWalls] = l.frame(d.Vertex(p))
 			dt.nWalls++
 		}
 	}
@@ -526,13 +527,13 @@ func (l *Layouter) walls(d *gw.Document, e *gw.Edge) {
 
 // obstacle reports whether u is one of the vertices a detour for e goes
 // round: live, holding neither end, and in none that holds neither.
-func (l *Layouter) obstacle(d *gw.Document, e *gw.Edge, u gw.VertexIndex) bool {
-	v := &d.Vertices[u]
-	if !v.Live || d.Within(e.From, u) || d.Within(e.To, u) {
+func (l *Layouter) obstacle(d *gw.Document, e gw.EdgeView, u gw.VertexIndex) bool {
+	v := d.Vertex(u)
+	if !v.Live() || d.Within(e.From(), u) || d.Within(e.To(), u) {
 		return false
 	}
-	p := v.Parent
-	return p == gw.None || d.Within(e.From, p) || d.Within(e.To, p)
+	p := v.Parent()
+	return p == gw.None || d.Within(e.From(), p) || d.Within(e.To(), p)
 }
 
 // grid sets the grid lines: through s and t, and a gap outside each

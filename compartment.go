@@ -70,7 +70,7 @@ func (d *Document) hasCompartments() bool {
 
 // holdsCompartments reports whether a vertex's kind has compartments.
 func (d *Document) holdsCompartments(v VertexIndex) bool {
-	return len(d.kinds.vertex[d.Vertices[v].Kind].Compartments) > 0
+	return len(d.kinds.vertex[d.vertices[v].Kind].Compartments) > 0
 }
 
 // refits reports whether a command, applied or undone, can change what
@@ -92,7 +92,7 @@ func (d *Document) refits(op Op) bool {
 // the label's room and every compartment with a value, as wide as the
 // widest line up to the kind's MaxWidth.
 func (d *Document) fitted(i VertexIndex, own Size) Size {
-	v := &d.Vertices[i]
+	v := &d.vertices[i]
 	kind := &d.kinds.vertex[v.Kind]
 	h, w, shown := TitleRoom(VertexKindView{kind}), 0.0, false
 	for _, key := range kind.Compartments {
@@ -124,7 +124,7 @@ func (d *Document) fitted(i VertexIndex, own Size) Size {
 // centre, which is where a document saves it, and names it as resized
 // when that changes its size.
 func (d *Document) fitContent(i VertexIndex) {
-	v := &d.Vertices[i]
+	v := &d.vertices[i]
 	size := d.fitted(i, d.ownSize(i))
 	if size == v.Size {
 		return
@@ -151,7 +151,7 @@ func runes(s string) int {
 // whether its kind has them and one has a value. Its label is then at
 // its top, above them.
 func (d *Document) ShowsCompartments(v VertexIndex) bool {
-	x := &d.Vertices[v]
+	x := &d.vertices[v]
 	for _, key := range d.kinds.vertex[x.Kind].Compartments {
 		if AttrValue(x.Attrs, key) != "" {
 			return true

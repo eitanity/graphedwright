@@ -46,25 +46,25 @@ func TestKindsRead(t *testing.T) {
 		v.MaxWidth() != 200 || v.LabelFormat() != "{p}" || v.EditAttr() != "p" {
 		t.Error("vertex kind fields")
 	}
-	if v.PortCount() != 2 || v.Port(0) != (gw.Port{Name: "in", Side: gw.Left, Max: 2}) || v.Port(1).Name != "out" {
+	if v.Ports().Len() != 2 || v.Ports().At(0) != (gw.Port{Name: "in", Side: gw.Left, Max: 2}) || v.Ports().At(1).Name != "out" {
 		t.Error("vertex kind ports")
 	}
-	if v.CompartmentCount() != 1 || v.Compartment(0) != "c" || v.AttrCount() != 2 {
+	if v.Compartments().Len() != 1 || v.Compartments().At(0) != "c" || v.Attrs().Len() != 2 {
 		t.Error("vertex kind compartments and attributes")
 	}
-	a := v.Attr(0)
+	a := v.Attrs().At(0)
 	if !a.Valid() || a.Key() != "p" || a.Kind() != gw.Number || !a.Required() || a.Default() != "0.5" || !a.Bounded() || a.Min() != 0.25 || a.Max() != 1 {
 		t.Error("attribute fields")
 	}
 	if !a.Accepts("1") || a.Accepts("1.5") || a.Accepts("0.2") {
 		t.Error("attribute accepts")
 	}
-	c := v.Attr(1)
-	if c.Kind() != gw.Choice || c.ChoiceCount() != 2 || c.Choice(0) != "x" || c.Choice(1) != "y" {
+	c := v.Attrs().At(1)
+	if c.Kind() != gw.Choice || c.Choices().Len() != 2 || c.Choices().At(0) != "x" || c.Choices().At(1) != "y" {
 		t.Error("attribute choices")
 	}
 	zone, anyKind := k.Vertex(1), k.Vertex(2)
-	if !zone.Container() || zone.ContainsCount() != 1 || zone.Contains(0) != 0 || !zone.Holds(0) || zone.Holds(1) {
+	if !zone.Container() || zone.Contains().Len() != 1 || zone.Contains().At(0) != 0 || !zone.Holds(0) || zone.Holds(1) {
 		t.Error("a container that names what it holds")
 	}
 	if !anyKind.Holds(0) || !anyKind.Holds(2) || v.Holds(0) {
@@ -73,10 +73,10 @@ func TestKindsRead(t *testing.T) {
 	e := k.Edge(0)
 	if !e.Valid() || e.Name() != "link" || e.Route() != gw.Orthogonal || !e.Arrow() || e.Head() != gw.HollowHead ||
 		e.Tail() != gw.HollowDiamond || !e.Dashed() || e.Stereotype() != "uses" || !e.Weighted() ||
-		e.LabelFormat() != "{w}" || e.EditAttr() != "w" || e.AttrCount() != 1 || e.Attr(0).Key() != "w" {
+		e.LabelFormat() != "{w}" || e.EditAttr() != "w" || e.Attrs().Len() != 1 || e.Attrs().At(0).Key() != "w" {
 		t.Error("edge kind fields")
 	}
-	if e.FromCount() != 1 || e.From(0) != 0 || e.ToCount() != 2 || e.To(0) != 0 || e.To(1) != 1 {
+	if e.From().Len() != 1 || e.From().At(0) != 0 || e.To().Len() != 2 || e.To().At(0) != 0 || e.To().At(1) != 1 {
 		t.Error("edge kind ends")
 	}
 	if !e.Allows(0, 1) || e.Allows(1, 0) || e.Allows(0, 2) {
@@ -102,34 +102,34 @@ func TestKindsOutOfRange(t *testing.T) {
 	}
 	for _, i := range []gw.KindIndex{-1, 3} {
 		v := k.Vertex(i)
-		if v.Valid() || v.Name() != "" || v.Shape() != gw.Rect || v.Size() != (gw.Size{}) || v.PortCount() != 0 || v.Port(0) != (gw.Port{}) ||
-			v.AttrCount() != 0 || v.Attr(0).Valid() || v.Root() || v.Leaf() || v.Max() != 0 || v.Dashed() || v.Container() ||
-			v.Holds(0) || v.ContainsCount() != 0 || v.Contains(0) != gw.None || v.Keyword() != "" || v.CompartmentCount() != 0 ||
-			v.Compartment(0) != "" || v.MaxWidth() != 0 || v.LabelFormat() != "" || v.EditAttr() != "" {
+		if v.Valid() || v.Name() != "" || v.Shape() != gw.Rect || v.Size() != (gw.Size{}) || v.Ports().Len() != 0 || v.Ports().At(0) != (gw.Port{}) ||
+			v.Attrs().Len() != 0 || v.Attrs().At(0).Valid() || v.Root() || v.Leaf() || v.Max() != 0 || v.Dashed() || v.Container() ||
+			v.Holds(0) || v.Contains().Len() != 0 || v.Contains().At(0) != gw.None || v.Keyword() != "" || v.Compartments().Len() != 0 ||
+			v.Compartments().At(0) != "" || v.MaxWidth() != 0 || v.LabelFormat() != "" || v.EditAttr() != "" {
 			t.Errorf("vertex kind %d read", i)
 		}
 	}
 	for _, i := range []gw.KindIndex{-1, 1} {
 		e := k.Edge(i)
-		if e.Valid() || e.Name() != "" || e.Allows(0, 0) || e.FromCount() != 0 || e.From(0) != gw.None || e.ToCount() != 0 || e.To(0) != gw.None ||
+		if e.Valid() || e.Name() != "" || e.Allows(0, 0) || e.From().Len() != 0 || e.From().At(0) != gw.None || e.To().Len() != 0 || e.To().At(0) != gw.None ||
 			e.Route() != gw.Straight || e.Arrow() || e.Head() != gw.FilledHead || e.Tail() != gw.NoTail || e.Dashed() || e.Stereotype() != "" ||
-			e.AttrCount() != 0 || e.Attr(0).Valid() || e.Weighted() || e.LabelFormat() != "" || e.EditAttr() != "" {
+			e.Attrs().Len() != 0 || e.Attrs().At(0).Valid() || e.Weighted() || e.LabelFormat() != "" || e.EditAttr() != "" {
 			t.Errorf("edge kind %d read", i)
 		}
 	}
 	var a gw.AttrSpecView
-	if a.Valid() || a.Key() != "" || a.Kind() != gw.Text || a.ChoiceCount() != 0 || a.Choice(0) != "" || a.Required() || a.Default() != "" ||
+	if a.Valid() || a.Key() != "" || a.Kind() != gw.Text || a.Choices().Len() != 0 || a.Choices().At(0) != "" || a.Required() || a.Default() != "" ||
 		a.Bounded() || a.Min() != 0 || a.Max() != 0 || a.Accepts("") {
 		t.Error("zero attribute read")
 	}
-	v, e, zone, c := k.Vertex(0), k.Edge(0), k.Vertex(1), k.Vertex(0).Attr(1)
+	v, e, zone, c := k.Vertex(0), k.Edge(0), k.Vertex(1), k.Vertex(0).Attrs().At(1)
 	for _, j := range []int{-1, 2} {
-		if v.Port(j) != (gw.Port{}) || v.Attr(j).Valid() || c.Choice(j) != "" || e.To(j) != gw.None {
+		if v.Ports().At(j) != (gw.Port{}) || v.Attrs().At(j).Valid() || c.Choices().At(j) != "" || e.To().At(j) != gw.None {
 			t.Errorf("position %d read", j)
 		}
 	}
 	for _, j := range []int{-1, 1} {
-		if v.Compartment(j) != "" || zone.Contains(j) != gw.None || e.From(j) != gw.None || e.Attr(j).Valid() {
+		if v.Compartments().At(j) != "" || zone.Contains().At(j) != gw.None || e.From().At(j) != gw.None || e.Attrs().At(j).Valid() {
 			t.Errorf("position %d read", j)
 		}
 	}
@@ -155,9 +155,9 @@ func TestCompileCopies(t *testing.T) {
 	ek.From[0], ek.To[1], ek.Attrs[0].Key = 1, 2, "changed"
 	s.VertexKinds = append(s.VertexKinds[:1], gw.VertexKind{Name: "other"})
 	v, e := k.Vertex(0), k.Edge(0)
-	if v.Name() != "box" || v.Size().W != 120 || v.Port(0).Name != "in" || v.Attr(0).Key() != "p" || v.Attr(1).Choice(0) != "x" ||
-		v.Compartment(0) != "c" || k.Vertex(1).Contains(0) != 0 || k.Vertex(1).Name() != "zone" ||
-		e.From(0) != 0 || e.To(1) != 1 || e.Attr(0).Key() != "w" {
+	if v.Name() != "box" || v.Size().W != 120 || v.Ports().At(0).Name != "in" || v.Attrs().At(0).Key() != "p" || v.Attrs().At(1).Choices().At(0) != "x" ||
+		v.Compartments().At(0) != "c" || k.Vertex(1).Contains().At(0) != 0 || k.Vertex(1).Name() != "zone" ||
+		e.From().At(0) != 0 || e.To().At(1) != 1 || e.Attrs().At(0).Key() != "w" {
 		t.Error("a change to the schema reached the compiled kinds")
 	}
 	if d1.Kinds().Vertex(0).Name() != "box" {

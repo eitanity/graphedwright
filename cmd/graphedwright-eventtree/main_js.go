@@ -178,7 +178,7 @@ func (a *app) Selected(sv []gw.VertexIndex, _ []gw.EdgeIndex) {
 	b.WriteString(label(d, v) + ": P = " + a.fmt(a.prob[v]))
 	for e := d.FirstOut(v); e != gw.None; e = d.NextOut(e) {
 		p, _ := branchP(d, e)
-		b.WriteString("\n  → " + label(d, d.Edges[e].To) + ", p = " + a.fmt(p))
+		b.WriteString("\n  → " + label(d, d.Edge(e).To()) + ", p = " + a.fmt(p))
 	}
 	a.panel.Set("textContent", b.String())
 }
@@ -200,18 +200,18 @@ func (a *app) figures() {
 // walk computes each vertex's probability.
 func (a *app) walk() {
 	d := a.h.Document()
-	n := len(d.Vertices)
+	n := d.VertexSlots()
 	a.order = a.order[:0]
 	for v := range n {
 		a.prob[v], a.indeg[v] = 0, 0
 	}
-	for e := range d.Edges {
-		if d.Edges[e].Live {
-			a.indeg[d.Edges[e].To]++
+	for e := range d.EdgeSlots() {
+		if d.Edge(gw.EdgeIndex(e)).Live() { //nolint:gosec // bounded by the capacity
+			a.indeg[d.Edge(gw.EdgeIndex(e)).To()]++ //nolint:gosec // bounded by the capacity
 		}
 	}
 	for v := range n {
-		if d.Vertices[v].Live && a.indeg[v] == 0 {
+		if d.Vertex(gw.VertexIndex(v)).Live() && a.indeg[v] == 0 { //nolint:gosec // bounded by the capacity
 			a.prob[v] = 1
 			a.order = append(a.order, gw.VertexIndex(v)) //nolint:gosec // bounded by the capacity
 		}
@@ -221,7 +221,7 @@ func (a *app) walk() {
 		v := a.order[i]
 		for e := d.FirstOut(v); e != gw.None; e = d.NextOut(e) {
 			p, _ := branchP(d, e)
-			to := d.Edges[e].To
+			to := d.Edge(e).To()
 			a.prob[to] += a.prob[v] * p
 			if a.indeg[to]--; a.indeg[to] == 0 {
 				a.order = append(a.order, to)
@@ -234,10 +234,10 @@ func (a *app) walk() {
 // whose branches do not sum to 1.
 func (a *app) draw() {
 	d := a.h.Document()
-	n := len(d.Vertices)
+	n := d.VertexSlots()
 	clear(a.notesV)
 	for v := range n {
-		if !d.Vertices[v].Live {
+		if !d.Vertex(gw.VertexIndex(v)).Live() { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		a.notesV[v] = svg.Annotation{Text: "P = " + a.fmt(a.prob[v])}
@@ -257,14 +257,14 @@ func (a *app) draw() {
 // rule holds until the last command and stops there.
 func (a *app) split() (gw.Command, bool) {
 	d := a.h.Document()
-	for e := range d.Edges {
-		if !d.Edges[e].Live {
+	for e := range d.EdgeSlots() {
+		if !d.Edge(gw.EdgeIndex(e)).Live() { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		if _, ok := branchP(d, gw.EdgeIndex(e)); ok { //nolint:gosec // bounded by the capacity
 			continue
 		}
-		from := d.Edges[e].From
+		from := d.Edge(gw.EdgeIndex(e)).From() //nolint:gosec // bounded by the capacity
 		_, out := sumOut(d, from)
 		share := places / out
 		for s := d.FirstOut(from); s != gw.None; s = d.NextOut(s) {
@@ -332,7 +332,8 @@ func branchP(d *gw.Document, e gw.EdgeIndex) (float64, bool) {
 }
 
 func attr(d *gw.Document, e gw.EdgeIndex) (string, bool) {
-	for _, at := range d.Edges[e].Attrs {
+	for i := range d.Edge(e).Attrs().Len() {
+		at := d.Edge(e).Attrs().At(i)
 		if at.Key == keyP {
 			return at.Value, true
 		}
@@ -341,10 +342,10 @@ func attr(d *gw.Document, e gw.EdgeIndex) (string, bool) {
 }
 
 func label(d *gw.Document, v gw.VertexIndex) string {
-	if l := d.Vertices[v].Label; l != "" {
+	if l := d.Vertex(v).Label(); l != "" {
 		return l
 	}
-	return string(d.Vertices[v].ID)
+	return string(d.Vertex(v).ID())
 }
 
 // fmt formats a probability to four significant figures.

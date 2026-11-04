@@ -10,12 +10,12 @@ import (
 // runs dry with vertices left, the lowest-indexed one left is released
 // and its unprocessed in-edges are the reversed ones.
 func (l *Layouter) topoOrder(d *gw.Document) {
-	n := len(d.Vertices)
+	n := d.VertexSlots()
 	for i := range n {
 		l.indeg[i] = 0
 		l.mark[i] = 0
 	}
-	for i := range d.Edges {
+	for i := range d.EdgeSlots() {
 		if l.eOn[i] {
 			l.indeg[l.eTo[i]]++
 		}
@@ -56,7 +56,7 @@ func (l *Layouter) topoOrder(d *gw.Document) {
 // reversed, the others lower their target's in-degree, and a target
 // at zero joins the stack. It returns the new stack top.
 func (l *Layouter) release(d *gw.Document, v int32, top int) int {
-	for i := range d.Edges {
+	for i := range d.EdgeSlots() {
 		if !l.eOn[i] || l.eFrom[i] != v {
 			continue
 		}
@@ -148,11 +148,11 @@ func (l *Layouter) makeSegments(d *gw.Document) error {
 	if l.layers > l.maxN {
 		return layersError(l.layers, l.maxN)
 	}
-	n := len(d.Vertices)
+	n := d.VertexSlots()
 	// An int64: a placed vertex's layer reaches 2^20, so the edges'
 	// spans can sum past 2^31.
 	need := int64(0)
-	for i := range d.Edges {
+	for i := range d.EdgeSlots() {
 		span := int64(l.layer[l.eTo[i]]) - int64(l.layer[l.eFrom[i]])
 		if span < 0 {
 			span = -span
@@ -165,7 +165,7 @@ func (l *Layouter) makeSegments(d *gw.Document) error {
 		return budgetError(need, budget)
 	}
 	l.n, l.s = n, 0
-	for i := range d.Edges {
+	for i := range d.EdgeSlots() {
 		l.dN[i] = 0
 		if !l.eOn[i] {
 			continue

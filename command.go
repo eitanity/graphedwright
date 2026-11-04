@@ -139,13 +139,13 @@ func (d *Document) touchVertex(v VertexIndex) {
 func (d *Document) touchEdgesAt(v VertexIndex) {
 	// bound: the out list visits each edge of v once
 	for e := d.outHead[v]; e != None; e = d.nextOut[e] {
-		if d.Edges[e].Live {
+		if d.edges[e].Live {
 			d.touchEdge(EdgeIndex(e))
 		}
 	}
 	// bound: the in list visits each edge of v once
 	for e := d.inHead[v]; e != None; e = d.nextIn[e] {
-		if d.Edges[e].Live && d.Edges[e].From != v {
+		if d.edges[e].Live && d.edges[e].From != v {
 			d.touchEdge(EdgeIndex(e))
 		}
 	}
@@ -164,7 +164,7 @@ func (d *Document) FirstOut(v VertexIndex) EdgeIndex {
 
 // NextOut is the live edge after e out of e's source, or None.
 func (d *Document) NextOut(e EdgeIndex) EdgeIndex {
-	if e < 0 || int(e) >= len(d.Edges) {
+	if e < 0 || int(e) >= len(d.edges) {
 		return None
 	}
 	return d.liveOut(d.nextOut[e])
@@ -174,7 +174,7 @@ func (d *Document) NextOut(e EdgeIndex) EdgeIndex {
 func (d *Document) liveOut(e int32) EdgeIndex {
 	// bound: the out list visits each edge of the vertex once
 	for ; e != None; e = d.nextOut[e] {
-		if d.Edges[e].Live {
+		if d.edges[e].Live {
 			return EdgeIndex(e)
 		}
 	}
@@ -188,13 +188,13 @@ func (d *Document) EdgesAt(v VertexIndex, dst []EdgeIndex) []EdgeIndex {
 	}
 	// bound: the out list visits each edge of v once
 	for e := d.outHead[v]; e != None; e = d.nextOut[e] {
-		if d.Edges[e].Live && len(dst) < cap(dst) {
+		if d.edges[e].Live && len(dst) < cap(dst) {
 			dst = append(dst, EdgeIndex(e))
 		}
 	}
 	// bound: the in list visits each edge of v once
 	for e := d.inHead[v]; e != None; e = d.nextIn[e] {
-		if d.Edges[e].Live && d.Edges[e].From != v && len(dst) < cap(dst) {
+		if d.edges[e].Live && d.edges[e].From != v && len(dst) < cap(dst) {
 			dst = append(dst, EdgeIndex(e))
 		}
 	}
@@ -208,7 +208,7 @@ func (d *Document) touchEdge(e EdgeIndex) {
 		return
 	}
 	d.addChangeE(e)
-	ed := &d.Edges[e]
+	ed := &d.edges[e]
 	// bound: the out list visits each edge of the vertex once
 	for o := d.outHead[ed.From]; o != None; o = d.nextOut[o] {
 		if d.parallel(e, EdgeIndex(o)) && d.estamp[o] != d.stamp {
@@ -232,7 +232,7 @@ func (d *Document) addChangeE(e EdgeIndex) {
 // parallel reports whether o is a live edge joining the same two
 // vertices as e, either way, e itself included.
 func (d *Document) parallel(e, o EdgeIndex) bool {
-	a, b := &d.Edges[e], &d.Edges[o]
+	a, b := &d.edges[e], &d.edges[o]
 	return b.Live && (a.From == b.From && a.To == b.To || a.From == b.To && a.To == b.From)
 }
 
@@ -242,13 +242,13 @@ func (d *Document) parallel(e, o EdgeIndex) bool {
 // k of them come before e by index, of n in all, e included. A
 // self-loop, or an edge with bends or a port, is alone: 0 of 1.
 func (d *Document) Parallel(e EdgeIndex) (k, n int) {
-	ed := &d.Edges[e]
+	ed := &d.edges[e]
 	if !d.lane(ed) || ed.From == ed.To {
 		return 0, 1
 	}
 	// bound: the out list visits each edge of the vertex once
 	for o := d.outHead[ed.From]; o != None; o = d.nextOut[o] {
-		if d.parallel(e, EdgeIndex(o)) && d.lane(&d.Edges[o]) {
+		if d.parallel(e, EdgeIndex(o)) && d.lane(&d.edges[o]) {
 			n++
 			if EdgeIndex(o) < e {
 				k++
@@ -257,7 +257,7 @@ func (d *Document) Parallel(e EdgeIndex) (k, n int) {
 	}
 	// bound: the in list visits each edge of the vertex once
 	for o := d.inHead[ed.From]; o != None; o = d.nextIn[o] {
-		if d.Edges[o].From != ed.From && d.parallel(e, EdgeIndex(o)) && d.lane(&d.Edges[o]) {
+		if d.edges[o].From != ed.From && d.parallel(e, EdgeIndex(o)) && d.lane(&d.edges[o]) {
 			n++
 			if EdgeIndex(o) < e {
 				k++
@@ -287,7 +287,7 @@ func (d *Document) addVertex(c Command) error {
 		return refusal("vertex kind " + itoa(int(c.Kind)) + " out of range")
 	}
 	kind := d.kinds.vertex[c.Kind]
-	if len(d.Vertices) == d.caps.Vertices {
+	if len(d.vertices) == d.caps.Vertices {
 		return limitError("vertex", d.caps.Vertices)
 	}
 	if kind.Max > 0 && int(d.kindCount[c.Kind]) >= kind.Max {
@@ -308,9 +308,9 @@ func (d *Document) addVertex(c Command) error {
 	if c.Size != (Size{}) && (!extent(c.Size.W) || !extent(c.Size.H)) {
 		return refusal(sizeRule)
 	}
-	n := len(d.Vertices)
-	d.Vertices = d.Vertices[:n+1]
-	v := &d.Vertices[n]
+	n := len(d.vertices)
+	d.vertices = d.vertices[:n+1]
+	v := &d.vertices[n]
 	*v = Vertex{ID: c.ID, Kind: c.Kind, Label: c.Text, Pos: c.Pos, Size: c.Size, Live: true, Parent: None}
 	if v.ID == "" {
 		v.ID = d.mintVertexID()
@@ -360,14 +360,14 @@ func (d *Document) deleteVertex(c Command) error {
 func (d *Document) killVertex(v VertexIndex, seq uint64) {
 	d.kill(v, seq)
 	if d.isContainer(v) {
-		for i := range d.Vertices {
-			if u := VertexIndex(i); d.Vertices[i].Live && d.Within(u, v) { //nolint:gosec // bounded by the capacity
+		for i := range d.vertices {
+			if u := VertexIndex(i); d.vertices[i].Live && d.Within(u, v) { //nolint:gosec // bounded by the capacity
 				d.kill(u, seq)
 			}
 		}
 	}
-	for i := range d.Edges {
-		if e := &d.Edges[i]; e.Live && (!d.Vertices[e.From].Live || !d.Vertices[e.To].Live) {
+	for i := range d.edges {
+		if e := &d.edges[i]; e.Live && (!d.vertices[e.From].Live || !d.vertices[e.To].Live) {
 			e.Live = false
 			e.diedBy = seq
 			d.touchEdge(EdgeIndex(i)) //nolint:gosec // bounded by the capacity
@@ -377,25 +377,25 @@ func (d *Document) killVertex(v VertexIndex, seq uint64) {
 
 // kill tombstones one vertex under the sequence number.
 func (d *Document) kill(v VertexIndex, seq uint64) {
-	d.Vertices[v].Live = false
-	d.Vertices[v].diedBy = seq
-	d.kindCount[d.Vertices[v].Kind]--
+	d.vertices[v].Live = false
+	d.vertices[v].diedBy = seq
+	d.kindCount[d.vertices[v].Kind]--
 	d.touchVertex(v)
 }
 
 // reviveVertex brings back v and the vertices and edges that died with
 // it.
 func (d *Document) reviveVertex(v VertexIndex, seq uint64) {
-	for i := range d.Vertices {
-		u := &d.Vertices[i]
+	for i := range d.vertices {
+		u := &d.vertices[i]
 		if !u.Live && u.diedBy == seq && d.Within(VertexIndex(i), v) { //nolint:gosec // bounded by the capacity
 			u.Live = true
 			d.kindCount[u.Kind]++
 			d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		}
 	}
-	for i := range d.Edges {
-		if e := &d.Edges[i]; !e.Live && e.diedBy == seq && d.Vertices[e.From].Live && d.Vertices[e.To].Live {
+	for i := range d.edges {
+		if e := &d.edges[i]; !e.Live && e.diedBy == seq && d.vertices[e.From].Live && d.vertices[e.To].Live {
 			e.Live = true
 			d.touchEdge(EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		}
@@ -407,7 +407,7 @@ func (d *Document) addEdge(c Command) error {
 	if err := d.checkEdgeEnds(c); err != nil {
 		return err
 	}
-	if len(d.Edges) == d.caps.Edges {
+	if len(d.edges) == d.caps.Edges {
 		return limitError("edge", d.caps.Edges)
 	}
 	if err := d.checkLabel(c.Text); err != nil {
@@ -427,9 +427,9 @@ func (d *Document) addEdge(c Command) error {
 			return err
 		}
 	}
-	n := len(d.Edges)
-	d.Edges = d.Edges[:n+1]
-	e := &d.Edges[n]
+	n := len(d.edges)
+	d.edges = d.edges[:n+1]
+	e := &d.edges[n]
 	*e = Edge{ID: c.ID, Kind: c.Kind, From: c.From, To: c.To, FromPort: c.FromPort, ToPort: c.ToPort, Label: c.Text, Weight: c.Weight, Live: true}
 	if e.ID == "" {
 		e.ID = d.mintEdgeID()
@@ -456,7 +456,7 @@ func (d *Document) checkEdgeEnds(c Command) error {
 		}
 	}
 	kind := d.kinds.edge[c.Kind]
-	from, to := d.Vertices[c.From], d.Vertices[c.To]
+	from, to := d.vertices[c.From], d.vertices[c.To]
 	if !kind.allows(from.Kind, to.Kind) {
 		return refusal("edge kind " + strconv.Quote(kind.Name) + " cannot join " + d.kindName(from.Kind) + " to " + d.kindName(to.Kind))
 	}
@@ -475,10 +475,10 @@ func (d *Document) checkEdgeEnds(c Command) error {
 // checkPort validates a port index on a vertex (None when its kind has
 // no ports) and that the port has room for one more edge.
 func (d *Document) checkPort(v VertexIndex, p PortIndex, out bool) error {
-	ports := d.Vertices[v].Ports
+	ports := d.vertices[v].Ports
 	if p == None {
 		// Ports of a vertex's own are a choice; its kind's are not.
-		if len(d.kinds.vertex[d.Vertices[v].Kind].Ports) > 0 {
+		if len(d.kinds.vertex[d.vertices[v].Kind].Ports) > 0 {
 			return refusal("vertex " + d.vertexName(v) + " has ports; the edge must name one")
 		}
 		return nil
@@ -498,7 +498,7 @@ func (d *Document) portEdges(v VertexIndex, p PortIndex, out bool) int {
 	if out {
 		// bound: the out list visits each edge of v once
 		for e := d.outHead[v]; e != None; e = d.nextOut[e] {
-			if d.Edges[e].Live && d.Edges[e].FromPort == p {
+			if d.edges[e].Live && d.edges[e].FromPort == p {
 				n++
 			}
 		}
@@ -506,7 +506,7 @@ func (d *Document) portEdges(v VertexIndex, p PortIndex, out bool) int {
 	}
 	// bound: the in list visits each edge of v once
 	for e := d.inHead[v]; e != None; e = d.nextIn[e] {
-		if d.Edges[e].Live && d.Edges[e].ToPort == p {
+		if d.edges[e].Live && d.edges[e].ToPort == p {
 			n++
 		}
 	}
@@ -519,8 +519,8 @@ func (d *Document) deleteEdge(c Command) error {
 		return refusal("edge " + itoa(int(c.Edge)) + " is not live")
 	}
 	d.seq++
-	d.Edges[c.Edge].Live = false
-	d.Edges[c.Edge].diedBy = d.seq
+	d.edges[c.Edge].Live = false
+	d.edges[c.Edge].diedBy = d.seq
 	d.log.push(entry{cmd: c, seq: d.seq, edge: c.Edge})
 	d.touchEdge(c.Edge)
 	return nil
@@ -534,7 +534,7 @@ func (d *Document) move(c Command) error {
 	if !point(c.Pos) {
 		return refusal(posRule)
 	}
-	v := &d.Vertices[c.Vertex]
+	v := &d.vertices[c.Vertex]
 	d.seq++
 	d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, prev: Command{Pos: v.Pos}, placed: v.Placed})
 	d.moveTo(c.Vertex, c.Pos, true)
@@ -544,8 +544,8 @@ func (d *Document) move(c Command) error {
 // moveTo puts a vertex at a position with its flag, and what it holds
 // by the same offset.
 func (d *Document) moveTo(v VertexIndex, p Point, placed bool) {
-	dx, dy := p.X-d.Vertices[v].Pos.X, p.Y-d.Vertices[v].Pos.Y
-	d.Vertices[v].Pos, d.Vertices[v].Placed = p, placed
+	dx, dy := p.X-d.vertices[v].Pos.X, p.Y-d.vertices[v].Pos.Y
+	d.vertices[v].Pos, d.vertices[v].Placed = p, placed
 	d.touchVertex(v)
 	d.touchEdgesAt(v)
 	d.carry(v, dx, dy)
@@ -561,7 +561,7 @@ func (d *Document) resize(c Command) error {
 	if !extent(c.Size.W) || !extent(c.Size.H) {
 		return refusal(sizeRule)
 	}
-	v := &d.Vertices[c.Vertex]
+	v := &d.vertices[c.Vertex]
 	if d.selfSized(c.Vertex) {
 		// Never smaller than its compartments and ports, so that the
 		// redo is the size it was.
@@ -576,9 +576,9 @@ func (d *Document) resize(c Command) error {
 // setSize gives a vertex a size and, when it is a container or holds
 // compartments, its own size, and names it and its edges as changed.
 func (d *Document) setSize(v VertexIndex, size, own Size) {
-	d.Vertices[v].Size = size
+	d.vertices[v].Size = size
 	if d.isContainer(v) || d.selfSized(v) {
-		d.Vertices[v].Min = own
+		d.vertices[v].Min = own
 	}
 	d.touchVertex(v)
 	d.touchEdgesAt(v)
@@ -593,7 +593,7 @@ func (d *Document) relabel(c Command) error {
 		if !d.vertexLive(c.Vertex) {
 			return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 		}
-		v := &d.Vertices[c.Vertex]
+		v := &d.vertices[c.Vertex]
 		d.seq++
 		d.log.push(entry{cmd: c, seq: d.seq, vertex: c.Vertex, edge: None, prev: Command{Text: v.Label}})
 		v.Label = c.Text
@@ -603,7 +603,7 @@ func (d *Document) relabel(c Command) error {
 	if !d.edgeLive(c.Edge) {
 		return refusal("edge " + itoa(int(c.Edge)) + " is not live")
 	}
-	e := &d.Edges[c.Edge]
+	e := &d.edges[c.Edge]
 	d.seq++
 	d.log.push(entry{cmd: c, seq: d.seq, vertex: None, edge: c.Edge, prev: Command{Text: e.Label}})
 	e.Label = c.Text
@@ -617,10 +617,10 @@ func (d *Document) setPorts(c Command) error {
 	if !d.vertexLive(c.Vertex) {
 		return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 	}
-	v := &d.Vertices[c.Vertex]
+	v := &d.vertices[c.Vertex]
 	kind := d.kinds.vertex[v.Kind]
-	for i := range d.Edges {
-		e := &d.Edges[i]
+	for i := range d.edges {
+		e := &d.edges[i]
 		if !e.Live {
 			continue
 		}
@@ -659,13 +659,13 @@ func (d *Document) layout(c Command) error {
 	}
 	d.savePositions(d.layoutSnap(d.layouts, false))
 	if c.Text == "all" {
-		for i := range d.Vertices {
-			if d.Vertices[i].Live {
-				d.Vertices[i].Placed = false
+		for i := range d.vertices {
+			if d.vertices[i].Live {
+				d.vertices[i].Placed = false
 			}
 		}
 	}
-	for i := range d.Vertices {
+	for i := range d.vertices {
 		d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 	}
 	d.seq++
@@ -687,9 +687,9 @@ func (d *Document) layoutSnap(k uint64, after bool) (pos []Point, placed []bool,
 
 // savePositions copies every slot's position and flag into a snapshot.
 func (d *Document) savePositions(pos []Point, placed []bool, n *int) {
-	*n = len(d.Vertices)
-	for i := range d.Vertices {
-		pos[i], placed[i] = d.Vertices[i].Pos, d.Vertices[i].Placed
+	*n = len(d.vertices)
+	for i := range d.vertices {
+		pos[i], placed[i] = d.vertices[i].Pos, d.vertices[i].Placed
 	}
 }
 
@@ -697,8 +697,8 @@ func (d *Document) savePositions(pos []Point, placed []bool, n *int) {
 // covers back and names those vertices as changed. Slots made since are
 // dead, their additions undone, and keep their own positions for a redo.
 func (d *Document) loadPositions(pos []Point, placed []bool, n *int) {
-	for i := range d.Vertices[:*n] {
-		d.Vertices[i].Pos, d.Vertices[i].Placed = pos[i], placed[i]
+	for i := range d.vertices[:*n] {
+		d.vertices[i].Pos, d.vertices[i].Placed = pos[i], placed[i]
 		d.touchVertex(VertexIndex(i)) //nolint:gosec // bounded by the capacity
 	}
 }

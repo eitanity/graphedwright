@@ -28,23 +28,27 @@ func TestExamplesNoEdgeCutsThrough(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", f, err)
 		}
-		for i := range d.Edges {
-			e := &d.Edges[i]
-			if !e.Live {
+		for i := range d.EdgeSlots() {
+			e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+			if !e.Live() {
 				continue
 			}
-			pts := append([]gw.Point{d.Vertices[e.From].Pos}, e.Bends...)
-			pts = append(pts, d.Vertices[e.To].Pos)
+			pts := make([]gw.Point, 0, e.Bends().Len()+2)
+			pts = append(pts, d.Vertex(e.From()).Pos())
+			for k := range e.Bends().Len() {
+				pts = append(pts, e.Bends().At(k))
+			}
+			pts = append(pts, d.Vertex(e.To()).Pos())
 			hit := false
 			for k := 1; k < len(pts) && !hit; k++ {
-				for j := range d.Vertices {
-					v := &d.Vertices[j]
+				for j := range d.VertexSlots() {
+					v := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
 					u := gw.VertexIndex(j)
-					if !v.Live || d.Within(e.From, u) || d.Within(e.To, u) || d.Within(u, e.From) || d.Within(u, e.To) {
+					if !v.Live() || d.Within(e.From(), u) || d.Within(e.To(), u) || d.Within(u, e.From()) || d.Within(u, e.To()) {
 						continue
 					}
 					if crosses(pts[k-1], pts[k], v) {
-						t.Errorf("%s: edge %q cuts through %q", filepath.Base(f), e.Label, v.Label)
+						t.Errorf("%s: edge %q cuts through %q", filepath.Base(f), e.Label(), v.Label())
 						hit = true
 						break
 					}

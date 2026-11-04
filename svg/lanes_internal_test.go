@@ -91,14 +91,14 @@ func TestParallelLabelsClear(t *testing.T) {
 				if len(boxes) != 4 {
 					t.Fatalf("flow %d route %d back %v: %d texts in\n%s", flow, route, back, len(boxes), buf.String())
 				}
-				for i := range d.Edges {
+				for i := range d.EdgeSlots() {
 					var lane [1]gw.Point
 					w := wayOf(d, gw.EdgeIndex(i), &lane)
 					for k := 0; k <= 400; k++ {
 						p := along(w.f, route, w.a, w.through, w.b, float64(k)/400)
 						for j, b := range boxes {
 							if inBox2(b, p) {
-								t.Errorf("flow %d route %d back %v: %s crosses edge %s at %v", flow, route, back, owner[j], d.Edges[i].ID, p)
+								t.Errorf("flow %d route %d back %v: %s crosses edge %s at %v", flow, route, back, owner[j], d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
 								break
 							}
 						}
@@ -176,21 +176,21 @@ func TestOrthogonalLabelOwnLeg(t *testing.T) {
 		x, _ := strconv.ParseFloat(m[2], 64)
 		y, _ := strconv.ParseFloat(m[3], 64)
 		box := textBox(x, y, m[4], m[5])
-		for i := range d.Edges {
+		for i := range d.EdgeSlots() {
 			var lane [1]gw.Point
 			w := wayOf(d, gw.EdgeIndex(i), &lane)
 			for k := 0; k <= 400; k++ {
 				if p := along(w.f, gw.Orthogonal, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
-					t.Errorf("flow %d: the label %v crosses edge %s at %v", flow, box, d.Edges[i].ID, p)
+					t.Errorf("flow %d: the label %v crosses edge %s at %v", flow, box, d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
 					break
 				}
 			}
 		}
-		for v := range d.Vertices {
-			x := &d.Vertices[v]
-			vb := gw.Viewport{X: x.Pos.X - x.Size.W/2, Y: x.Pos.Y - x.Size.H/2, W: x.Size.W, H: x.Size.H}
+		for v := range d.VertexSlots() {
+			x := d.Vertex(gw.VertexIndex(v)) //nolint:gosec // bounded by the capacity
+			vb := gw.Viewport{X: x.Pos().X - x.Size().W/2, Y: x.Pos().Y - x.Size().H/2, W: x.Size().W, H: x.Size().H}
 			if box.X < vb.X+vb.W && vb.X < box.X+box.W && box.Y < vb.Y+vb.H && vb.Y < box.Y+box.H {
-				t.Errorf("flow %d: the label %v overlaps vertex %s %v", flow, box, x.ID, vb)
+				t.Errorf("flow %d: the label %v overlaps vertex %s %v", flow, box, x.ID(), vb)
 			}
 		}
 		// Along its own last leg: past the turn, towards its target.
@@ -231,19 +231,19 @@ const throughContainer = `{"schema": "state-machine", "vertices": [
 // through, sampled finely along its whole length, other than its ends
 // and the containers that hold them, or None.
 func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
-	e := &d.Edges[i]
+	e := d.Edge(i)
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
-	route := d.Kinds().Edge(e.Kind).Route()
+	route := d.Kinds().Edge(e.Kind()).Route()
 	for k := 0; k <= 1000; k++ {
 		p := along(w.f, route, w.a, w.through, w.b, float64(k)/1000)
-		for v := range d.Vertices {
-			x := &d.Vertices[v]
-			u := gw.VertexIndex(v) //nolint:gosec // bounded
-			if !x.Live || d.Within(e.From, u) || d.Within(e.To, u) {
+		for v := range d.VertexSlots() {
+			x := d.Vertex(gw.VertexIndex(v)) //nolint:gosec // bounded by the capacity
+			u := gw.VertexIndex(v)           //nolint:gosec // bounded
+			if !x.Live() || d.Within(e.From(), u) || d.Within(e.To(), u) {
 				continue
 			}
-			if p.X > x.Pos.X-x.Size.W/2+0.5 && p.X < x.Pos.X+x.Size.W/2-0.5 && p.Y > x.Pos.Y-x.Size.H/2+0.5 && p.Y < x.Pos.Y+x.Size.H/2-0.5 {
+			if p.X > x.Pos().X-x.Size().W/2+0.5 && p.X < x.Pos().X+x.Size().W/2-0.5 && p.Y > x.Pos().Y-x.Size().H/2+0.5 && p.Y < x.Pos().Y+x.Size().H/2-0.5 {
 				return u, p
 			}
 		}
@@ -260,13 +260,13 @@ func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
 func TestRoutesClearOfContainers(t *testing.T) {
 	check := func(name string, d *gw.Document) {
 		t.Helper()
-		for i := range d.Edges {
-			if !d.Edges[i].Live {
+		for i := range d.EdgeSlots() {
+			if !d.Edge(gw.EdgeIndex(i)).Live() { //nolint:gosec // bounded by the capacity
 				continue
 			}
 			if v, p := routeClear(d, gw.EdgeIndex(i)); v != gw.None { //nolint:gosec // bounded
-				e := &d.Edges[i]
-				t.Errorf("%s: edge %s from %s to %s passes through %s at %v; bends %v", name, e.ID, d.Vertices[e.From].ID, d.Vertices[e.To].ID, d.Vertices[v].ID, p, e.Bends)
+				e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+				t.Errorf("%s: edge %s from %s to %s passes through %s at %v; bends %v", name, e.ID(), d.Vertex(e.From()).ID(), d.Vertex(e.To()).ID(), d.Vertex(v).ID(), p, e.Bends())
 			}
 		}
 	}
@@ -381,16 +381,16 @@ func TestExampleLabelsClear(t *testing.T) {
 				}
 				boxes = append(boxes, box)
 				owners = append(owners, g[1])
-				for i := range d.Edges {
-					if !d.Edges[i].Live || string(d.Edges[i].ID) == g[1] {
+				for i := range d.EdgeSlots() {
+					if !d.Edge(gw.EdgeIndex(i)).Live() || string(d.Edge(gw.EdgeIndex(i)).ID()) == g[1] { //nolint:gosec // bounded by the capacity
 						continue
 					}
 					var lane [1]gw.Point
 					w := wayOf(d, gw.EdgeIndex(i), &lane)
-					route := d.Kinds().Edge(d.Edges[i].Kind).Route()
+					route := d.Kinds().Edge(d.Edge(gw.EdgeIndex(i)).Kind()).Route() //nolint:gosec // bounded by the capacity
 					for k := 0; k <= 400; k++ {
 						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
-							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[5], g[1], d.Edges[i].ID, p)
+							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[5], g[1], d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
 							break
 						}
 					}

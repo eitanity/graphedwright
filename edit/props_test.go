@@ -31,17 +31,17 @@ func TestLabelEditing(t *testing.T) {
 	send(t, e, dbl(134, 100))
 	editing("double-click on the edge from s to a", gw.None, 0, "")
 	send(t, e, dbl(220, 100), edit.Event{Kind: edit.TextDone, Text: "renamed"})
-	if d.Vertices[1].Label != "renamed" || e.State() != edit.Idle {
-		t.Errorf("text done: label %q state %d", d.Vertices[1].Label, e.State())
+	if d.Vertex(1).Label() != "renamed" || e.State() != edit.Idle {
+		t.Errorf("text done: label %q state %d", d.Vertex(1).Label(), e.State())
 	}
 	send(t, e, key("z", edit.Ctrl))
-	if d.Vertices[1].Label != "a" {
-		t.Errorf("undo of the relabel: %q", d.Vertices[1].Label)
+	if d.Vertex(1).Label() != "a" {
+		t.Errorf("undo of the relabel: %q", d.Vertex(1).Label())
 	}
 
 	// The label of an edge is a place to double-click it.
 	send(t, e, down(280, 100, 0), up(360, 100))
-	o := gw.EdgeIndex(len(d.Edges) - 1) //nolint:gosec // bounded by the capacity
+	o := gw.EdgeIndex(d.EdgeSlots() - 1) //nolint:gosec // bounded by the capacity
 	if _, err := d.Apply(gw.Command{Op: gw.Relabel, Vertex: gw.None, Edge: o, Text: "a long label here"}); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestAttrEditing(t *testing.T) {
 	d.SetView(gw.Viewport{X: 0, Y: 0, W: 800, H: 200})
 	d.ClearUndo()
 	e := edit.New(d, edit.Edit, 8)
-	share := func() string { return gw.AttrValue(d.Edges[0].Attrs, "share") }
+	share := func() string { return d.Edge(0).Attrs().Value("share") }
 	dbl := edit.Event{Kind: edit.DoubleClick, Point: pt(320, 100)}
 
 	if e.EditText() != "" {
@@ -179,8 +179,8 @@ func TestAttrEditing(t *testing.T) {
 		t.Fatalf("double-click on the edge: state %d editing %d %d text %q", e.State(), v, x, e.EditText())
 	}
 	send(t, e, edit.Event{Kind: edit.TextDone, Text: "0.7"})
-	if share() != "0.7" || d.Edges[0].Label != "" || e.State() != edit.Idle {
-		t.Errorf("text done: share %q label %q state %d", share(), d.Edges[0].Label, e.State())
+	if share() != "0.7" || d.Edge(0).Label() != "" || e.State() != edit.Idle {
+		t.Errorf("text done: share %q label %q state %d", share(), d.Edge(0).Label(), e.State())
 	}
 	send(t, e, key("z", edit.Ctrl))
 	if share() != "0.5" || d.CanUndo() {
@@ -212,7 +212,7 @@ func TestAttrEditing(t *testing.T) {
 		t.Errorf("the vertex's text: %q, want its p", e.EditText())
 	}
 	send(t, e, edit.Event{Kind: edit.TextDone, Text: "0.9"})
-	if p := gw.AttrValue(d.Vertices[0].Attrs, "p"); p != "0.9" || d.Vertices[0].Label != "n" {
-		t.Errorf("the vertex's text done: p %q label %q", p, d.Vertices[0].Label)
+	if p := d.Vertex(0).Attrs().Value("p"); p != "0.9" || d.Vertex(0).Label() != "n" {
+		t.Errorf("the vertex's text done: p %q label %q", p, d.Vertex(0).Label())
 	}
 }

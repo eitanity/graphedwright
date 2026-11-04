@@ -32,8 +32,8 @@ func TestDiscard(t *testing.T) {
 	if d.CanRedo() {
 		t.Error("what Discard took back can be redone")
 	}
-	if _, ok := d.Undo(); !ok || d.Vertices[a].Label != "a" {
-		t.Errorf("the command before the group: undid to %q", d.Vertices[a].Label)
+	if _, ok := d.Undo(); !ok || d.Vertex(a).Label() != "a" {
+		t.Errorf("the command before the group: undid to %q", d.Vertex(a).Label())
 	}
 
 	// A group of four in a log three deep.
@@ -43,15 +43,15 @@ func TestDiscard(t *testing.T) {
 	for _, l := range []string{"1", "2", "3", "4"} {
 		apply(t, s, gw.Command{Op: gw.Relabel, Vertex: v, Text: l})
 	}
-	if _, ok := s.Discard(); ok || s.Vertices[v].Label != "4" {
-		t.Errorf("a group past the undo depth: Discard %v, label %q", ok, s.Vertices[v].Label)
+	if _, ok := s.Discard(); ok || s.Vertex(v).Label() != "4" {
+		t.Errorf("a group past the undo depth: Discard %v, label %q", ok, s.Vertex(v).Label())
 	}
 	s.EndGroup()
 	// The next group, wholly in the log, is taken back.
 	s.Group()
 	apply(t, s, gw.Command{Op: gw.Relabel, Vertex: v, Text: "5"})
-	if _, ok := s.Discard(); !ok || s.Vertices[v].Label != "4" {
-		t.Errorf("the next group: Discard %v, label %q", ok, s.Vertices[v].Label)
+	if _, ok := s.Discard(); !ok || s.Vertex(v).Label() != "4" {
+		t.Errorf("the next group: Discard %v, label %q", ok, s.Vertex(v).Label())
 	}
 	s.EndGroup()
 	// No group open, once a group has lost its start: still nothing.

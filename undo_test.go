@@ -69,8 +69,8 @@ func TestUndoLog(t *testing.T) {
 		d.Undo()
 		n++
 	}
-	if n != 3 || d.Vertices[a].Pos.X != 2 {
-		t.Errorf("undid %d, x %g; want 3 and 2", n, d.Vertices[a].Pos.X)
+	if n != 3 || d.Vertex(a).Pos().X != 2 {
+		t.Errorf("undid %d, x %g; want 3 and 2", n, d.Vertex(a).Pos().X)
 	}
 	d.Redo()
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: a, Pos: gw.Point{X: 9}})
@@ -78,8 +78,8 @@ func TestUndoLog(t *testing.T) {
 		t.Error("redo survives a new command")
 	}
 	d.Undo()
-	if d.Vertices[a].Pos.X != 3 {
-		t.Errorf("x %g after undo of the new command, want 3", d.Vertices[a].Pos.X)
+	if d.Vertex(a).Pos().X != 3 {
+		t.Errorf("x %g after undo of the new command, want 3", d.Vertex(a).Pos().X)
 	}
 	apply(t, d, gw.Command{Op: gw.Layout})
 	if !d.CanUndo() {
@@ -108,8 +108,8 @@ func TestUndoLayout(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.Move, Vertex: a, Pos: gw.Point{X: 50, Y: 60}})
 	before := snapshot(d)
 	ch := apply(t, d, gw.Command{Op: gw.Layout, Text: "all"})
-	if !ch.Layout || len(ch.Vertices) != 4 || d.Vertices[a].Placed {
-		t.Errorf("layout change %+v placed %v", ch, d.Vertices[a].Placed)
+	if !ch.Layout || len(ch.Vertices) != 4 || d.Vertex(a).Placed() {
+		t.Errorf("layout change %+v placed %v", ch, d.Vertex(a).Placed())
 	}
 	for i, v := range []gw.VertexIndex{s, a, b, c} {
 		d.Place(v, gw.Point{X: float64(i) * 160, Y: 100}, false)
@@ -176,8 +176,8 @@ func TestUndoRevivesOnlyItsOwn(t *testing.T) {
 		t.Fatalf("live edges %d", d.LiveEdges())
 	}
 	d.Undo()
-	if d.LiveEdges() != 3 || d.Edges[e].Live {
-		t.Errorf("after undo: live edges %d, earlier deleted edge live %v", d.LiveEdges(), d.Edges[e].Live)
+	if d.LiveEdges() != 3 || d.Edge(e).Live() {
+		t.Errorf("after undo: live edges %d, earlier deleted edge live %v", d.LiveEdges(), d.Edge(e).Live())
 	}
 }
 
@@ -258,7 +258,7 @@ func TestUndoGroup(t *testing.T) {
 	if _, ok := d.Undo(); !ok || d.CanUndo() {
 		t.Errorf("a group cut by a full log: undone %t, more left %t", ok, d.CanUndo())
 	}
-	if got := d.Vertices[a].Pos; got != (gw.Point{X: 16, Y: 8}) {
+	if got := d.Vertex(a).Pos(); got != (gw.Point{X: 16, Y: 8}) {
 		t.Errorf("after undoing the kept part a is at %v, want where the second move started", got)
 	}
 }

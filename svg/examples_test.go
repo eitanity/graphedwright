@@ -109,9 +109,6 @@ func shapes(t testing.TB) (*gw.Document, svg.Options) {
 	l := vertex(t, d, kLeaf, "leaf", 440, 180)
 	r := vertex(t, d, kRound, "ö", 440, 60)
 	must(t, d, gw.Command{Op: gw.SetAttr, Vertex: n, Key: "mode", Value: `x="1" <b>&`})
-	// A key the document would refuse, written past its checks, to see
-	// the renderer's own mapping of a name to a token.
-	d.Vertices[n].Attrs = append(d.Vertices[n].Attrs, gw.Attr{Key: "weird key!", Value: "v"})
 	edge(t, d, eTo, s, n, gw.None, 0, "", 0)
 	edge(t, d, eWire, n, dc, 3, gw.None, "wire <&>", 0)
 	edge(t, d, eOutcome, dc, l, gw.None, gw.None, "yes", 0.9)

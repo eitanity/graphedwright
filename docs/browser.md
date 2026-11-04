@@ -165,7 +165,7 @@ type app struct {
 // annotate; a command it returns is applied in the same undo step.
 func (a *app) Changed(ch gw.Change) (gw.Command, bool) {
 	d := a.h.Document()
-	notes := make([]svg.Annotation, len(d.Vertices))
+	notes := make([]svg.Annotation, d.VertexSlots())
 	for _, v := range ch.Vertices {
 		notes[v] = svg.Annotation{Text: "changed"}
 	}

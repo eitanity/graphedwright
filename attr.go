@@ -27,7 +27,7 @@ func (d *Document) setAttr(c Command) error {
 		if !d.vertexLive(c.Vertex) {
 			return refusal("vertex " + itoa(int(c.Vertex)) + " is not live")
 		}
-		v := &d.Vertices[c.Vertex]
+		v := &d.vertices[c.Vertex]
 		if err := d.checkAttr(c, d.kinds.vertex[v.Kind].Attrs); err != nil {
 			return err
 		}
@@ -46,7 +46,7 @@ func (d *Document) setAttr(c Command) error {
 	if !d.edgeLive(c.Edge) {
 		return refusal("edge " + itoa(int(c.Edge)) + " is not live")
 	}
-	e := &d.Edges[c.Edge]
+	e := &d.edges[c.Edge]
 	if err := d.checkAttr(c, d.kinds.edge[e.Kind].Attrs); err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (d *Document) attrWhere(c Command) string {
 	if c.Vertex != None {
 		return "vertex " + d.vertexName(c.Vertex)
 	}
-	return "edge " + strconv.Quote(string(d.Edges[c.Edge].ID))
+	return "edge " + strconv.Quote(string(d.edges[c.Edge].ID))
 }
 
 // checkAttr applies the kind's specification to a value: a number must
@@ -171,10 +171,10 @@ func (d *Document) writeAttr(attrs []Attr, c Command) ([]Attr, entry, error) {
 func (d *Document) undoAttr(en entry) {
 	var attrs *[]Attr
 	if en.vertex != None {
-		attrs = &d.Vertices[en.vertex].Attrs
+		attrs = &d.vertices[en.vertex].Attrs
 		d.touchVertex(en.vertex)
 	} else {
-		attrs = &d.Edges[en.edge].Attrs
+		attrs = &d.edges[en.edge].Attrs
 		d.touchEdge(en.edge)
 	}
 	switch {
@@ -194,10 +194,10 @@ func (d *Document) undoAttr(en entry) {
 func (d *Document) redoAttr(en entry) {
 	var attrs *[]Attr
 	if en.vertex != None {
-		attrs = &d.Vertices[en.vertex].Attrs
+		attrs = &d.vertices[en.vertex].Attrs
 		d.touchVertex(en.vertex)
 	} else {
-		attrs = &d.Edges[en.edge].Attrs
+		attrs = &d.edges[en.edge].Attrs
 		d.touchEdge(en.edge)
 	}
 	next, _, _ := d.writeAttr(*attrs, en.cmd)
