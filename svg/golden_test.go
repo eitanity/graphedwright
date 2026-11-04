@@ -209,7 +209,7 @@ func TestKindClasses(t *testing.T) {
 	must(t, d, gw.Command{Op: gw.AddEdge, Kind: 0, From: 0, To: 1, FromPort: gw.None, ToPort: gw.None, Text: "x"})
 	must(t, d, gw.Command{Op: gw.AddEdge, Kind: 1, From: 1, To: 2, FromPort: gw.None, ToPort: gw.None})
 	var buf bytes.Buffer
-	opts := svg.Options{Mode: svg.Edit, SelectedV: []gw.VertexIndex{0}}
+	opts := svg.Options{Mode: svg.Edit, Selection: svg.Selected{V: []gw.VertexIndex{0}}}
 	if err := svg.Render(d, opts, &buf); err != nil {
 		t.Fatal(err)
 	}

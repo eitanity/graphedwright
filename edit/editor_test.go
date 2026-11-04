@@ -123,40 +123,88 @@ func snapshot(d *gw.Document) string {
 	return b.String()
 }
 
+// selected is the editor's selection, copied into buffers of the
+// fixtures' capacities.
+func selected(e *edit.Editor) ([]gw.VertexIndex, []gw.EdgeIndex) {
+	return e.Selected(make([]gw.VertexIndex, 0, 64), make([]gw.EdgeIndex, 0, 64))
+}
+
+// TestSelectedCopies: the selection read is the caller's, so writing to
+// it changes nothing in the editor; it is appended to what the buffers
+// hold, within their capacities. Read by position, as the overlay reads
+// it, it is the same, and None out of range.
+func TestSelectedCopies(t *testing.T) {
+	d, e := fixture(t, gw.Caps{})
+	send(t, e, down(10, 10, 0), move(300, 150), up(300, 150))
+	v, x := selected(e)
+	if ids(d, v) != "sa" || len(x) != 1 {
+		t.Fatalf("marquee: %q and %d edges", ids(d, v), len(x))
+	}
+	v[0], x[0] = v[1], gw.None
+	v2, x2 := selected(e)
+	if ids(d, v2) != "sa" || len(x2) != 1 || x2[0] == gw.None {
+		t.Errorf("a write to the copy changed the selection: %q, %v", ids(d, v2), x2)
+	}
+	for i, v := range v2 {
+		if e.SelectedVertex(i) != v {
+			t.Errorf("vertex %d read by position: %d, not %d", i, e.SelectedVertex(i), v)
+		}
+	}
+	if c, n := e.SelectedCount(); c != 2 || n != 1 || e.SelectedEdge(0) != x2[0] {
+		t.Errorf("counts %d and %d, edge %d", c, n, e.SelectedEdge(0))
+	}
+	if e.SelectedVertex(-1) != gw.None || e.SelectedVertex(2) != gw.None || e.SelectedEdge(-1) != gw.None || e.SelectedEdge(1) != gw.None {
+		t.Error("the selection reads out of range")
+	}
+	var opts svg.Options
+	e.Overlay(&opts)
+	var buf bytes.Buffer
+	if err := svg.Render(d, opts, &buf); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(buf.String(), ` class="selection"`); n != 3 {
+		t.Errorf("the overlay outlines %d, not the two vertices and the edge", n)
+	}
+	held := []gw.VertexIndex{gw.None, 0}
+	if v3, x3 := e.Selected(held[:1:2], nil); len(v3) != 2 || v3[0] != gw.None || ids(d, v3[1:]) != "s" || len(x3) != 0 {
+		t.Errorf("within capacity, after what it holds: %v and %d edges", v3, len(x3))
+	}
+}
+
 // TestSelect: click, shift-click, background, marquee and Tab.
 func TestSelect(t *testing.T) {
 	d, e := fixture(t, gw.Caps{})
 	send(t, e, down(220, 100, 0), up(220, 100))
-	if v, _ := e.Selected(); ids(d, v) != "a" {
+	if v, _ := selected(e); ids(d, v) != "a" {
 		t.Errorf("click: %q", ids(d, v))
 	}
 	send(t, e, down(420, 100, edit.Shift), up(420, 100))
-	if v, _ := e.Selected(); ids(d, v) != "ab" {
+	if v, _ := selected(e); ids(d, v) != "ab" {
 		t.Errorf("shift-click adds: %q", ids(d, v))
 	}
 	send(t, e, down(220, 100, edit.Shift), up(220, 100))
-	if v, _ := e.Selected(); ids(d, v) != "b" {
+	if v, _ := selected(e); ids(d, v) != "b" {
 		t.Errorf("shift-click removes: %q", ids(d, v))
 	}
 	send(t, e, down(400, 190, 0), up(400, 190))
-	if v, _ := e.Selected(); len(v) != 0 {
+	if v, _ := selected(e); len(v) != 0 {
 		t.Errorf("background click keeps %q", ids(d, v))
 	}
 	send(t, e, down(10, 10, 0), move(300, 150), up(300, 150))
-	if v, x := e.Selected(); ids(d, v) != "sa" || len(x) != 1 {
+	if v, x := selected(e); ids(d, v) != "sa" || len(x) != 1 {
 		t.Errorf("marquee: %q and %d edges", ids(d, v), len(x))
 	}
 	send(t, e, down(100, 160, 0), up(100, 160))
-	if v, _ := e.Selected(); len(v) != 0 {
+	if v, _ := selected(e); len(v) != 0 {
 		t.Errorf("empty marquee keeps %q", ids(d, v))
 	}
 	send(t, e, key("Tab", 0))
 	send(t, e, key("Tab", 0))
-	if v, _ := e.Selected(); ids(d, v) != "a" {
+	if v, _ := selected(e); ids(d, v) != "a" {
 		t.Errorf("tab twice: %q", ids(d, v))
 	}
 	send(t, e, down(130, 100, 0), up(130, 100))
-	if _, x := e.Selected(); len(x) != 1 {
+	if _, x := selected(e); len(x) != 1 {
 		t.Errorf("edge click: %d", len(x))
 	}
 	send(t, e, move(130, 100))
@@ -228,7 +276,7 @@ func TestConnect(t *testing.T) {
 		t.Errorf("into a root, which no kind joins: %v", err)
 	}
 	send(t, e, down(620, 100, 0), up(620, 100))
-	if v, _ := e.Selected(); ids(d, v) != "c" {
+	if v, _ := selected(e); ids(d, v) != "c" {
 		t.Errorf("a vertex without ports selects: %q", ids(d, v))
 	}
 }
@@ -280,7 +328,7 @@ func TestConnectFromOutline(t *testing.T) {
 		t.Errorf("source to leaf: %v", err)
 	}
 	send(t, e, down(105, 100, 0), up(106, 101))
-	if v, _ := e.Selected(); ids(d, v) != "s" || d.LiveEdges() != 3 || e.State() != edit.Idle {
+	if v, _ := selected(e); ids(d, v) != "s" || d.LiveEdges() != 3 || e.State() != edit.Idle {
 		t.Errorf("click on the outline: selected %q, %d edges", ids(d, v), d.LiveEdges())
 	}
 	send(t, e, down(60, 100, 0), move(60, 140), up(60, 140))
@@ -289,7 +337,7 @@ func TestConnectFromOutline(t *testing.T) {
 	}
 	e.SetMode(edit.View)
 	send(t, e, down(570, 100, 0), up(570, 100))
-	if v, _ := e.Selected(); ids(d, v) != "c" || e.State() != edit.Idle {
+	if v, _ := selected(e); ids(d, v) != "c" || e.State() != edit.Idle {
 		t.Errorf("view mode on the outline: selected %q, state %d", ids(d, v), e.State())
 	}
 	if _, ok := e.Target(); ok {
@@ -363,7 +411,7 @@ func TestPalette(t *testing.T) {
 	if v == gw.None || d.Vertices[v].Pos != pt(304, 32) || !d.Vertices[v].Placed {
 		t.Fatalf("placed vertex %d %+v", v, d.Vertices)
 	}
-	if sel, _ := e.Selected(); ids(d, sel) != "v1" {
+	if sel, _ := selected(e); ids(d, sel) != "v1" {
 		t.Errorf("selected %q", ids(d, sel))
 	}
 	if e.EdgeKind() != gw.None {
@@ -455,7 +503,7 @@ func TestKeys(t *testing.T) {
 	if d.LiveVertices() != 1 || d.LiveEdges() != 0 {
 		t.Errorf("delete: %d vertices %d edges", d.LiveVertices(), d.LiveEdges())
 	}
-	if v, x := e.Selected(); len(v)+len(x) != 0 {
+	if v, x := selected(e); len(v)+len(x) != 0 {
 		t.Error("selection survives delete")
 	}
 	send(t, e, key("z", edit.Ctrl))
@@ -474,7 +522,7 @@ func TestViewMode(t *testing.T) {
 	e.SetMode(edit.View)
 	before := snapshot(d)
 	send(t, e, down(220, 100, 0), move(300, 150), up(300, 150))
-	if v, _ := e.Selected(); ids(d, v) != "a" || snapshot(d) != before {
+	if v, _ := selected(e); ids(d, v) != "a" || snapshot(d) != before {
 		t.Errorf("view drag: %q\n%s", ids(d, v), snapshot(d))
 	}
 	send(t, e, down(280, 100, 0), up(360, 100))
@@ -506,7 +554,7 @@ func TestViewMode(t *testing.T) {
 	// The view is {-16 8 880 220} in a 400 by 100 element: a's centre
 	// (220, 100) is at client (107, 42).
 	send(t, e, down(107, 42, 0), up(107, 42))
-	if v, _ := e.Selected(); ids(d, v) != "a" {
+	if v, _ := selected(e); ids(d, v) != "a" {
 		t.Errorf("client coordinates through the viewport: %q", ids(d, v))
 	}
 }

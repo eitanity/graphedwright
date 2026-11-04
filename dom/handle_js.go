@@ -34,7 +34,8 @@ type Host interface {
 	// nothing taken back, since it would split the action.
 	Changed(ch gw.Change) (follow gw.Command, ok bool)
 	// Selected reports the selection after an event that changed it,
-	// or with anything selected.
+	// or with anything selected. The slices are copies, valid only for
+	// the call: changing them changes nothing in the editor.
 	Selected(v []gw.VertexIndex, e []gw.EdgeIndex)
 	// Refused reports an edit refused, with the rule it would break.
 	Refused(err error)
@@ -116,6 +117,8 @@ type Handle struct {
 	host      Host
 	notesV    []svg.Annotation
 	notesE    []svg.Annotation
+	selV      []gw.VertexIndex // the selection given to the host, which it may change
+	selE      []gw.EdgeIndex
 	opts      svg.Options
 	buf       bytes.Buffer
 	funcs     []js.Func
@@ -152,6 +155,7 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	h.ed.SetExpand(!h.noExpand)
 	h.notesV = make([]svg.Annotation, d.Caps().Vertices)
 	h.notesE = make([]svg.Annotation, d.Caps().Edges)
+	h.selV, h.selE = make([]gw.VertexIndex, 0, d.Caps().Vertices), make([]gw.EdgeIndex, 0, d.Caps().Edges)
 	h.mount()
 	if d.LiveVertices() > 0 {
 		h.fitView()
@@ -235,6 +239,7 @@ func (h *Handle) Load(d *gw.Document) error {
 	h.lay = layout.New(d.Caps())
 	if c := d.Caps(); c.Vertices != len(h.notesV) || c.Edges != len(h.notesE) {
 		h.notesV, h.notesE = make([]svg.Annotation, c.Vertices), make([]svg.Annotation, c.Edges)
+		h.selV, h.selE = make([]gw.VertexIndex, 0, c.Vertices), make([]gw.EdgeIndex, 0, c.Edges)
 	}
 	clear(h.notesV)
 	clear(h.notesE)
@@ -433,7 +438,7 @@ func (h *Handle) after(ch gw.Change, err error) error {
 		h.redraw = false
 		h.renderAll()
 	}
-	sv, se := h.ed.Selected()
+	sv, se := h.ed.Selected(h.selV[:0], h.selE[:0])
 	if n := len(sv) + len(se); n != h.lastSel || n > 0 {
 		h.lastSel = n
 		h.enter()

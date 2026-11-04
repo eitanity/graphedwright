@@ -194,9 +194,34 @@ func (e *Editor) EdgeKind() gw.KindIndex { return e.edgeKind }
 // State is where the editor is.
 func (e *Editor) State() State { return e.g.State() }
 
-// Selected lists the selected vertices and edges; the slices are the
-// editor's and valid until the next event.
-func (e *Editor) Selected() ([]gw.VertexIndex, []gw.EdgeIndex) { return e.selV, e.selE }
+// Selected appends the selected vertices to dstV and the selected edges
+// to dstE, within their capacities, and returns them. The slices are
+// the caller's: writing to them changes nothing in the editor.
+func (e *Editor) Selected(dstV []gw.VertexIndex, dstE []gw.EdgeIndex) ([]gw.VertexIndex, []gw.EdgeIndex) {
+	dstV = dstV[:len(dstV)+copy(dstV[len(dstV):cap(dstV)], e.selV)]
+	dstE = dstE[:len(dstE)+copy(dstE[len(dstE):cap(dstE)], e.selE)]
+	return dstV, dstE
+}
+
+// SelectedCount is the number of vertices and edges selected; with
+// SelectedVertex and SelectedEdge it is the editor's svg.Selection.
+func (e *Editor) SelectedCount() (vertices, edges int) { return len(e.selV), len(e.selE) }
+
+// SelectedVertex is the ith selected vertex, or None out of range.
+func (e *Editor) SelectedVertex(i int) gw.VertexIndex {
+	if i < 0 || i >= len(e.selV) {
+		return gw.None
+	}
+	return e.selV[i]
+}
+
+// SelectedEdge is the ith selected edge, or None out of range.
+func (e *Editor) SelectedEdge(i int) gw.EdgeIndex {
+	if i < 0 || i >= len(e.selE) {
+		return gw.None
+	}
+	return e.selE[i]
+}
 
 // Hover is what the pointer was last over.
 func (e *Editor) Hover() svg.Hit { return e.hover }
@@ -315,7 +340,7 @@ func (e *Editor) onlyVertex() (gw.VertexIndex, bool) {
 // Overlay fills the renderer's options with the selection, the ghost
 // and the marquee.
 func (e *Editor) Overlay(opts *svg.Options) {
-	opts.SelectedV, opts.SelectedE = e.selV, e.selE
+	opts.Selection = e
 	opts.Ghost[0], opts.Ghost[1], opts.HasGhost = e.Ghost()
 	opts.Marquee, opts.HasMarquee = e.Marquee()
 	opts.Target, opts.HasTarget = e.Target()

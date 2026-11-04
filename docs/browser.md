@@ -189,7 +189,8 @@ func main() {
 - **The host** implements `dom.Host`: `Changed`, `Selected`,
   `Refused` and `EditingLabel`. It embeds `dom.NoHost` to leave out
   the ones it doesn't need. Each method runs after the change it reports
-  is drawn.
+  is drawn. The selection `Selected` is given is a copy, valid only for
+  the call.
 - **Inside a host method the document is locked.** Calls that change
   it, through the handle or the document, are refused (`dom.ErrReentered`,
   `gw.ErrLocked`); reading and `Annotate` are allowed. To answer a

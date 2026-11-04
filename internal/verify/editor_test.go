@@ -160,13 +160,15 @@ type world struct {
 	e     *edit.Editor
 	held  int
 	at    gw.Point
-	input bool           // the host shows the label input, which has the focus
-	label gw.VertexIndex // the vertex the input was shown for
-	edge  gw.EdgeIndex   // or the edge
-	start string         // the fixture without its view, which undo-all must restore
-	idle  string         // the document without its view at the last Idle
-	fault string         // the first invariant a step broke, with what it saw
-	steps []step         // the step kinds, fixed when the world is built
+	input bool             // the host shows the label input, which has the focus
+	label gw.VertexIndex   // the vertex the input was shown for
+	edge  gw.EdgeIndex     // or the edge
+	start string           // the fixture without its view, which undo-all must restore
+	idle  string           // the document without its view at the last Idle
+	fault string           // the first invariant a step broke, with what it saw
+	steps []step           // the step kinds, fixed when the world is built
+	selV  []gw.VertexIndex // the selection read back, of the fixture's capacities
+	selE  []gw.EdgeIndex
 }
 
 func newWorld(t testing.TB) *world {
@@ -174,7 +176,7 @@ func newWorld(t testing.TB) *world {
 	if _, err := fixture(); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	w := &world{steps: steps()}
+	w := &world{steps: steps(), selV: make([]gw.VertexIndex, 0, 8), selE: make([]gw.EdgeIndex, 0, 8)}
 	w.Reset()
 	return w
 }
@@ -218,7 +220,7 @@ func (w *world) Reset() {
 		w.fault = "fixture: " + err.Error()
 		return
 	}
-	*w = world{d: d, e: edit.New(d, edit.Edit, 8), at: atA, label: gw.None, edge: gw.None, steps: w.steps}
+	*w = world{d: d, e: edit.New(d, edit.Edit, 8), at: atA, label: gw.None, edge: gw.None, steps: w.steps, selV: w.selV, selE: w.selE}
 	w.start = w.content()
 	w.idle = w.start
 }
@@ -517,7 +519,7 @@ func (w *world) Check() error {
 		return errors.New(w.fault)
 	}
 	const live = "the selection, and while editing text the label being edited, name live elements"
-	sv, se := w.e.Selected()
+	sv, se := w.e.Selected(w.selV[:0], w.selE[:0])
 	for _, v := range sv {
 		if !w.d.Vertices[v].Live {
 			return fmt.Errorf("%s: vertex %d is selected but deleted", live, v)
@@ -566,7 +568,7 @@ type view struct {
 }
 
 func (w *world) World() any {
-	sv, se := w.e.Selected()
+	sv, se := w.e.Selected(w.selV[:0], w.selE[:0])
 	v := view{doc: w.encode(), state: w.e.State(), mode: w.e.Mode(), canUndo: w.d.CanUndo(), canRedo: w.d.CanRedo(),
 		held: w.held, input: w.input, label: w.label, edge: w.edge, at: w.at,
 		selected: fmt.Sprint(sv, se), edgeKind: w.e.EdgeKind(), typed: w.e.Typed(), idle: w.idle, fault: w.fault}

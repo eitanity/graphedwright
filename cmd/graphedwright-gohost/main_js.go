@@ -24,6 +24,13 @@ const example = `{"schema":"basic","vertices":[
  {"id":"b","kind":"box","label":"b","x":360,"y":100,"placed":true}],
  "edges":[{"id":"e","kind":"arrow","from":"a","to":"b"}]}`
 
+// three is example with a third box, below.
+const three = `{"schema":"basic","vertices":[
+ {"id":"a","kind":"box","label":"a","x":120,"y":100,"placed":true},
+ {"id":"b","kind":"box","label":"b","x":360,"y":100,"placed":true},
+ {"id":"c","kind":"box","label":"c","x":120,"y":240,"placed":true}],
+ "edges":[{"id":"e","kind":"arrow","from":"a","to":"b"}]}`
+
 // What the host's Changed does.
 const (
 	followNone   = iota // asks for nothing
@@ -45,6 +52,7 @@ type host struct {
 	locked    error // the document's Apply from inside Changed
 	annotated error // h.Annotate from inside Changed
 	refusals  []string
+	selected  string // the last selection Selected was given, as the IDs it names
 }
 
 // Changed records the change and does what the mode says.
@@ -79,6 +87,21 @@ func (t *host) Changed(ch gw.Change) (gw.Command, bool) {
 		}
 	}
 	return gw.Command{}, false
+}
+
+// Selected records the selection's IDs, then writes over the copy it
+// was given, which must change nothing in the editor.
+func (t *host) Selected(sv []gw.VertexIndex, se []gw.EdgeIndex) {
+	d := t.h.Document()
+	t.selected = ""
+	for i, v := range sv {
+		t.selected += string(d.Vertices[v].ID)
+		sv[i] = gw.None
+	}
+	for i, x := range se {
+		t.selected += string(d.Edges[x].ID)
+		se[i] = gw.None
+	}
 }
 
 // Refused records a refusal.
@@ -147,7 +170,7 @@ func run(page js.Value, r *report) {
 	el.Call("dispatchEvent", js.Global().Get("KeyboardEvent").New("keydown", obj(map[string]any{"key": "z", "ctrlKey": true, "bubbles": true})))
 	r.check("one undo takes back the edit and its follow-up", d.Vertices[a].Pos == before && d.Vertices[a].Label == "a", "label "+d.Vertices[a].Label+" pos "+num(d.Vertices[a].Pos.X))
 	chains(page, el, h, t, a, r)
-	lifecycle(el, h, r)
+	lifecycle(el, h, t, r)
 }
 
 // chains checks follow-ups that cannot be completed: past the bound, or
@@ -186,7 +209,7 @@ func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *repo
 }
 
 // lifecycle checks Apply from Go, Load and Destroy.
-func lifecycle(el js.Value, h *dom.Handle, r *report) {
+func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	// A vertex added from Go is drawn, and undone.
 	_, err := h.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "from Go"})
 	n := el.Call("querySelectorAll", "svg g.vertex").Length()
@@ -203,6 +226,37 @@ func lifecycle(el js.Value, h *dom.Handle, r *report) {
 	errDestroy := h.Destroy()
 	_, errAfter := h.Apply(gw.Command{Op: gw.AddVertex, Kind: 0})
 	r.check("Destroy empties the element and refuses later calls", errDestroy == nil && el.Get("innerHTML").String() == "" && errors.Is(errAfter, dom.ErrDestroyed) && errors.Is(h.Destroy(), dom.ErrDestroyed), errText(errAfter))
+
+	// Mounted with room for two vertices, then given one with three: a
+	// marquee over all three gives the host all of them, in a copy it
+	// may write over.
+	small, errSmall := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin(), Caps: gw.Caps{Vertices: 2, Edges: 1}})
+	big, errBig := doc.Decode([]byte(three), doc.Options{Schemas: doc.Builtin()})
+	t2 := &host{first: gw.None}
+	h2, errMount := dom.Mount(el, small, dom.Options{}, t2)
+	if errMount != nil {
+		r.check("mount a small document", false, errText(errors.Join(errMount, errSmall, errBig)))
+		return
+	}
+	t2.h = h2
+	errSmall = errors.Join(errSmall, errBig, h2.Load(big))
+	marquee(el)
+	sv, se := h2.Editor().Selected(make([]gw.VertexIndex, 0, 4), make([]gw.EdgeIndex, 0, 4))
+	r.check("the host is given the whole selection after Load, in a copy of its own", errSmall == nil && t2.selected == "abce" && len(sv) == 3 && len(se) == 1 && sv[0] != gw.None && se[0] != gw.None, "host given "+strconv.Quote(t2.selected)+", editor holds "+strconv.Itoa(len(sv))+" "+errText(errSmall))
+	_ = h2.Destroy()
+}
+
+// marquee drags the main button from one corner of the drawing to the
+// other.
+func marquee(el js.Value) {
+	s := el.Call("querySelector", "svg")
+	box := s.Call("getBoundingClientRect")
+	l, t := box.Get("left").Float()+2, box.Get("top").Float()+2
+	r, b := box.Get("right").Float()-2, box.Get("bottom").Float()-2
+	s.Call("dispatchEvent", pointerAt("pointerdown", l, t, 8))
+	js.Global().Call("dispatchEvent", pointerAt("pointermove", (l+r)/2, (t+b)/2, 8))
+	js.Global().Call("dispatchEvent", pointerAt("pointermove", r, b, 8))
+	js.Global().Call("dispatchEvent", pointerAt("pointerup", r, b, 8))
 }
 
 // drag presses the main button on the element with the document id,
@@ -211,14 +265,15 @@ func drag(el js.Value, id string, dx float64) {
 	v := el.Call("querySelector", "#"+js.Global().Get("CSS").Call("escape", id).String())
 	box := v.Call("getBoundingClientRect")
 	x, y := box.Get("left").Float()+box.Get("width").Float()/2, box.Get("top").Float()+box.Get("height").Float()/2
-	pointer := js.Global().Get("PointerEvent")
-	at := func(x float64) js.Value {
-		return obj(map[string]any{"clientX": x, "clientY": y, "pointerId": 7, "button": 0, "buttons": 1, "isPrimary": true, "bubbles": true})
-	}
-	v.Call("dispatchEvent", pointer.New("pointerdown", at(x)))
-	js.Global().Call("dispatchEvent", pointer.New("pointermove", at(x+dx/2)))
-	js.Global().Call("dispatchEvent", pointer.New("pointermove", at(x+dx)))
-	js.Global().Call("dispatchEvent", pointer.New("pointerup", at(x+dx)))
+	v.Call("dispatchEvent", pointerAt("pointerdown", x, y, 7))
+	js.Global().Call("dispatchEvent", pointerAt("pointermove", x+dx/2, y, 7))
+	js.Global().Call("dispatchEvent", pointerAt("pointermove", x+dx, y, 7))
+	js.Global().Call("dispatchEvent", pointerAt("pointerup", x+dx, y, 7))
+}
+
+// pointerAt is a pointer event of the main button, held, at the point.
+func pointerAt(kind string, x, y float64, id int) js.Value {
+	return js.Global().Get("PointerEvent").New(kind, obj(map[string]any{"clientX": x, "clientY": y, "pointerId": id, "button": 0, "buttons": 1, "isPrimary": true, "bubbles": true}))
 }
 
 // obj is a plain object with the fields given.

@@ -117,7 +117,7 @@ patching a page in place.
 | `VertexNotes`, `EdgeNotes` | annotations by index: `{Text, Class, Weight}`, a figure under a vertex's label or at an edge's middle |
 | `CharWidth`, `FontSize` | the label metrics used to cut long labels, 7 and 12 by default |
 | `DefaultWeight` | the stroke width of an unweighted edge, 1.5 by default |
-| `SelectedV`, `SelectedE`, `Ghost`, `Marquee`, `Target` | the overlay's contents; an `edit.Editor` fills these with `Overlay(&opts)` |
+| `Selection`, `Ghost`, `Marquee`, `Target` | the overlay's contents; an `edit.Editor` fills these with `Overlay(&opts)`, and is itself the `Selection`, which the renderer reads by position; `svg.Selected{V, E}` is one a caller holds |
 | `Hover`, `HasHover` | a vertex whose cut texts the overlay draws in full, in either mode; the editor sets the one under the pointer when idle |
 | `NoFullText` | writes a cut text without its full text after it, which the stylesheet shows on hover; its title still holds it |
 | `IDPrefix` | goes before the renderer's own IDs, the title's and the arrowheads', for more than one drawing in a page |
@@ -198,7 +198,9 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
   `Typed` and `ResizeHandle` report where the editor is, which is what
   a front end needs to draw it. `EditText` is what the label input
   starts with: the label, or the value of the attribute the kind edits
-  in its place (`EditAttr`).
+  in its place (`EditAttr`). `Selected(dstV, dstE)` appends the
+  selection to buffers you give, within their capacities, as `EdgesAt`
+  does.
 - **View:** `Zoom(factor)` zooms about the view's centre and `Fit()`
   shows the whole drawing, for a front end's buttons; Ctrl with `=`,
   `-` and `0` do the same from the keyboard.

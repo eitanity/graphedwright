@@ -118,7 +118,7 @@ func shapes(t testing.TB) (*gw.Document, svg.Options) {
 	edge(t, d, eOutcome, n, r, 2, gw.None, "", 0.1)
 	// One vertex left unplaced, to show the class.
 	must(t, d, gw.Command{Op: gw.AddVertex, Kind: kLeaf, ID: "free", Text: "unplaced"})
-	opts := svg.Options{Mode: svg.Edit, Title: "Shapes & routes", SelectedV: []gw.VertexIndex{n}, SelectedE: []gw.EdgeIndex{2}}
+	opts := svg.Options{Mode: svg.Edit, Title: "Shapes & routes", Selection: svg.Selected{V: []gw.VertexIndex{n}, E: []gw.EdgeIndex{2}}}
 	return d, opts
 }
 

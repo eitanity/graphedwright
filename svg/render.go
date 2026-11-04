@@ -56,8 +56,7 @@ type Options struct {
 	EdgeNotes     []Annotation
 	CharWidth     float64
 	FontSize      float64
-	SelectedV     []gw.VertexIndex
-	SelectedE     []gw.EdgeIndex
+	Selection     Selection   // what the overlay outlines, in edit mode; nil for nothing
 	DefaultWeight float64     // the stroke width of an unweighted edge, 1.5 when zero
 	Style         string      // a stylesheet embedded in the drawing; "" for none
 	Ghost         [2]gw.Point // a line the overlay draws, from a port to the pointer, in edit mode
@@ -80,6 +79,43 @@ type Options struct {
 	// tokens: letters, digits, '-' and '_', anything else as '_'.
 	IDPrefix    string
 	DocIDPrefix string
+}
+
+// Selection is what the overlay outlines: the vertices and edges it
+// names by position, from 0 to the counts. An edit.Editor is one; a
+// caller that draws a selection of its own gives a Selected. The
+// renderer reads it while it draws, and draws no more than the
+// document's capacities.
+type Selection interface {
+	SelectedCount() (vertices, edges int)
+	SelectedVertex(i int) gw.VertexIndex
+	SelectedEdge(i int) gw.EdgeIndex
+}
+
+// Selected is a Selection the caller holds: the vertices and edges in V
+// and E.
+type Selected struct {
+	V []gw.VertexIndex
+	E []gw.EdgeIndex
+}
+
+// SelectedCount is the number of vertices and edges.
+func (s Selected) SelectedCount() (vertices, edges int) { return len(s.V), len(s.E) }
+
+// SelectedVertex is the ith vertex, or None out of range.
+func (s Selected) SelectedVertex(i int) gw.VertexIndex {
+	if i < 0 || i >= len(s.V) {
+		return gw.None
+	}
+	return s.V[i]
+}
+
+// SelectedEdge is the ith edge, or None out of range.
+func (s Selected) SelectedEdge(i int) gw.EdgeIndex {
+	if i < 0 || i >= len(s.E) {
+		return gw.None
+	}
+	return s.E[i]
 }
 
 // Renderer holds the output buffer; one can render any number of
@@ -948,8 +984,15 @@ func (r *Renderer) overlay(d *gw.Document, opts Options, maxW float64) {
 // selection outlines each selected vertex and lays a halo over each
 // selected edge, as wide as its stroke and 6 more.
 func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
+	if opts.Selection == nil {
+		return
+	}
 	o := r.o
-	for _, v := range opts.SelectedV {
+	nv, ne := opts.Selection.SelectedCount()
+	nv, ne = min(nv, len(d.Vertices)), min(ne, len(d.Edges))
+	// bound: the selected vertices, at most the document's capacity
+	for i := range nv {
+		v := opts.Selection.SelectedVertex(i)
 		if !vertexLive(d, v) {
 			continue
 		}
@@ -961,7 +1004,9 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 		o.numAttr("height", vx.Size.H+6)
 		o.str(`/>`)
 	}
-	for _, e := range opts.SelectedE {
+	// bound: the selected edges, at most the document's capacity
+	for i := range ne {
+		e := opts.Selection.SelectedEdge(i)
 		if !edgeLive(d, e) {
 			continue
 		}
