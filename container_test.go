@@ -248,7 +248,8 @@ func TestContainerOrder(t *testing.T) {
 	mid := at(t, d, cZone, "mid", 0, 0)
 	order := func() string {
 		s := ""
-		for _, c := range d.Containers() {
+		for i := range d.Containers().Len() {
+			c := d.Containers().At(i)
 			s += string(d.Vertex(c).ID()) + " "
 		}
 		return s
@@ -281,7 +282,7 @@ func TestContainerOrder(t *testing.T) {
 	}
 	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: other})
 	apply(t, d, gw.Command{Op: gw.Compact})
-	if got := order(); got != "outer mid inner " || d.Containers()[0] != d.VertexByID("outer") {
+	if got := order(); got != "outer mid inner " || d.Containers().At(0) != d.VertexByID("outer") {
 		t.Errorf("compacted: %s", got)
 	}
 }

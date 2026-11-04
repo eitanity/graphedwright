@@ -105,3 +105,31 @@ func (l AttrSpecList) At(i int) AttrSpecView {
 	}
 	return AttrSpecView{&l.s[i]}
 }
+
+// VertexList is a list of vertex indices.
+type VertexList struct{ s []VertexIndex }
+
+// Len is the number of indices.
+func (l VertexList) Len() int { return len(l.s) }
+
+// At is the ith index; out of range, None.
+func (l VertexList) At(i int) VertexIndex {
+	if i < 0 || i >= len(l.s) {
+		return None
+	}
+	return l.s[i]
+}
+
+// EdgeList is a list of edge indices.
+type EdgeList struct{ s []EdgeIndex }
+
+// Len is the number of indices.
+func (l EdgeList) Len() int { return len(l.s) }
+
+// At is the ith index; out of range, None.
+func (l EdgeList) At(i int) EdgeIndex {
+	if i < 0 || i >= len(l.s) {
+		return None
+	}
+	return l.s[i]
+}

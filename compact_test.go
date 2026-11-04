@@ -16,10 +16,10 @@ func TestCompact(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: a})
 	before := snapshot(d)
 	vmap, emap := d.Compact()
-	if len(vmap) != 4 || vmap[s] != 0 || vmap[a] != gw.None || vmap[b] != 1 || vmap[c] != 2 {
+	if vmap.Len() != 4 || vmap.At(int(s)) != 0 || vmap.At(int(a)) != gw.None || vmap.At(int(b)) != 1 || vmap.At(int(c)) != 2 {
 		t.Errorf("vmap %v", vmap)
 	}
-	if len(emap) != 3 || emap[0] != gw.None || emap[1] != gw.None || emap[2] != 0 {
+	if emap.Len() != 3 || emap.At(0) != gw.None || emap.At(1) != gw.None || emap.At(2) != 0 {
 		t.Errorf("emap %v", emap)
 	}
 	if d.VertexSlots() != 3 || d.EdgeSlots() != 1 || d.Edge(0).From() != 1 || d.Edge(0).To() != 2 {
@@ -40,7 +40,8 @@ func TestCompact(t *testing.T) {
 	refuse(t, d, gw.Command{Op: gw.AddEdge, Kind: eOutcome, From: b, To: x, FromPort: 0, ToPort: 0}, "edge would make a cycle: b → x → b")
 	// Compacting a clean document changes nothing but the log.
 	vmap, _ = d.Compact()
-	for i, v := range vmap {
+	for i := range vmap.Len() {
+		v := vmap.At(i)
 		if int(v) != i {
 			t.Errorf("clean compact moved %d to %d", i, v)
 		}

@@ -168,7 +168,8 @@ func (r *Renderer) Render(d *gw.Document, opts Options, w io.Writer) error {
 	// with all it holds, so that what they hold and the edges between
 	// draw over them, and two that overlap do not interleave.
 	o.str(`<g class="containers">`)
-	for _, v := range d.Containers() {
+	for at := range d.Containers().Len() {
+		v := d.Containers().At(at)
 		r.vertex(d, opts, v)
 	}
 	o.str(`</g><g class="edges">`)

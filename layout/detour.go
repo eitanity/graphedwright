@@ -465,14 +465,14 @@ func (l *Layouter) setDetour(d *gw.Document, e gw.EdgeIndex, w drawn, m int) {
 		dt.lean(m, fwd)
 	}
 	bs := d.ReserveBends(e, m)
-	if bs == nil {
+	if !bs.Valid() {
 		return
 	}
 	for k := range m {
 		x, y := l.swap(dt.path[k].X, dt.path[k].Y)
-		bs[k] = gw.Point{X: x, Y: y}
+		bs.Set(k, gw.Point{X: x, Y: y})
 	}
-	d.SetBends(e, bs)
+	bs.Keep(m)
 }
 
 // obstacles finds what a detour from s to t, for edge e, goes round: the

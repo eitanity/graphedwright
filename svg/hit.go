@@ -101,8 +101,8 @@ func hitPort(d *gw.Document, p gw.Point) (Hit, bool) {
 // dropped there. It is None when there is none.
 func ContainerAt(d *gw.Document, p gw.Point, v gw.VertexIndex) gw.VertexIndex {
 	order := d.Containers()
-	for i := len(order) - 1; i >= 0; i-- {
-		c := order[i]
+	for i := order.Len() - 1; i >= 0; i-- {
+		c := order.At(i)
 		if !inBox(d.Vertex(c), p) {
 			continue
 		}

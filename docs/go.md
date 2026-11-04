@@ -53,7 +53,8 @@ d.Redo()
   `d.Vertex(v).Label()`, `d.Edge(e).From()`. `VertexSlots()` and
   `EdgeSlots()` are the number of indices in use. Deleted elements stay
   as tombstones (`Live()` false) until `Compact()`, which renumbers and
-  returns the maps from old indices to new.
+  returns the maps from old indices to new, read by the old index:
+  `vmap.At(int(v))` is the new index, or `None` for one dropped.
 - **Lists** an element or a kind holds, its ports, attributes and
   bends, are read-only lists: `Len()` and `At(i)`, and `Value(key)` for
   attributes, such as `d.Edge(e).Bends().At(0)`. They copy nothing and
@@ -68,7 +69,8 @@ d.Redo()
 - **`Unreachable(dst)`** lists the vertices no root kind reaches, for a
   schema with `Connected`.
 - **`Depth(v)` and `Within(v, c)`** answer questions about containers,
-  and **`Containers()`** lists them in the order they are drawn.
+  and **`Containers()`** lists them in the order they are drawn, as a
+  read-only `gw.VertexList`.
 - **`Flow()`** is the way the layers run, set by a `Layout` command.
   **`View()`** is the viewport, the part of the drawing shown; empty, it
   shows the whole drawing.
@@ -84,7 +86,13 @@ document is locked; those that report a result report false then:
   `Layout` command sets it so that it can be undone.
 - **`Place(v, p, placed)`** sets a vertex's position.
 - **`Fit()`** fits every container around what it holds.
-- **`SetBends(e, pts)` and `ReserveBends(e, n)`** give an edge its route.
+- **`SetBends(e, pts)`** gives an edge its route, checked and copied.
+  **`ReserveBends(e, n)`** reserves n points and returns a
+  `gw.BendWriter` to build the route in place, as a layout does before
+  placing the ends: `Set(i, p)`, `At(i)`, `Move(to, from, n)` and
+  `Keep(n)`. Every write is checked, and once the reservation is no
+  longer the edge's own, after `ClearBends`, another reservation or
+  `Compact`, the writer writes nothing.
 
 `Lock` makes a document read-only through its methods until `Unlock`:
 `Apply` refuses with `gw.ErrLocked`, and the rest do nothing. It is for

@@ -82,8 +82,8 @@ type Port struct {
 // its SVG element.
 type Attr struct{ Key, Value string }
 
-// Vertex is one vertex of a document.
-type Vertex struct {
+// vertex is one vertex of a document.
+type vertex struct {
 	ID     ID
 	Kind   KindIndex // into the document's Kinds: Kinds().Vertex
 	Label  string
@@ -98,8 +98,8 @@ type Vertex struct {
 	diedBy uint64
 }
 
-// Edge is one edge of a document.
-type Edge struct {
+// edge is one edge of a document.
+type edge struct {
 	ID       ID
 	Kind     KindIndex // into the document's Kinds: Kinds().Edge
 	From, To VertexIndex
@@ -113,6 +113,7 @@ type Edge struct {
 	diedBy   uint64
 	route    []Point // the bends it was given, in the slab
 	routed   ends    // where its ends were then
+	routeGen uint64  // the reservation route is, which a BendWriter names; 0 for none
 }
 
 // Caps are the capacities fixed when a document is made. Everything the
@@ -141,8 +142,8 @@ func DefaultCaps() Caps {
 // which have methods of their own.
 type Document struct {
 	kinds    *Kinds
-	vertices []Vertex // by index, tombstones included: read through Vertex
-	edges    []Edge   // by index, tombstones included: read through Edge
+	vertices []vertex // by index, tombstones included: read through Vertex
+	edges    []edge   // by index, tombstones included: read through Edge
 	view     Viewport
 	flow     Flow // the way the layers run: set by a Layout command, or by SetFlow
 	caps     Caps
@@ -152,7 +153,8 @@ type Document struct {
 	vattrSlab []Attr
 	eattrSlab []Attr
 	bendSlab  []Point
-	bendN     int // bend points handed out since ClearBends
+	bendN     int    // bend points handed out since ClearBends
+	bendGen   uint64 // the last reservation made, counting from 1
 
 	// Adjacency as intrusive lists over the edge indices; tombstones
 	// stay in the lists and are skipped.
@@ -218,8 +220,8 @@ func New(kinds *Kinds, caps Caps) (*Document, error) {
 		return nil, err
 	}
 	d := &Document{kinds: kinds, caps: caps}
-	d.vertices = make([]Vertex, 0, caps.Vertices)
-	d.edges = make([]Edge, 0, caps.Edges)
+	d.vertices = make([]vertex, 0, caps.Vertices)
+	d.edges = make([]edge, 0, caps.Edges)
 	d.portSlab = make([]Port, caps.Vertices*caps.PortsPerVertex)
 	d.vattrSlab = make([]Attr, caps.Vertices*caps.AttrsPerElement)
 	d.eattrSlab = make([]Attr, caps.Edges*caps.AttrsPerElement)

@@ -25,9 +25,9 @@ func (d *Document) Edge(e EdgeIndex) EdgeView {
 	return EdgeView{&d.edges[e]}
 }
 
-// VertexView reads one vertex of a document (see Vertex). It reads the
+// VertexView reads one vertex of a document, by index. It reads the
 // document as it is at each call.
-type VertexView struct{ x *Vertex }
+type VertexView struct{ x *vertex }
 
 // Valid reports whether the view names a vertex index in use.
 func (v VertexView) Valid() bool { return v.x != nil }
@@ -111,9 +111,9 @@ func (v VertexView) Parent() VertexIndex {
 	return v.x.Parent
 }
 
-// EdgeView reads one edge of a document (see Edge). It reads the
+// EdgeView reads one edge of a document, by index. It reads the
 // document as it is at each call.
-type EdgeView struct{ x *Edge }
+type EdgeView struct{ x *edge }
 
 // Valid reports whether the view names an edge index in use.
 func (e EdgeView) Valid() bool { return e.x != nil }

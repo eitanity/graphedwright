@@ -2,16 +2,17 @@ package graphedwright
 
 // Compact drops the tombstones and renumbers the live vertices and
 // edges, keeping their order. It returns, for each old vertex and edge
-// index, the new index or None; the maps are the document's scratch and
-// are valid until the next Compact. The undo log is cleared, since it
-// names indices.
-func (d *Document) Compact() (vmap []VertexIndex, emap []EdgeIndex) {
+// index, the new index or None, read by the old index; the maps read
+// the document's scratch and are valid until the next Compact. The undo
+// log is cleared, since it names indices. Locked, it does nothing and
+// returns empty maps.
+func (d *Document) Compact() (vmap VertexList, emap EdgeList) {
 	if d.locked {
-		return nil, nil
+		return VertexList{}, EdgeList{}
 	}
 	d.resetChange()
 	d.compact()
-	return d.vmap[:d.vmapN], d.emap[:d.emapN]
+	return VertexList{d.vmap[:d.vmapN]}, EdgeList{d.emap[:d.emapN]}
 }
 
 // compact is Compact without the maps returned.

@@ -217,9 +217,9 @@ func (d *Document) ownSize(c VertexIndex) Size {
 // containers side by side, in the same container or in none, in index
 // order, each followed by all it holds. So one container and its
 // contents are drawn wholly over or under another and its contents,
-// never between them. The slice is the document's and valid until the
-// next command.
-func (d *Document) Containers() []VertexIndex { return d.order }
+// never between them. The list reads the document's own, valid until
+// the next command.
+func (d *Document) Containers() VertexList { return VertexList{d.order} }
 
 // reorder lists the live containers in drawing order: a walk of the
 // tree they make, each container's children taken in index order.

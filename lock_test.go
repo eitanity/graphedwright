@@ -23,11 +23,8 @@ func TestLock(t *testing.T) {
 	e := addEdge(t, d, 0, a, b, gw.None, gw.None)
 	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: a, Text: "before"})
 	d.Undo()                    // something to redo
-	own := d.ReserveBends(e, 2) // the edge's own reservation, filled and set as a layout does
-	if own != nil {
-		own[0], own[1] = gw.Point{X: 100, Y: 50}, gw.Point{X: 150, Y: 50}
-	}
-	if !d.Place(a, gw.Point{X: -300, Y: -300}, true) || own == nil || !d.SetBends(e, own) {
+	own := d.ReserveBends(e, 3) // the edge's own reservation, filled and kept as a layout does
+	if !d.Place(a, gw.Point{X: -300, Y: -300}, true) || !own.Set(0, gw.Point{X: 100, Y: 50}) || !own.Set(1, gw.Point{X: 150, Y: 50}) || !own.Keep(2) {
 		t.Fatal("setting up")
 	}
 	unfitted := d.Vertex(z).Pos()
@@ -53,10 +50,13 @@ func TestLock(t *testing.T) {
 	if d.SetBends(e, []gw.Point{{X: 1, Y: 1}}) {
 		t.Error("SetBends set while locked")
 	}
-	if d.SetBends(e, own[:1]) { // a prefix of its own, which reserves nothing
-		t.Error("SetBends cut the edge's own bends while locked")
+	if own.Set(0, gw.Point{X: 7, Y: 7}) || own.Move(0, 1, 1) || own.Keep(1) {
+		t.Error("the edge's own reservation written while locked")
 	}
-	if d.ReserveBends(e, 2) != nil {
+	if own.At(0) != (gw.Point{X: 100, Y: 50}) || own.Len() != 2 {
+		t.Errorf("a locked reservation read: %v, %d", own.At(0), own.Len())
+	}
+	if d.ReserveBends(e, 2).Valid() {
 		t.Error("ReserveBends reserved while locked")
 	}
 	if d.SetView(gw.Viewport{W: 10, H: 10}) || d.View() != (gw.Viewport{}) {
@@ -65,7 +65,7 @@ func TestLock(t *testing.T) {
 	if d.SetFlow(gw.TopToBottom) || d.Flow() != gw.LeftToRight {
 		t.Errorf("SetFlow set while locked: %v", d.Flow())
 	}
-	if vm, em := d.Compact(); vm != nil || em != nil {
+	if vm, em := d.Compact(); vm.Len() != 0 || em.Len() != 0 {
 		t.Error("Compact renumbered while locked")
 	}
 	d.ClearUndo()

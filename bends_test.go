@@ -159,7 +159,7 @@ func TestBendsKept(t *testing.T) {
 	}
 	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: first})
 	_, emap := d.Compact()
-	if got := d.Edge(emap[e]).Bends(); got.Len() != 1 || got.At(0) != (gw.Point{X: 1, Y: 2}) {
+	if got := d.Edge(emap.At(int(e))).Bends(); got.Len() != 1 || got.At(0) != (gw.Point{X: 1, Y: 2}) {
 		t.Errorf("after Compact: bends %v", got)
 	}
 }

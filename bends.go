@@ -17,7 +17,7 @@ type ends struct {
 }
 
 // endsOf is where an edge's ends are now.
-func (d *Document) endsOf(e *Edge) ends {
+func (d *Document) endsOf(e *edge) ends {
 	f, t := &d.vertices[e.From], &d.vertices[e.To]
 	return ends{from: f.Pos, to: t.Pos, fromSize: f.Size, toSize: t.Size}
 }
@@ -27,9 +27,8 @@ func (d *Document) endsOf(e *Edge) ends {
 // engine and a loader. The points are copied into a slab of BendsPerEdge
 // points per edge capacity, which the edges share and only ClearBends
 // empties, and hold for the ends where they are now. A layout engine
-// that reserved the points with ReserveBends and filled them before
-// placing the ends passes the reservation back, which keeps them
-// and records the ends afresh. It reports whether the edge was live,
+// that builds a route in place before placing the ends uses
+// ReserveBends and its writer's Keep instead. It reports whether the edge was live,
 // the points coordinates (within MaxCoord) and the slab had room; when not, the edge has no
 // bends.
 func (d *Document) SetBends(e EdgeIndex, pts []Point) bool {
@@ -39,40 +38,129 @@ func (d *Document) SetBends(e EdgeIndex, pts []Point) bool {
 	ed := &d.edges[e]
 	for _, p := range pts {
 		if !point(p) {
-			ed.route, ed.Bends = nil, nil
+			d.dropRoute(ed)
 			return false
 		}
 	}
-	if len(pts) > 0 && len(pts) <= len(ed.route) && &pts[0] == &ed.route[0] {
-		// A prefix of the edge's own reservation: the rest goes unused
-		// until the slab is cleared.
-		ed.route = ed.route[:len(pts)]
-		ed.Bends, ed.routed = ed.route, d.endsOf(ed)
-		return true
-	}
-	b := d.ReserveBends(e, len(pts))
+	b := d.reserve(e, len(pts))
 	copy(b, pts)
 	return b != nil || len(pts) == 0
 }
 
 // ReserveBends gives a live edge n bend points from the slab, at zero,
-// for the caller to fill with points within MaxCoord; they hold for the ends
-// where they are now. It is nil, and the edge left without bends, when
-// the edge is not live, n is zero or the slab has no room.
-func (d *Document) ReserveBends(e EdgeIndex, n int) []Point {
+// which hold for the ends where they are now, and returns the writer
+// that fills them. The writer is not Valid, and the edge left without
+// bends, when the document is locked, the edge is not live, n is zero
+// or the slab has no room.
+func (d *Document) ReserveBends(e EdgeIndex, n int) BendWriter {
+	if d.reserve(e, n) == nil {
+		return BendWriter{}
+	}
+	return BendWriter{d: d, e: e, gen: d.edges[e].routeGen}
+}
+
+// reserve is ReserveBends, returning the points reserved, or nil.
+func (d *Document) reserve(e EdgeIndex, n int) []Point {
 	if d.locked || !d.edgeLive(e) {
 		return nil
 	}
 	ed := &d.edges[e]
-	ed.route, ed.Bends = nil, nil
+	d.dropRoute(ed)
 	if n <= 0 || n > len(d.bendSlab)-d.bendN {
 		return nil
 	}
 	b := d.bendSlab[d.bendN : d.bendN+n : d.bendN+n]
 	clear(b)
 	d.bendN += n
-	ed.route, ed.Bends, ed.routed = b, b, d.endsOf(ed)
+	d.bendGen++
+	ed.route, ed.Bends, ed.routed, ed.routeGen = b, b, d.endsOf(ed), d.bendGen
 	return b
+}
+
+// dropRoute leaves an edge without bends, and any writer of its route
+// stale.
+func (d *Document) dropRoute(ed *edge) { ed.route, ed.Bends, ed.routeGen = nil, nil, 0 }
+
+// BendWriter fills the bends ReserveBends reserved for one edge: a
+// layout engine's way to build a route in place, point by point, before
+// placing the ends. Every write is checked: while the document is
+// locked, out of range, or once the reservation is no longer the
+// edge's own (after ClearBends, a new reservation, or Compact), a write
+// does nothing and reports false, and a read is the zero value. A point
+// that is not a coordinate drops the edge's route, as SetBends does.
+type BendWriter struct {
+	d   *Document
+	e   EdgeIndex
+	gen uint64
+}
+
+// route is the reservation, when it is still the edge's own.
+func (w BendWriter) route() (*edge, bool) {
+	if w.d == nil || int(w.e) >= len(w.d.edges) { // a writer's edge was live once: after Compact, it may be past the end
+		return nil, false
+	}
+	ed := &w.d.edges[w.e]
+	return ed, ed.routeGen == w.gen
+}
+
+// Valid reports whether the reservation is still the edge's own.
+func (w BendWriter) Valid() bool {
+	_, ok := w.route()
+	return ok
+}
+
+// Len is the number of points reserved, or kept.
+func (w BendWriter) Len() int {
+	if ed, ok := w.route(); ok {
+		return len(ed.route)
+	}
+	return 0
+}
+
+// At is the ith point; out of range, or stale, the zero Point.
+func (w BendWriter) At(i int) Point {
+	ed, ok := w.route()
+	if !ok || i < 0 || i >= len(ed.route) {
+		return Point{}
+	}
+	return ed.route[i]
+}
+
+// Set sets the ith point.
+func (w BendWriter) Set(i int, p Point) bool {
+	ed, ok := w.route()
+	if !ok || w.d.locked || i < 0 || i >= len(ed.route) {
+		return false
+	}
+	if !point(p) {
+		w.d.dropRoute(ed)
+		return false
+	}
+	ed.route[i] = p
+	return true
+}
+
+// Move copies n points from position from to position to, as the
+// built-in copy does, the two ranges overlapping or not.
+func (w BendWriter) Move(to, from, n int) bool {
+	ed, ok := w.route()
+	if !ok || w.d.locked || n < 0 || to < 0 || from < 0 || to+n > len(ed.route) || from+n > len(ed.route) {
+		return false
+	}
+	copy(ed.route[to:to+n], ed.route[from:from+n])
+	return true
+}
+
+// Keep makes the first n points the edge's route, for its ends where
+// they are now; the rest go unused until the slab is cleared.
+func (w BendWriter) Keep(n int) bool {
+	ed, ok := w.route()
+	if !ok || w.d.locked || n < 0 || n > len(ed.route) {
+		return false
+	}
+	ed.route = ed.route[:n]
+	ed.Bends, ed.routed = ed.route, w.d.endsOf(ed)
+	return true
 }
 
 // ClearBends drops every edge's route and empties the slab.
@@ -85,7 +173,7 @@ func (d *Document) ClearBends() {
 		if e.Live && len(e.Bends) > 0 {
 			d.touchEdge(EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		}
-		e.route, e.Bends = nil, nil
+		d.dropRoute(e)
 	}
 	d.bendN = 0
 }

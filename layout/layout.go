@@ -177,7 +177,7 @@ type Layouter struct {
 	dFirst   []int32          // an edge's first dummy node in the level it is laid out in
 	dN       []int32          // and how many it has
 	eLevel   []gw.VertexIndex // the container whose level gave an edge its bends, or None
-	route    [][]gw.Point     // the bends each edge was given this run, in the document's slab, until placed
+	route    []gw.BendWriter  // the bends each edge was given this run, in the document's slab, until placed
 	rOff     []int32          // where in its route an edge's dummies' bends start, after room for its inside runs
 	rLen     []int32          // and how many there are
 	runs     [insidePts]gw.Point
@@ -213,7 +213,7 @@ func New(caps gw.Caps) *Layouter {
 		rx: make([]float64, caps.Vertices), ry: make([]float64, caps.Vertices), depth: make([]int32, caps.Vertices),
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
-		route: make([][]gw.Point, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
+		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
 		dt: newDetour(caps.Vertices),
 	}
 }
@@ -333,34 +333,34 @@ func (l *Layouter) compose(d *gw.Document, deepest int) {
 // end is not where it was recorded for, as after a container is fitted.
 func (l *Layouter) placeBends(d *gw.Document) {
 	for i := range d.EdgeSlots() {
-		pts := l.route[i]
-		if pts == nil {
+		w := l.route[i]
+		if !w.Valid() {
 			continue
 		}
-		outer := pts[l.rOff[i] : l.rOff[i]+l.rLen[i]]
 		if c := l.eLevel[i]; c != gw.None {
-			for j := range outer {
-				outer[j].X += l.rx[c]
-				outer[j].Y += l.ry[c]
+			off := int(l.rOff[i])
+			// bound: the edge's route, below the bends per edge
+			for j := off; j < off+int(l.rLen[i]); j++ {
+				p := w.At(j)
+				w.Set(j, gw.Point{X: p.X + l.rx[c], Y: p.Y + l.ry[c]})
 			}
 		}
-		n := l.withRuns(d, gw.EdgeIndex(i), pts) //nolint:gosec // bounded by the capacity
-		d.SetBends(gw.EdgeIndex(i), pts[:n])     //nolint:gosec // bounded by the capacity
-		l.route[i] = nil
+		w.Keep(l.withRuns(d, gw.EdgeIndex(i), w)) //nolint:gosec // bounded by the capacity
+		l.route[i] = gw.BendWriter{}
 	}
 }
 
 // withRuns puts edge e's inside runs round the bends its dummies gave it,
-// in pts, and returns how many points the route then has: the runs out
-// of the containers holding its source, the bends, and the runs into
-// the containers holding its target.
-func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, pts []gw.Point) int {
+// through w, and returns how many points the route then has: the runs
+// out of the containers holding its source, the bends, and the runs
+// into the containers holding its target.
+func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) int {
 	ed := d.Edge(e)
 	off, n := int(l.rOff[e]), int(l.rLen[e])
 	from, to := d.Vertex(ed.From()).Pos(), d.Vertex(ed.To()).Pos()
 	farFrom, farTo := to, from // the point each end's runs come from outside
 	if n > 0 {
-		farFrom, farTo = pts[off], pts[off+n-1]
+		farFrom, farTo = w.At(off), w.At(off+n-1)
 	}
 	// With the flow, the target's runs go to higher x and the source's,
 	// walked from outside in, to lower; against it, the other way.
@@ -368,15 +368,18 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, pts []gw.Point) int 
 	half := len(l.runs) / 2
 	src := l.insideRuns(d, e, ed.From(), farFrom, !back, l.runs[:half])
 	dst := l.insideRuns(d, e, ed.To(), farTo, back, l.runs[half:])
-	if src+n+dst > len(pts) {
-		return copy(pts, pts[off:off+n]) // no room: the bends alone
+	if src+n+dst > w.Len() {
+		w.Move(0, off, n) // no room: the bends alone
+		return n
 	}
-	copy(pts[src:], pts[off:off+n])
+	w.Move(src, off, n)
 	// The source's runs lead out, innermost container first.
 	for k := range src {
-		pts[k] = l.runs[src-1-k]
+		w.Set(k, l.runs[src-1-k])
 	}
-	copy(pts[src+n:], l.runs[half:half+dst])
+	for k := range dst {
+		w.Set(src+n+k, l.runs[half+k])
+	}
 	return src + n + dst
 }
 
@@ -413,29 +416,29 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 			continue
 		}
 		all := d.ReserveBends(gw.EdgeIndex(i), src+ns+2*int(l.dN[i])+nt+dst) //nolint:gosec // bounded by the capacity
-		if all == nil {
+		if !all.Valid() {
 			continue
 		}
-		route := all[src : src+ns+2*int(l.dN[i])+nt]
+		n := ns + 2*int(l.dN[i]) + nt // the route, from src in all
 		if sOK {
-			route[0] = gw.Point{X: sIn.X - ox, Y: sIn.Y - oy}
-			route[1] = gw.Point{X: sOut.X - ox, Y: sOut.Y - oy}
+			all.Set(src, gw.Point{X: sIn.X - ox, Y: sIn.Y - oy})
+			all.Set(src+1, gw.Point{X: sOut.X - ox, Y: sOut.Y - oy})
 		}
 		if tOK {
-			route[len(route)-2] = gw.Point{X: tOut.X - ox, Y: tOut.Y - oy}
-			route[len(route)-1] = gw.Point{X: tIn.X - ox, Y: tIn.Y - oy}
+			all.Set(src+n-2, gw.Point{X: tOut.X - ox, Y: tOut.Y - oy})
+			all.Set(src+n-1, gw.Point{X: tIn.X - ox, Y: tIn.Y - oy})
 		}
 		l.eLevel[i], l.route[i] = c, all
-		l.rOff[i], l.rLen[i] = int32(src), int32(len(route)) //nolint:gosec // bounded by the budget
-		l.dummyBends(i, g, ox, oy, route[ns:ns+2*int(l.dN[i])])
+		l.rOff[i], l.rLen[i] = int32(src), int32(n) //nolint:gosec // bounded by the budget
+		l.dummyBends(i, g, ox, oy, all, src+ns)
 	}
 }
 
-// dummyBends writes the bends of edge i's dummies into pts, in the
-// edge's own direction: a backward edge's dummies run from its target's
-// layer, so its bends are taken last dummy first, each band right side
-// first.
-func (l *Layouter) dummyBends(i int, g, ox, oy float64, pts []gw.Point) {
+// dummyBends writes the bends of edge i's dummies through w from off,
+// in the edge's own direction: a backward edge's dummies run from its
+// target's layer, so its bends are taken last dummy first, each band
+// right side first.
+func (l *Layouter) dummyBends(i int, g, ox, oy float64, w gw.BendWriter, off int) {
 	back := l.layer[l.eFrom[i]] > l.layer[l.eTo[i]]
 	// bound: the dummies of one edge, below the budget
 	for k := int32(0); k < l.dN[i]; k++ {
@@ -448,9 +451,9 @@ func (l *Layouter) dummyBends(i int, g, ox, oy float64, pts []gw.Point) {
 		lx, half := l.lx[l.layer[j]], float64(l.lw[l.layer[j]]/2)+float64(g/2)
 		y := math.Round(l.y[j]/g) * g
 		x, py := l.swap(math.Floor((lx-half)/g)*g, y)
-		pts[near] = gw.Point{X: x - ox, Y: py - oy}
+		w.Set(off+int(near), gw.Point{X: x - ox, Y: py - oy})
 		x, py = l.swap(math.Ceil((lx+half)/g)*g, y)
-		pts[far] = gw.Point{X: x - ox, Y: py - oy}
+		w.Set(off+int(far), gw.Point{X: x - ox, Y: py - oy})
 	}
 }
 

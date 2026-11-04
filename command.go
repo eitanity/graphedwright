@@ -268,7 +268,7 @@ func (d *Document) Parallel(e EdgeIndex) (k, n int) {
 }
 
 // lane reports whether an edge runs in a lane: no bends and no ports.
-func (d *Document) lane(e *Edge) bool {
+func (d *Document) lane(e *edge) bool {
 	return len(e.Bends) == 0 && e.FromPort == None && e.ToPort == None
 }
 
@@ -311,7 +311,7 @@ func (d *Document) addVertex(c Command) error {
 	n := len(d.vertices)
 	d.vertices = d.vertices[:n+1]
 	v := &d.vertices[n]
-	*v = Vertex{ID: c.ID, Kind: c.Kind, Label: c.Text, Pos: c.Pos, Size: c.Size, Live: true, Parent: None}
+	*v = vertex{ID: c.ID, Kind: c.Kind, Label: c.Text, Pos: c.Pos, Size: c.Size, Live: true, Parent: None}
 	if v.ID == "" {
 		v.ID = d.mintVertexID()
 	}
@@ -430,7 +430,7 @@ func (d *Document) addEdge(c Command) error {
 	n := len(d.edges)
 	d.edges = d.edges[:n+1]
 	e := &d.edges[n]
-	*e = Edge{ID: c.ID, Kind: c.Kind, From: c.From, To: c.To, FromPort: c.FromPort, ToPort: c.ToPort, Label: c.Text, Weight: c.Weight, Live: true}
+	*e = edge{ID: c.ID, Kind: c.Kind, From: c.From, To: c.To, FromPort: c.FromPort, ToPort: c.ToPort, Label: c.Text, Weight: c.Weight, Live: true}
 	if e.ID == "" {
 		e.ID = d.mintEdgeID()
 	}
