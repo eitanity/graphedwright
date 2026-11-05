@@ -2,9 +2,11 @@ package graphedwright_test
 
 import (
 	"errors"
+	"io"
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	gw "code.eitanity.com/graphedwright"
@@ -658,3 +660,69 @@ func (nopStore) Undo(uint64)        {}
 func (nopStore) Redo(uint64)        {}
 func (nopStore) Forget(uint64)      {}
 func (nopStore) Released(gw.IDList) {}
+
+// echo writes its ID as a JSON string, and records whether the document
+// was locked while it ran and what a call back into it gave.
+type echo struct {
+	d      *gw.Document
+	locked bool
+	err    error
+}
+
+func (c *echo) Encode(id gw.ID, w io.Writer) (bool, error) {
+	c.locked = c.d.Locked()
+	_, c.err = c.d.Apply(gw.Command{Op: gw.Move, Vertex: 0, Pos: gw.Point{X: 3, Y: 3}})
+	_, err := io.WriteString(w, strconv.Quote(string(id)))
+	return true, err
+}
+
+// TestEncodeData: an encoder runs with the document held, which a call
+// back refuses, and the document's own lock is kept; EncodeData is
+// refused for a nil encoder or writer, and from inside host code.
+func TestEncodeData(t *testing.T) {
+	d := newDoc(t, gw.Caps{})
+	chain(t, d)
+	before := snapshot(d)
+	c := &echo{d: d}
+	var b strings.Builder
+	if ok, err := d.EncodeData(c, "a", &b); !ok || err != nil || b.String() != `"a"` {
+		t.Fatalf("EncodeData: %v %v %q", ok, err, b.String())
+	}
+	if !c.locked || !errors.Is(c.err, gw.ErrReentered) || d.Locked() || snapshot(d) != before {
+		t.Fatalf("held %v, call back %v, locked after %v, changed %v", c.locked, c.err, d.Locked(), snapshot(d) != before)
+	}
+	d.Lock()
+	if ok, err := d.EncodeData(c, "", &b); !ok || err != nil || !d.Locked() {
+		t.Fatalf("on a locked document: %v %v, locked after %v", ok, err, d.Locked())
+	}
+	d.Unlock()
+	if _, err := d.EncodeData(nil, "a", &b); err == nil {
+		t.Fatal("a nil encoder accepted")
+	}
+	if _, err := d.EncodeData(c, "a", nil); err == nil {
+		t.Fatal("a nil writer accepted")
+	}
+	d.ClearUndo()
+	in := &encodeInStore{d: d, c: c}
+	if err := d.SetStore(in); err != nil {
+		t.Fatal(err)
+	}
+	apply(t, d, gw.Command{Op: gw.HostChange, Vertex: gw.None, Edge: gw.None, Token: 1})
+	if !errors.Is(in.err, gw.ErrReentered) {
+		t.Fatalf("EncodeData from inside a store: %v", in.err)
+	}
+}
+
+// encodeInStore calls EncodeData from inside Do.
+type encodeInStore struct {
+	nopStore
+	d   *gw.Document
+	c   gw.DataEncoder
+	err error
+}
+
+func (s *encodeInStore) Do(uint64) error {
+	var b strings.Builder
+	_, s.err = s.d.EncodeData(s.c, "", &b)
+	return nil
+}

@@ -1,6 +1,9 @@
 package graphedwright
 
-import "errors"
+import (
+	"errors"
+	"io"
+)
 
 // Store is a host's data on a document's elements and on the document.
 // graphedwright never reads the data and never draws it. It records the
@@ -45,6 +48,9 @@ var errNoStore = errors.New("host change: the document has no store")
 // errNilStore refuses SetStore(nil).
 var errNilStore = errors.New("store is nil")
 
+// errNilEncoder refuses EncodeData without an encoder or a writer.
+var errNilEncoder = errors.New("data encoder or writer is nil")
+
 // errLogHeld refuses SetStore once the log holds anything.
 var errLogHeld = errors.New("the undo log is not empty: call ClearUndo before setting a store")
 
@@ -78,11 +84,40 @@ func (d *Document) SetStore(s Store) error {
 }
 
 // enter marks a call into host code as running, the document locked
-// while it runs. Every caller has refused a locked document first.
-func (d *Document) enter() { d.locked, d.host.calling = true, true }
+// while it runs, and returns whether it was locked before.
+func (d *Document) enter() bool {
+	was := d.locked
+	d.locked, d.host.calling = true, true
+	return was
+}
 
 // leave ends a call into host code.
-func (d *Document) leave() { d.locked, d.host.calling = false, false }
+func (d *Document) leave(was bool) { d.locked, d.host.calling = was, false }
+
+// DataEncoder writes a host's data on an element, or on the document
+// for the ID "", as one JSON value; ok is false when there is none. It
+// is the encoding half of doc's Codec.
+type DataEncoder interface {
+	Encode(id ID, w io.Writer) (ok bool, err error)
+}
+
+// EncodeData calls the encoder for the element with the ID, or the
+// document for "", with the document held as while a Store's method
+// runs, so that the encoder cannot change what is being encoded. It
+// works on a locked document, which stays locked; it is refused with
+// ErrReentered from inside host code, and for a nil encoder or writer.
+func (d *Document) EncodeData(c DataEncoder, id ID, w io.Writer) (bool, error) {
+	switch {
+	case d.host.calling:
+		return false, ErrReentered
+	case c == nil || w == nil:
+		return false, errNilEncoder
+	}
+	was := d.enter()
+	ok, err := c.Encode(id, w)
+	d.leave(was)
+	return ok, err
+}
 
 // hostChange applies a HostChange: the store's Do, then the entry.
 func (d *Document) hostChange(c Command) error {
@@ -97,9 +132,9 @@ func (d *Document) hostChange(c Command) error {
 	case c.Vertex == None && c.Edge != None && !d.edgeLive(c.Edge):
 		return refusal("edge " + itoa(int(c.Edge)) + " is not live")
 	}
-	d.enter()
+	was := d.enter()
 	err := d.host.store.Do(c.Token)
-	d.leave()
+	d.leave(was)
 	if err != nil {
 		return err
 	}
@@ -111,16 +146,16 @@ func (d *Document) hostChange(c Command) error {
 
 // undoHost and redoHost hand an entry of a HostChange to the store.
 func (d *Document) undoHost(en entry) {
-	d.enter()
+	was := d.enter()
 	d.host.store.Undo(en.cmd.Token)
-	d.leave()
+	d.leave(was)
 	d.touchHost(en.vertex, en.edge)
 }
 
 func (d *Document) redoHost(en entry) {
-	d.enter()
+	was := d.enter()
 	d.host.store.Redo(en.cmd.Token)
-	d.leave()
+	d.leave(was)
 	d.touchHost(en.vertex, en.edge)
 }
 
@@ -170,9 +205,9 @@ func (d *Document) forget(e *entry) {
 	if e.cmd.Op != HostChange {
 		return
 	}
-	d.enter()
+	was := d.enter()
 	d.host.store.Forget(e.cmd.Token)
-	d.leave()
+	d.leave(was)
 }
 
 // clearLog empties the log, forgetting every host change it holds.
@@ -206,8 +241,8 @@ func (d *Document) release() {
 	if h.store == nil || len(h.ids) == 0 {
 		return
 	}
-	d.enter()
+	was := d.enter()
 	h.store.Released(IDList{h.ids})
-	d.leave()
+	d.leave(was)
 	h.ids = h.ids[:0]
 }

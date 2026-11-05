@@ -21,12 +21,17 @@ type Named struct {
 }
 
 // Options shape a decode: the schemas known, the capacities of the
-// document made, and whether to lay out a document whose vertices lack
-// positions (on by default; NoLayout turns it off).
+// document made, whether to lay out a document whose vertices lack
+// positions (on by default; NoLayout turns it off), and the Codec that
+// reads the host's data, with the longest "data" member it takes. A
+// document with "data" and no codec is refused. EncodeWith takes the
+// Codec and DataBytes too.
 type Options struct {
-	Schemas  []Named
-	Caps     gw.Caps
-	NoLayout bool
+	Schemas   []Named
+	Caps      gw.Caps
+	NoLayout  bool
+	Codec     Codec
+	DataBytes int // DefaultDataBytes if 0; at most MaxInput
 }
 
 // Decode reads a document. The text is refused beyond MaxInput before
@@ -62,6 +67,9 @@ func DecodeNamed(data []byte, opts Options) (*gw.Document, string, error) {
 		}
 	}
 	dec.d.ClearUndo()
+	if err := dec.handOver(); err != nil {
+		return nil, "", err
+	}
 	return dec.d, dec.name, nil
 }
 
@@ -74,6 +82,7 @@ type decoder struct {
 	unplaced bool
 	seen     uint8 // bits for the root keys, each allowed once
 	parents  []parentOf
+	spans    []span // the "data" members read, for the codec
 }
 
 // parentOf is a vertex's container, named before every vertex is read,
@@ -84,6 +93,9 @@ type parentOf struct {
 	path string
 }
 
+// dataKey is the member that holds the host's data.
+const dataKey = "data"
+
 // Root keys, as bits in seen.
 const (
 	sawSchema uint8 = 1 << iota
@@ -91,6 +103,7 @@ const (
 	sawEdges
 	sawView
 	sawFlow
+	sawData
 )
 
 // root reads the top-level object. The schema must come before the
@@ -160,8 +173,27 @@ func (dec *decoder) rootKey(k string) error {
 		}
 		dec.seen |= sawFlow
 		return dec.flow()
+	case dataKey:
+		if dec.seen&sawData != 0 {
+			return s.errorf(`"data" given twice`)
+		}
+		dec.seen |= sawData
+		return dec.rootData()
 	}
 	return s.errorf("unknown key " + strconv.Quote(k))
+}
+
+// rootData reads the document's own "data".
+func (dec *decoder) rootData() error {
+	s := dec.s
+	s.push(".data")
+	sp, err := dec.data()
+	if err != nil {
+		return err
+	}
+	s.pop(len(".data"))
+	dec.keep(sp, gw.None, gw.None)
+	return nil
 }
 
 // schema reads the schema's name and makes the document.
@@ -232,6 +264,8 @@ type vertexFields struct {
 	parent    string
 	hasParent bool
 	ports     []gw.Port
+	data      span
+	hasData   bool
 }
 
 // vertex reads one vertex object and applies it.
@@ -294,6 +328,9 @@ func (dec *decoder) applyVertex(f *vertexFields, attrs []gw.Attr) error {
 			return s.errorf(err.Error())
 		}
 	}
+	if f.hasData {
+		dec.keep(f.data, v, gw.None)
+	}
 	return nil
 }
 
@@ -329,6 +366,12 @@ func (dec *decoder) vertexKey(k string, f *vertexFields, attrs []gw.Attr) ([]gw.
 		return dec.attrs(attrs)
 	case "ports":
 		f.ports, err = dec.ports()
+	case dataKey:
+		if f.hasData {
+			return attrs, s.errorf(`"data" given twice`)
+		}
+		f.data, err = dec.data()
+		f.hasData = true
 	default:
 		err = s.errorf("unknown key " + strconv.Quote(k))
 	}
@@ -524,6 +567,8 @@ type edgeFields struct {
 	fromName, toName string
 	kindName         string
 	bends            []gw.Point
+	data             span
+	hasData          bool
 }
 
 // edge reads one edge object and applies it.
@@ -568,6 +613,9 @@ func (dec *decoder) edge() error {
 	if len(f.bends) > 0 && !dec.d.SetBends(ch.Edges[0], f.bends) {
 		return s.errorf("bends exceed the room left for them")
 	}
+	if f.hasData {
+		dec.keep(f.data, gw.None, ch.Edges[0])
+	}
 	return nil
 }
 
@@ -603,6 +651,12 @@ func (dec *decoder) edgeKey(k string, f *edgeFields, attrs []gw.Attr) ([]gw.Attr
 		f.bends, err = dec.bends()
 	case "attrs":
 		return dec.attrs(attrs)
+	case dataKey:
+		if f.hasData {
+			return attrs, s.errorf(`"data" given twice`)
+		}
+		f.data, err = dec.data()
+		f.hasData = true
 	default:
 		err = s.errorf("unknown key " + strconv.Quote(k))
 	}

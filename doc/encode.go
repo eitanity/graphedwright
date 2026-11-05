@@ -9,8 +9,19 @@ import (
 
 // Encode writes the document's live content as JSON under the schema
 // name, in index order, so that the same document gives the same text.
+// It writes no host data: EncodeWith does.
 func Encode(d *gw.Document, schema string, w io.Writer) error {
-	e := &encoder{w: w, buf: make([]byte, 0, 4096)}
+	return EncodeWith(d, schema, Options{}, w)
+}
+
+// EncodeWith is Encode that also writes the host's data through the
+// options' Codec, when they give one: a "data" member on each element
+// the codec has data for, and on the document. An Encode that writes
+// more than DataBytes, or other than one well-formed JSON value, fails
+// the encode, naming the element. The text is as deterministic as what
+// the codec writes.
+func EncodeWith(d *gw.Document, schema string, opts Options, w io.Writer) error {
+	e := &encoder{w: w, buf: make([]byte, 0, 4096), codec: opts.Codec, limit: opts.dataBytes()}
 	e.str(`{"schema":`)
 	e.quote(schema)
 	if d.Flow() != gw.LeftToRight {
@@ -47,15 +58,20 @@ func Encode(d *gw.Document, schema string, w io.Writer) error {
 	e.num(d.View().W)
 	e.str(`,"h":`)
 	e.num(d.View().H)
-	e.str("}}\n")
+	e.byte('}')
+	e.data(d, "", "document")
+	e.str("}\n")
 	return e.flush()
 }
 
 // encoder buffers the text and writes it through.
 type encoder struct {
-	w   io.Writer
-	buf []byte
-	err error
+	w     io.Writer
+	buf   []byte
+	err   error
+	codec Codec   // the host's data, or nil
+	limit int     // the longest data
+	out   *capped // what the codec writes, once it is called
 }
 
 func (e *encoder) flush() error {
@@ -155,6 +171,7 @@ func (e *encoder) vertex(d *gw.Document, v gw.VertexView) {
 	}
 	e.attrs(v.Attrs())
 	e.ports(own)
+	e.data(d, v.ID(), "vertex "+strconv.Quote(string(v.ID())))
 	e.byte('}')
 }
 
@@ -225,6 +242,7 @@ func (e *encoder) edge(d *gw.Document, ed gw.EdgeView) {
 		e.byte(']')
 	}
 	e.attrs(ed.Attrs())
+	e.data(d, ed.ID(), "edge "+strconv.Quote(string(ed.ID())))
 	e.byte('}')
 }
 

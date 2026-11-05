@@ -29,6 +29,7 @@ return the same shape as a string or an object.
 | `vertices` | the vertices, in order. |
 | `edges` | the edges, in order, after the vertices. |
 | `view` | the viewport: `x`, `y`, `w`, `h` in document units, the corner within 10⁹ of the origin and the width and height not negative. Zero width or height means "fit the drawing". |
+| `data` | the host's data on the document: one JSON value ([Host data](#host-data)). |
 
 ## A vertex
 
@@ -43,6 +44,7 @@ return the same shape as a string or an object.
 | `parent` | the ID of the container it is in. The container may come later in the list. A container that holds anything is fitted around it when read, whatever its own position says, at least its own size. |
 | `attrs` | its attributes, an object of strings, keyed by lowercase letters, digits, `-` and `_` (not `kind`, `from` or `to`). |
 | `ports` | its own ports, after its kind's: an array of `{"name", "side", "max"}`, with `side` one of `"left"`, `"right"`, `"top"` and `"bottom"`, and `max`, the most edges it takes, left out for any. A vertex with ports of its own writes its own size in `w` and `h`, as a container does. |
+| `data` | the host's data on the vertex: one JSON value. |
 
 ## An edge
 
@@ -55,6 +57,7 @@ return the same shape as a string or an object.
 | `weight` | a number that drives the stroke width when the kind is weighted: not negative, at most 10⁹. |
 | `bends` | the points a layout routed it through, `[[x, y], …]`. They hold for the positions of its ends as read. |
 | `attrs` | its attributes, as for a vertex. |
+| `data` | the host's data on the edge: one JSON value. |
 
 ## Reading
 
@@ -88,3 +91,28 @@ document always gives the same text. It writes a vertex's size only
 when it differs from its kind's, and a flow only when it is not the
 default. Numbers are written in the shortest form that reads back the
 same.
+
+## Host data
+
+A host's own data ([Concepts](concepts.md#host-data)) is written and
+read by its `doc.Codec`, keyed by element ID, `""` for the document's:
+
+```go
+err := doc.EncodeWith(d, name, doc.Options{Codec: c}, w)
+d, err := doc.Decode(data, doc.Options{Schemas: schemas, Codec: c})
+```
+
+- **Writing:** `EncodeWith` asks the codec's `Encode(id, w)` for each
+  live element and the document, and writes what it gives as the
+  element's `data`. The codec writes through a writer that refuses
+  more than `Options.DataBytes` (64 KiB by default, at most 16 MB), and
+  what it writes must be one well-formed JSON value; otherwise the
+  encode fails, naming the element. The document is held while the
+  codec runs, so a call back into it is refused. `Encode` writes no
+  data, and the text is only as deterministic as what the codec writes.
+- **Reading:** a `data` member must be well-formed JSON, nested no more
+  than 64 deep and no longer than `DataBytes`, or the document is
+  refused, naming where but not quoting the data. Each member is handed
+  to the codec's `Decode(id, raw)` once the whole document is read and
+  built, so never for a document that is then refused. A document with
+  `data` and no codec is refused rather than read without it.

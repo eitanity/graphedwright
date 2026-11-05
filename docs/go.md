@@ -213,6 +213,9 @@ without positions is laid out unless `NoLayout` is set.
   with one shares its `Kinds`.
 - **Capacities:** `Options.Caps` gives the capacities of the document
   made.
+- **Host data:** `Options.Codec` reads each `data` member, and
+  `EncodeWith(d, name, opts, w)` writes them through the same codec
+  ([Host data](format.md#host-data)).
 
 `Encode` writes the live content deterministically.
 
