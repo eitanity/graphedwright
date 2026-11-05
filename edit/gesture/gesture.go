@@ -52,12 +52,14 @@ const (
 	EvDoubleClick             // a double-click on the drawing
 	EvView                    // switch to view mode
 	EvEdit                    // switch to edit mode
+	EvContext                 // a context request: the host's own actions on what is hit
 )
 
 // Hit is what a press or a double-click is over.
 type Hit uint8
 
-// The hits. A press or a double-click with the zero Hit is refused.
+// The hits. A press, a double-click or a context request with the zero
+// Hit is refused.
 const (
 	hitNone       Hit = iota
 	HitBackground     // nothing
@@ -67,7 +69,8 @@ const (
 	HitEdge           // an edge
 )
 
-// Event is one input. Hit is read for EvPress and EvDoubleClick; Pan,
+// Event is one input. Hit is read for EvPress, EvDoubleClick and
+// EvContext; Pan,
 // Shift and Handle for EvPress; One for EvStartText and EvType.
 type Event struct {
 	Kind   EventKind
@@ -109,6 +112,7 @@ const (
 	ActNudge                              // move the selection by one grid unit
 	ActUndo                               // undo one command
 	ActRedo                               // redo one command
+	ActContext                            // note the context request, once the selection is settled
 )
 
 // Machine is the editor's control state. Build it with New and change it
@@ -155,6 +159,8 @@ func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 		next, acts, out = m.textDone()
 	case EvDoubleClick:
 		next, acts, out = m.doubleClick(e)
+	case EvContext:
+		next, acts, out = m.context(e)
 	case EvView, EvEdit:
 		next, acts = m.cancel(0)
 		next.view = e.Kind == EvView
@@ -358,7 +364,7 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	case EvOtherKey:
 		return m, 0, fsm.Ignored
 	case EvPress, EvMove, EvRelease, EvEscape, EvTab, EvPaletteVertex, EvPaletteEdge,
-		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit:
+		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit, EvContext:
 		return m, 0, fsm.Invalid
 	default:
 		return m, 0, fsm.Invalid
@@ -407,6 +413,22 @@ func (m Machine) doubleClick(e Event) (Machine, Actions, fsm.Outcome) {
 	default:
 		return m, 0, fsm.Invalid
 	}
+}
+
+// context ends what is in progress, as Escape does, and settles the
+// selection the host's actions apply to: what is hit, unless it is
+// selected already, when the selection stays; nothing, on the
+// background. It is a click's rule, so it holds in view mode too, and
+// changes no document.
+func (m Machine) context(e Event) (Machine, Actions, fsm.Outcome) {
+	if !e.Hit.valid() {
+		return m, 0, fsm.Invalid
+	}
+	next, acts := m.cancel(0)
+	if e.Hit == HitBackground {
+		return next, acts | ActClearSelection | ActContext, fsm.Moved
+	}
+	return next, acts | ActSelectHit | ActContext, fsm.Moved
 }
 
 // invalidName is what String returns for a value outside the declared
@@ -478,6 +500,8 @@ func (k EventKind) String() string {
 		return "View"
 	case EvEdit:
 		return "Edit"
+	case EvContext:
+		return "Context"
 	default:
 		return invalidName
 	}

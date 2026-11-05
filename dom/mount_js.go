@@ -38,6 +38,7 @@ func (h *Handle) mount() {
 	h.listen(js.Global(), "pointercancel", h.pointerCancel)
 	h.listen(drawing, "wheel", h.wheel)
 	h.listen(drawing, "dblclick", h.doubleClick)
+	h.listen(drawing, "contextmenu", h.contextMenu)
 	h.listen(h.el, "keydown", h.keydown)
 	h.listen(h.input, "keydown", h.inputKey)
 	h.listen(h.input, "blur", h.inputBlur)
@@ -132,14 +133,8 @@ func (h *Handle) paletteButton(doc js.Value, name, class string, kind gw.KindInd
 			return nil
 		}
 		// preventDefault keeps the focus where it was, so the label
-		// input gets no blur: commit its text here, as Enter in it does.
-		// The editor hears first, so the blur that hiding causes finds
-		// nothing left to commit.
-		if h.ed.State() == edit.EditingText {
-			ch, err := h.ed.Handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
-			h.hideInput()
-			h.report(ch, err)
-		}
+		// input gets no blur.
+		h.commitInput()
 		ch, err := h.ed.Handle(edit.Event{Kind: edit.PaletteStart, Item: kind, IsEdge: isEdge})
 		h.markChosen()
 		h.report(ch, err)
@@ -184,6 +179,64 @@ func (h *Handle) pointer(kind edit.EventKind) func(js.Value, []js.Value) any {
 		h.handle(e)
 		return nil
 	}
+}
+
+// commitInput commits the label input's text, as Enter in it does, when
+// an event that keeps the focus where it was ends the editing. The
+// editor hears first, so the blur that hiding causes finds nothing left
+// to commit.
+func (h *Handle) commitInput() {
+	if h.ed.State() != edit.EditingText {
+		return
+	}
+	ch, err := h.ed.Handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
+	h.hideInput()
+	h.report(ch, err)
+}
+
+// contextMenu takes the browser's contextmenu: the editor ends the
+// gesture under way and settles the selection, whether or not the host
+// takes the request, since the browser's menu may swallow the release.
+// When the host takes it, the browser's menu is not shown and the host
+// hears of it once the selection is drawn.
+func (h *Handle) contextMenu(_ js.Value, args []js.Value) any {
+	if len(args) == 0 || h.inHost || h.destroyed {
+		return nil
+	}
+	ev := args[0]
+	if h.context {
+		ev.Call("preventDefault")
+	}
+	client := gw.Point{X: ev.Get("clientX").Float(), Y: ev.Get("clientY").Float()}
+	keyboard := h.fromKeyboard(ev, client)
+	h.commitInput()
+	h.handle(edit.Event{Kind: edit.Context, Point: h.toDoc(client.X, client.Y), Keyboard: keyboard})
+	if !h.context || h.destroyed {
+		return nil
+	}
+	req := h.ed.Context()
+	if keyboard {
+		client = h.toScreen(req.Point)
+	}
+	h.enter()
+	h.host.Context(req, client)
+	h.leave()
+	return nil
+}
+
+// fromKeyboard reports whether a contextmenu came from the keyboard, the
+// menu key or Shift+F10, which has no pointer position: not the
+// secondary button, and a pointer event of no pointer type, or a point
+// outside the drawing.
+func (h *Handle) fromKeyboard(ev js.Value, p gw.Point) bool {
+	if ev.Get("button").Int() == 2 {
+		return false
+	}
+	if t := ev.Get("pointerType"); t.Type() == js.TypeString && t.String() == "" {
+		return true
+	}
+	r := h.drawing().Call("getBoundingClientRect")
+	return p.X < r.Get("left").Float() || p.X > r.Get("right").Float() || p.Y < r.Get("top").Float() || p.Y > r.Get("bottom").Float()
 }
 
 // escapeKey is the key that cancels what is in progress.
@@ -348,19 +401,36 @@ func px(x float64) string { return strconv.FormatFloat(x, 'f', 0, 64) + "px" }
 // toClient maps document units to pixels within the host element,
 // through the SVG's screen matrix.
 func (h *Handle) toClient(p gw.Point) gw.Point {
-	if !h.svgEl.Truthy() {
+	q, ok := h.screen(p)
+	if !ok {
 		return p
+	}
+	host := h.el.Call("getBoundingClientRect")
+	return gw.Point{X: q.X - host.Get("left").Float(), Y: q.Y - host.Get("top").Float()}
+}
+
+// toScreen maps document units to the page's client coordinates,
+// through the SVG's screen matrix.
+func (h *Handle) toScreen(p gw.Point) gw.Point {
+	q, _ := h.screen(p)
+	return q
+}
+
+// screen maps document units through the SVG's screen matrix, when
+// there is one; without, the point is as it was.
+func (h *Handle) screen(p gw.Point) (gw.Point, bool) {
+	if !h.svgEl.Truthy() {
+		return p, false
 	}
 	ctm := h.svgEl.Call("getScreenCTM")
 	if !ctm.Truthy() {
-		return p
+		return p, false
 	}
 	pt := h.svgEl.Call("createSVGPoint")
 	pt.Set("x", p.X)
 	pt.Set("y", p.Y)
 	q := pt.Call("matrixTransform", ctm)
-	host := h.el.Call("getBoundingClientRect")
-	return gw.Point{X: q.Get("x").Float() - host.Get("left").Float(), Y: q.Get("y").Float() - host.Get("top").Float()}
+	return gw.Point{X: q.Get("x").Float(), Y: q.Get("y").Float()}, true
 }
 
 func (h *Handle) hideInput() {

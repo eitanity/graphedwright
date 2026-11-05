@@ -57,6 +57,7 @@ const (
 	TextDone
 	TextCancel
 	DoubleClick // at Point: edits the label of what is there
+	Context     // at Point, or from the keyboard: the host's own actions on what is there (Editor.Context)
 )
 
 // Modifiers are the keys held during an event.
@@ -71,7 +72,8 @@ const (
 
 // Event is one input. Point is in the SVG element's client
 // coordinates; the editor applies the viewport. Button is 0 for the
-// main button, 1 for the middle one, 2 for the secondary.
+// main button, 1 for the middle one, 2 for the secondary, whose press
+// starts nothing: the Context event that follows it does the work.
 type Event struct {
 	Kind      EventKind
 	Point     gw.Point
@@ -83,6 +85,18 @@ type Event struct {
 	Delta     float64      // for Wheel: the vertical scroll in document units, positive down; with Ctrl it zooms, out when positive, 100 a notch
 	DeltaX    float64      // for Wheel: the horizontal scroll in document units
 	Text      string       // for TextDone
+	Keyboard  bool         // for Context: from the keyboard, with no point; it is on the selection
+}
+
+// ContextRequest is the last Context event: what it is on, where, and
+// whether it came from the keyboard. A request from the keyboard is on
+// the first selected vertex, or edge, at the centre of the selection,
+// or on the background at the view's centre when nothing is selected.
+// The host's actions on it are commands, so they undo as any edit.
+type ContextRequest struct {
+	Hit      svg.Hit
+	Point    gw.Point // in document units
+	Keyboard bool
 }
 
 // ErrView is the refusal of any command in view mode.
@@ -128,6 +142,7 @@ type Editor struct {
 	typed    string // the character typed to start editing a label, or none
 	editV    gw.VertexIndex
 	editE    gw.EdgeIndex
+	ctx      ContextRequest // the last Context event
 
 	changeV []gw.VertexIndex
 	changeE []gw.EdgeIndex
@@ -151,6 +166,7 @@ func New(d *gw.Document, mode Mode, grid float64) *Editor {
 		dragV: make([]gw.VertexIndex, 0, caps.Vertices), dropTo: make([]gw.VertexIndex, caps.Vertices),
 		connFrom: gw.None, connPort: gw.None, connKind: gw.None, edgeKind: gw.None, editV: gw.None, editE: gw.None, sizeV: gw.None,
 		changeV: make([]gw.VertexIndex, 0, caps.Vertices), changeE: make([]gw.EdgeIndex, 0, caps.Edges),
+		ctx: ContextRequest{Hit: background()},
 	}
 	e.SetMode(mode)
 	return e
@@ -222,6 +238,10 @@ func (e *Editor) SelectedEdge(i int) gw.EdgeIndex {
 	}
 	return e.selE[i]
 }
+
+// Context is the last context request: after a Context event, what
+// the host's actions are on. The selection is what they apply to.
+func (e *Editor) Context() ContextRequest { return e.ctx }
 
 // Hover is what the pointer was last over.
 func (e *Editor) Hover() svg.Hit { return e.hover }
@@ -381,6 +401,8 @@ func (e *Editor) Handle(ev Event) (gw.Change, error) {
 		err = e.fire(gesture.Event{Kind: gesture.EvTextCancel}, input{})
 	case DoubleClick:
 		err = e.doubleClick(ev)
+	case Context:
+		err = e.context(ev)
 	}
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}, err
 }
@@ -555,6 +577,8 @@ func (e *Editor) do(a gesture.Actions, ge gesture.Event, in input) error {
 		e.startText(ge.Kind, in.ev.Key)
 	case gesture.ActCommitText:
 		return e.commitText(in.ev.Text)
+	case gesture.ActContext:
+		e.ctx = ContextRequest{Hit: in.hit, Point: in.p, Keyboard: in.ev.Keyboard}
 	default:
 		return errInvalid
 	}

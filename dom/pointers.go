@@ -30,7 +30,7 @@ func (p *pointers) track(kind edit.EventKind, id int) bool {
 		p.down = false
 	case edit.PointerMove:
 		return !other
-	case edit.Wheel, edit.Key, edit.PaletteStart, edit.Blur, edit.Resize, edit.TextDone, edit.TextCancel, edit.DoubleClick:
+	case edit.Wheel, edit.Key, edit.PaletteStart, edit.Blur, edit.Resize, edit.TextDone, edit.TextCancel, edit.DoubleClick, edit.Context:
 	}
 	return true
 }

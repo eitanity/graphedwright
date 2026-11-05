@@ -166,6 +166,29 @@ def check(out, native, example):
         raise SystemExit(f"the functions' effects: {f['effects']}, changes heard {f['heard']}")
 
 
+    c = out["ctx"]
+    if c["load"].get("ok") is not True or c["on"].get("ok") is not True or c["setLabel"].get("ok") is not True:
+        raise SystemExit(f"context: load {c['load']}, on {c['on']}, setLabel {c['setLabel']}")
+    p = c["portRequest"] or {}
+    if not c["port"] or {k: p.get(k) for k in ("target", "id", "port", "keyboard", "vertices")} != {"target": "port", "id": "m", "port": "out", "keyboard": False, "vertices": ["m"]}:
+        raise SystemExit(f"a right-click on m's port: prevented {c['port']}, request {p}")
+    e = c["edgeRequest"] or {}
+    if {k: e.get(k) for k in ("target", "id", "port", "vertices", "edges")} != {"target": "edge", "id": "mn", "port": "", "vertices": [], "edges": ["mn"]}:
+        raise SystemExit(f"a right-click on the edge: {e}")
+    r = c["request"] or {}
+    if not c["prevented"] or {k: r.get(k) for k in ("target", "id", "port", "keyboard", "vertices", "edges")} != {"target": "vertex", "id": "n", "port": "", "keyboard": False, "vertices": ["n"], "edges": []} or not (abs(r.get("x", 0) - 400) < 1 and abs(r.get("y", 0) - 80) < 1):
+        raise SystemExit(f"a right-click on n: prevented {c['prevented']}, request {r}")
+    k = c["keyboard"] or {}
+    if {key: k.get(key) for key in ("target", "id", "keyboard", "x", "y", "vertices")} != {"target": "vertex", "id": "n", "keyboard": True, "x": 400, "y": 80, "vertices": ["n"]} or not c["keyboardOnN"]:
+        raise SystemExit(f"a request from the keyboard: {k}, client point on n {c['keyboardOnN']}")
+    kt = c["keyboardTyped"] or {}
+    if (kt.get("keyboard"), kt.get("id"), kt.get("x")) != (True, "n", 400):
+        raise SystemExit(f"a request from the keyboard as a pointer event of no type, over m: {kt}")
+    if (c["typed"], c["relabelled"], c["deleted"], c["undeleted"], c["unlabelled"]) != ("typed", "from the menu", 1, 2, "n"):
+        raise SystemExit(f"the label typed, the menu's actions and Ctrl+Z: {c}")
+    if c["unlistened"] is not False:
+        raise SystemExit("without a context listener the browser's menu was prevented")
+
 def check_eventtree(seen):
     """What a person using the event-tree example would see: the figures
     the app computed, the split its rule made, one undo for an edit and

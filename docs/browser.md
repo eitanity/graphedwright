@@ -118,11 +118,51 @@ default, in `create` and in `annotate`.
 | `"select"` | `{vertices: [id], edges: [id]}`: the selection, when it changes |
 | `"error"` | the text of a refusal, such as `edge would make a cycle: a → b → a` |
 | `"edit-label"` | `{id, text}`: a label, or the attribute its kind edits in its place, is about to be edited in the input, which starts with `text` |
+| `"context"` | `{target, id, port, x, y, clientX, clientY, keyboard, vertices: [id], edges: [id]}`: a context request on the drawing (below) |
 
 Callbacks run as a microtask, just after the call or the event that
 caused them, never in the middle of a redraw. One that throws is
 reported by the browser like any uncaught exception and doesn't affect
 the editor.
+
+### Context requests
+
+A context request is the browser's `contextmenu` on the drawing: a
+secondary click, Ctrl+click on a Mac, the menu key, or a long press. The
+editor ends any gesture under way, as Escape does, and settles the
+selection: what was hit, unless it is already selected, when the
+selection stays, so an action applies to all of it; on the background,
+nothing. With a `"context"` listener the browser's own menu is not
+shown, and the listener hears the request once the selection is drawn:
+
+- `target` is `"vertex"` (a container among them), `"edge"`, `"port"`
+  or `"background"`, and `id` the element's, the vertex's for a port,
+  whose name is `port`;
+- `x` and `y` are in document units, `clientX` and `clientY` in the
+  page's, where a menu goes;
+- `keyboard` is true for the menu key or Shift+F10, which have no
+  pointer: the request is then on the selection, at its centre;
+- `vertices` and `edges` are the selection.
+
+The menu and its items are the page's. Its actions are the editor's
+calls (`setLabel`, `setAttr`, `addPort`, `deletePort`, `layout`), so
+`undo` and Ctrl+Z take them back as any edit:
+
+```js
+const menu = document.getElementById("menu");   // a positioned list, hidden
+graphedwright.on(g, "context", (req) => {
+  if (req.target !== "vertex") return;
+  menu.style.left = req.clientX + "px";
+  menu.style.top = req.clientY + "px";
+  menu.hidden = false;
+  menu.onclick = (ev) => {
+    menu.hidden = true;
+    if (ev.target.dataset.action === "rename") graphedwright.setLabel(g, prompt("Label") || "");
+  };
+});
+```
+
+A secondary press starts nothing on the drawing: no drag, no marquee.
 
 ### Properties
 
@@ -187,10 +227,16 @@ func main() {
   `Fit` and `Destroy`. `Document` and `Editor` are for reading; change
   the document through the handle, so that the drawing follows.
 - **The host** implements `dom.Host`: `Changed`, `Selected`,
-  `Refused` and `EditingLabel`. It embeds `dom.NoHost` to leave out
-  the ones it doesn't need. Each method runs after the change it reports
-  is drawn. The selection `Selected` is given is a copy, valid only for
-  the call.
+  `Refused`, `EditingLabel` and `Context`. It embeds `dom.NoHost` to
+  leave out the ones it doesn't need. Each method runs after the change
+  it reports is drawn. The selection `Selected` is given is a copy,
+  valid only for the call.
+- **Context requests** reach `Context(req, client)` when
+  `Options.Context` is set, and only then is the browser's menu not
+  shown: `req` is the editor's `ContextRequest` (the hit by index, the
+  point in document units, and whether it came from the keyboard), and
+  `client` is where to put a menu. The menu acts once `Context` has
+  returned, through `Apply`, so its commands are undone as any edit.
 - **Inside a host method the document is locked.** Calls that change
   it, through the handle or the document, are refused (`dom.ErrReentered`,
   `gw.ErrLocked`); reading and `Annotate` are allowed. To answer a
@@ -212,7 +258,7 @@ func main() {
 - **`dom.Options`** take what `create`'s options do, in Go: `View`,
   `Grid`, `NoPatch`, `NoExpand`, `NoFullText`, `IDPrefix` (the
   renderer's own IDs; give each editor in a page its own),
-  `DocIDPrefix`, and `MaxFollow`.
+  `DocIDPrefix`, `MaxFollow`, and `Context`.
 
 [`cmd/graphedwright-eventtree`](../cmd/graphedwright-eventtree) is an
 application built this way: an editor of event trees, with its own
@@ -241,6 +287,7 @@ In edit mode the drawing shows a palette of the schema's kinds above it.
 | nudge | the arrow keys, one grid step |
 | undo, redo | Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y (Cmd on a Mac) |
 | cancel | Escape ends a drag, a resize, a connection or an edit |
+| context menu | right-click, Ctrl+click on a Mac, the menu key or a long press: the page's menu, when it listens for `"context"`, else the browser's |
 | step through | Tab selects the next shape |
 | pan | scroll, drag with the middle button, or Alt+drag |
 | zoom | Ctrl+scroll or pinch; the + and − buttons, or Ctrl+= and Ctrl+-; Fit, or Ctrl+0, shows the whole drawing |

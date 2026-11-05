@@ -27,6 +27,7 @@ const (
 	cbSelect
 	cbError
 	cbEditLabel
+	cbContext
 	cbCount
 )
 
@@ -538,7 +539,8 @@ func annotate(j *jsHost, args []js.Value) js.Value {
 }
 
 // on(g, event, callback) registers a callback for "change", "select",
-// "error" or "edit-label".
+// "error", "edit-label" or "context". With one for "context", the
+// browser's own menu is not shown on the drawing.
 func on(j *jsHost, args []js.Value) js.Value {
 	if len(args) < 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeFunction {
 		return fail("on(handle, event, callback)")
@@ -552,8 +554,11 @@ func on(j *jsHost, args []js.Value) js.Value {
 		j.cbs[cbError] = args[1]
 	case "edit-label":
 		j.cbs[cbEditLabel] = args[1]
+	case "context":
+		j.cbs[cbContext] = args[1]
+		j.h.context = true
 	default:
-		return fail(`events are "change", "select", "error" and "edit-label"`)
+		return fail(`events are "change", "select", "error", "edit-label" and "context"`)
 	}
 	return result(true, nil)
 }
@@ -602,6 +607,39 @@ func (j *jsHost) EditingLabel(v gw.VertexIndex, e gw.EdgeIndex, text string) {
 	arg.Set("id", id)
 	arg.Set("text", text)
 	j.emit(cbEditLabel, arg)
+}
+
+// Context passes a context request to the page's "context" callback:
+// {target, id, port, x, y, clientX, clientY, keyboard, vertices, edges},
+// the target "vertex", "edge", "port" or "background", id the element's
+// (the vertex's, for a port), port the port's name or "", x and y in
+// document units, and the selection's IDs.
+func (j *jsHost) Context(req edit.ContextRequest, client gw.Point) {
+	if j.cbs[cbContext].Type() != js.TypeFunction {
+		return
+	}
+	d := j.h.d
+	target, id, port := "background", "", ""
+	switch req.Hit.Kind {
+	case svg.VertexHit, svg.OutlineHit:
+		target, id = "vertex", string(d.Vertex(req.Hit.Vertex).ID())
+	case svg.PortHit:
+		target, id = "port", string(d.Vertex(req.Hit.Vertex).ID())
+		port = d.Vertex(req.Hit.Vertex).Ports().At(int(req.Hit.Port)).Name
+	case svg.EdgeHit:
+		target, id = "edge", string(d.Edge(req.Hit.Edge).ID())
+	case svg.Background:
+	}
+	arg := j.selectionObject(j.h.ed.Selected(j.h.selV[:0], j.h.selE[:0]))
+	arg.Set("target", target)
+	arg.Set("id", id)
+	arg.Set("port", port)
+	arg.Set("x", req.Point.X)
+	arg.Set("y", req.Point.Y)
+	arg.Set("clientX", client.X)
+	arg.Set("clientY", client.Y)
+	arg.Set("keyboard", req.Keyboard)
+	j.emit(cbContext, arg)
 }
 
 // emit calls a page's callback as a microtask: after the call that

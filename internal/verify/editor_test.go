@@ -27,12 +27,14 @@ import (
 type how uint8
 
 const (
-	plain   how = iota
-	shiftB      // a shift-press on b, which adds to the selection
-	middle      // a middle-button press on a, which pans
-	handle      // a press on a's resize handle, when a alone is selected
-	second      // a move to b's in port, not the background
-	undoAll     // Ctrl-Z until nothing is left, then Ctrl-Y until nothing is left
+	plain     how = iota
+	shiftB        // a shift-press on b, which adds to the selection
+	middle        // a middle-button press on a, which pans
+	handle        // a press on a's resize handle, when a alone is selected
+	second        // a move to b's in port, not the background
+	undoAll       // Ctrl-Z until nothing is left, then Ctrl-Y until nothing is left
+	secondary     // a secondary-button press on a, which starts nothing
+	keys          // a context request from the keyboard, on the selection
 )
 
 // step is one thing the host can do.
@@ -64,13 +66,19 @@ func hits() []gesture.Hit {
 func hostSteps(k gesture.EventKind) []step {
 	switch k {
 	case gesture.EvPress:
-		ss := []step{{k, gesture.HitVertex, shiftB}, {k, gesture.HitVertex, middle}, {k, gesture.HitVertex, handle}}
+		ss := []step{{k, gesture.HitVertex, shiftB}, {k, gesture.HitVertex, middle}, {k, gesture.HitVertex, handle}, {k, gesture.HitVertex, secondary}}
 		for _, h := range hits() {
 			ss = append(ss, step{k, h, plain})
 		}
 		return ss
 	case gesture.EvDoubleClick:
 		var ss []step
+		for _, h := range hits() {
+			ss = append(ss, step{k, h, plain})
+		}
+		return ss
+	case gesture.EvContext:
+		ss := []step{{k, 0, keys}}
 		for _, h := range hits() {
 			ss = append(ss, step{k, h, plain})
 		}
@@ -287,7 +295,7 @@ func (w *world) Enabled(k int) bool {
 		// A dblclick follows two presses on the drawing, and the first
 		// blurs the label input.
 		return w.held == 0 && !typing
-	case gesture.EvMove:
+	case gesture.EvMove, gesture.EvContext:
 		return true
 	case gesture.EvRelease:
 		return w.held > 0
@@ -332,11 +340,11 @@ func (w *world) Apply(k int) error {
 	if !ok {
 		return fmt.Errorf("step kind %d (%s) has no host event", k, st)
 	}
-	if (ev.Kind == edit.PointerDown || ev.Kind == edit.PaletteStart) && w.input {
+	if (ev.Kind == edit.PointerDown || ev.Kind == edit.PaletteStart || ev.Kind == edit.Context) && w.input {
 		// A press on the drawing blurs the input, and the host's
 		// inputBlur hides it and commits the text while the editor is
 		// still EditingText. A press on the palette keeps the focus, and
-		// its handler does the same.
+		// its handler does the same, as does the context request's.
 		w.input = false
 		if w.e.State() == edit.EditingText {
 			w.commit()
@@ -395,13 +403,21 @@ func (w *world) event(st step) (edit.Event, bool) {
 			return w.press(w.on("a", atA, 0, 0), 1, 0), true
 		case handle:
 			return w.press(w.on("a", atA, 60, 18), 0, 0), true
-		case plain, second, undoAll:
+		case secondary:
+			return w.press(w.on("a", atA, 0, 0), 2, 0), true
+		case plain, second, undoAll, keys:
 		}
 		p, ok := w.hitPoint(st.hit)
 		return w.press(p, 0, 0), ok
 	case gesture.EvDoubleClick:
 		p, ok := w.hitPoint(st.hit)
 		return edit.Event{Kind: edit.DoubleClick, Point: p}, ok
+	case gesture.EvContext:
+		if st.how == keys {
+			return edit.Event{Kind: edit.Context, Keyboard: true}, true
+		}
+		p, ok := w.hitPoint(st.hit)
+		return edit.Event{Kind: edit.Context, Point: p}, ok
 	case gesture.EvMove:
 		w.at = atM1
 		if st.how == second {
@@ -631,6 +647,10 @@ func (st step) String() string {
 		b.WriteString("shift-")
 	case middle:
 		b.WriteString("middle-")
+	case secondary:
+		b.WriteString("secondary-")
+	case keys:
+		b.WriteString("keyboard ")
 	case plain, handle, second:
 	}
 	b.WriteString(st.kind.String())

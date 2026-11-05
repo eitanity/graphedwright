@@ -233,9 +233,16 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
 
 - **Events:** `PointerDown`, `PointerMove`, `PointerUp`, `Wheel`, `Key`,
   `DoubleClick`, `PaletteStart` (a vertex kind to place, or an edge kind
-  to choose), `TextDone`, `TextCancel`, `Blur` and `Resize`. Points are
-  in document units, or, once a `Resize` event has given the element's
-  size, in its pixels, mapped through the document's view.
+  to choose), `TextDone`, `TextCancel`, `Blur`, `Resize` and `Context`.
+  Points are in document units, or, once a `Resize` event has given the
+  element's size, in its pixels, mapped through the document's view. A
+  press with `Button: 2` starts nothing.
+- **Context requests:** a `Context` event ends the gesture under way,
+  as Escape does, and selects what is at its point unless it is
+  already selected; on the background it selects nothing. With
+  `Keyboard` set it is on the selection instead. `Context()` then
+  reports the request, what it hit and where, for the host's own
+  menu, whose actions are commands.
 - **Return value:** each `Handle` returns the `Change` and the refusal,
   if any.
 - **State:** `State`, `Selected`, `Hover`, `Editing`, `EditText`,

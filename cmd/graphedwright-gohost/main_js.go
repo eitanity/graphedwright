@@ -54,6 +54,18 @@ type host struct {
 	annotated error // h.Annotate from inside Changed
 	refusals  []string
 	selected  string // the last selection Selected was given, as the IDs it names
+	contexts  []edit.ContextRequest
+	client    gw.Point
+	ctxSel    string // the selection when Context was called
+	ctxApply  error  // h.Apply from inside Context
+}
+
+// Context records the request and the selection, and tries to act from
+// inside it, which is refused.
+func (t *host) Context(req edit.ContextRequest, client gw.Point) {
+	t.contexts = append(t.contexts, req)
+	t.client, t.ctxSel = client, t.selected
+	_, t.ctxApply = t.h.Apply(gw.Command{Op: gw.Relabel, Vertex: req.Hit.Vertex, Text: "inside"})
 }
 
 // Changed records the change and does what the mode says.
@@ -168,9 +180,10 @@ func run(page js.Value, r *report) {
 
 	// Ctrl+Z from the keyboard takes back the drag and its follow-up.
 	t.mode = followNone
-	el.Call("dispatchEvent", js.Global().Get("KeyboardEvent").New("keydown", obj(map[string]any{"key": "z", "ctrlKey": true, "bubbles": true})))
+	el.Call("dispatchEvent", js.Global().Get("KeyboardEvent").New("keydown", obj(map[string]any{"key": "z", "ctrlKey": true, bubbles: true})))
 	r.check("one undo takes back the edit and its follow-up", d.Vertex(a).Pos() == before && d.Vertex(a).Label() == "a", "label "+d.Vertex(a).Label()+" pos "+num(d.Vertex(a).Pos().X))
 	chains(page, el, h, t, a, r)
+	contexts(page, r)
 	lifecycle(el, h, t, r)
 }
 
@@ -207,6 +220,59 @@ func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *repo
 		_ = h3.Destroy()
 	}
 	r.check("a host's own bound is the one kept", strings.Contains(errText(err), "taken back") && t3.changed == 2+2, "changes "+strconv.Itoa(t3.changed)+", "+errText(err))
+}
+
+// contexts checks context requests: a host that takes them hears one on
+// a vertex, after the selection, with the browser's menu prevented and a
+// call back in refused, and acts on it afterwards with an undoable
+// command; a host that does not take them leaves the browser's menu.
+func contexts(page js.Value, r *report) {
+	el := page.Call("createElement", "div")
+	el.Get("style").Set("cssText", "width:500px;height:200px")
+	page.Get("body").Call("appendChild", el)
+	for _, takes := range []bool{true, false} {
+		d, err := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+		t := &host{first: gw.None}
+		var h *dom.Handle
+		if err == nil {
+			h, err = dom.Mount(el, d, dom.Options{IDPrefix: "goc-", Context: takes}, t)
+		}
+		if err != nil {
+			r.check("mount for context requests", false, err.Error())
+			return
+		}
+		t.h = h
+		b := d.VertexByID("b")
+		x, y := centre(el, "b")
+		ev := js.Global().Get("MouseEvent").New("contextmenu", obj(map[string]any{"clientX": x, "clientY": y, "button": 2, bubbles: true, "cancelable": true}))
+		el.Call("querySelector", "#b").Call("dispatchEvent", ev)
+		prevented := ev.Get("defaultPrevented").Bool()
+		if !takes {
+			r.check("without Options.Context the browser's menu stays and Context is not called", !prevented && len(t.contexts) == 0 && t.selected == "b", "prevented "+strconv.FormatBool(prevented)+", requests "+strconv.Itoa(len(t.contexts))+", selected "+strconv.Quote(t.selected))
+			_ = h.Destroy()
+			continue
+		}
+		var req edit.ContextRequest
+		if len(t.contexts) == 1 {
+			req = t.contexts[0]
+		}
+		r.check("Context hears a request on a vertex after its selection, with the browser's menu prevented", prevented && len(t.contexts) == 1 && req.Hit.Kind == svg.VertexHit && req.Hit.Vertex == b && !req.Keyboard && t.ctxSel == "b" && t.client == gw.Point{X: ev.Get("clientX").Float(), Y: ev.Get("clientY").Float()}, "prevented "+strconv.FormatBool(prevented)+", requests "+strconv.Itoa(len(t.contexts))+", hit "+strconv.Itoa(int(req.Hit.Kind))+" "+strconv.Itoa(int(req.Hit.Vertex))+", keyboard "+strconv.FormatBool(req.Keyboard)+", selection "+strconv.Quote(t.ctxSel)+", client "+num(t.client.X)+","+num(t.client.Y)+" of "+num(x)+","+num(y))
+		r.check("Apply from inside Context is refused", errors.Is(t.ctxApply, dom.ErrReentered) && d.Vertex(b).Label() == "b", errText(t.ctxApply))
+		// The host's menu acts once Context has returned.
+		_, err = h.Apply(gw.Command{Op: gw.Relabel, Vertex: req.Hit.Vertex, Text: "from the menu"})
+		relabelled := d.Vertex(b).Label()
+		h.Undo()
+		r.check("the menu's action is a command, undone as any edit", err == nil && relabelled == "from the menu" && d.Vertex(b).Label() == "b", "label "+relabelled+" then "+d.Vertex(b).Label()+" "+errText(err))
+		_ = h.Destroy()
+	}
+	page.Get("body").Call("removeChild", el)
+}
+
+// centre is the client point at the middle of the element with the
+// document id.
+func centre(el js.Value, id string) (float64, float64) {
+	box := el.Call("querySelector", "#"+js.Global().Get("CSS").Call("escape", id).String()).Call("getBoundingClientRect")
+	return box.Get("left").Float() + box.Get("width").Float()/2, box.Get("top").Float() + box.Get("height").Float()/2
 }
 
 // lifecycle checks Apply from Go, Load and Destroy.
@@ -314,8 +380,11 @@ func drag(el js.Value, id string, dx float64) {
 
 // pointerAt is a pointer event of the main button, held, at the point.
 func pointerAt(kind string, x, y float64, id int) js.Value {
-	return js.Global().Get("PointerEvent").New(kind, obj(map[string]any{"clientX": x, "clientY": y, "pointerId": id, "button": 0, "buttons": 1, "isPrimary": true, "bubbles": true}))
+	return js.Global().Get("PointerEvent").New(kind, obj(map[string]any{"clientX": x, "clientY": y, "pointerId": id, "button": 0, "buttons": 1, "isPrimary": true, bubbles: true}))
 }
+
+// bubbles is the field of an event's init that sends it up the tree.
+const bubbles = "bubbles"
 
 // obj is a plain object with the fields given.
 func obj(fields map[string]any) js.Value {

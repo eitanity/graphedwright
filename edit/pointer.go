@@ -11,6 +11,9 @@ import (
 // pointerDown starts a pan, a connection, a drag or a marquee, by what
 // is under the pointer; the gesture machine decides which.
 func (e *Editor) pointerDown(ev Event) error {
+	if ev.Button == 2 {
+		return nil // the secondary button: the Context event that follows does the work
+	}
 	p := e.toDoc(ev.Point)
 	hit := svg.HitTest(e.d, p)
 	v, one := e.onlyVertex()

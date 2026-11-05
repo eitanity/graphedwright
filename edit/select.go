@@ -1,7 +1,11 @@
 package edit
 
 import (
+	"math"
+
 	gw "code.eitanity.com/graphedwright"
+	"code.eitanity.com/graphedwright/edit/gesture"
+	"code.eitanity.com/graphedwright/svg"
 )
 
 // selectVertex makes v the selection, or adds it when adding; a vertex
@@ -95,4 +99,53 @@ func (e *Editor) dropDead() {
 		}
 	}
 	e.selE = e.selE[:m]
+}
+
+// context settles the selection for a context request and notes it: at
+// the point, or from the keyboard on the selection.
+func (e *Editor) context(ev Event) error {
+	var p gw.Point
+	var hit svg.Hit
+	if ev.Keyboard {
+		p, hit = e.onSelection()
+	} else {
+		p = e.toDoc(ev.Point)
+		hit = svg.HitTest(e.d, p)
+	}
+	return e.fire(gesture.Event{Kind: gesture.EvContext, Hit: hitOf(hit)}, input{p: p, hit: hit, ev: ev})
+}
+
+// onSelection is where a request from the keyboard is: the centre of
+// the box around the selected vertices and the ends of the selected
+// edges, on the first selected vertex, or else edge; with nothing
+// selected, the view's centre, on the background.
+func (e *Editor) onSelection() (gw.Point, svg.Hit) {
+	hit := background()
+	switch {
+	case len(e.selV) > 0:
+		hit.Kind, hit.Vertex = svg.VertexHit, e.selV[0]
+	case len(e.selE) > 0:
+		hit.Kind, hit.Edge = svg.EdgeHit, e.selE[0]
+	default:
+		v := e.d.View()
+		return gw.Point{X: v.X + float64(v.W/2), Y: v.Y + float64(v.H/2)}, hit
+	}
+	lo := gw.Point{X: math.Inf(1), Y: math.Inf(1)}
+	hi := gw.Point{X: math.Inf(-1), Y: math.Inf(-1)}
+	for _, v := range e.selV {
+		x := e.d.Vertex(v)
+		half := gw.Point{X: float64(x.Size().W / 2), Y: float64(x.Size().H / 2)}
+		lo, hi = widen(lo, hi, gw.Point{X: x.Pos().X - half.X, Y: x.Pos().Y - half.Y})
+		lo, hi = widen(lo, hi, gw.Point{X: x.Pos().X + half.X, Y: x.Pos().Y + half.Y})
+	}
+	for _, x := range e.selE {
+		lo, hi = widen(lo, hi, e.d.Vertex(e.d.Edge(x).From()).Pos())
+		lo, hi = widen(lo, hi, e.d.Vertex(e.d.Edge(x).To()).Pos())
+	}
+	return gw.Point{X: (lo.X + hi.X) / 2, Y: (lo.Y + hi.Y) / 2}, hit
+}
+
+// widen is the box from lo to hi grown to hold p.
+func widen(lo, hi, p gw.Point) (gw.Point, gw.Point) {
+	return gw.Point{X: math.Min(lo.X, p.X), Y: math.Min(lo.Y, p.Y)}, gw.Point{X: math.Max(hi.X, p.X), Y: math.Max(hi.Y, p.Y)}
 }

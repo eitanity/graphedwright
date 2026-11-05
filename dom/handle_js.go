@@ -44,6 +44,13 @@ type Host interface {
 	// text the input starts with: the label, or the value of the
 	// attribute the kind edits in its place (gw.VertexKindView.EditAttr).
 	EditingLabel(v gw.VertexIndex, e gw.EdgeIndex, text string)
+	// Context reports a context request, the browser's contextmenu, when
+	// Options.Context says the host takes them: what it is on, by index,
+	// and where, in document units and at client, the page's client
+	// coordinates, where a menu goes. It is called once the selection
+	// the request settled is drawn and reported. The host's actions on
+	// it come later, from its own menu, through Apply.
+	Context(req edit.ContextRequest, client gw.Point)
 }
 
 // NoHost hears nothing. A host embeds it to implement only the methods
@@ -62,6 +69,9 @@ func (NoHost) Refused(error) {}
 // EditingLabel does nothing.
 func (NoHost) EditingLabel(gw.VertexIndex, gw.EdgeIndex, string) {}
 
+// Context does nothing.
+func (NoHost) Context(edit.ContextRequest, gw.Point) {}
+
 // DefaultMaxFollow is the most follow-up commands Changed may ask for in
 // one event when Options.MaxFollow is 0.
 const DefaultMaxFollow = 8
@@ -76,6 +86,7 @@ type Options struct {
 	NoFullText  bool    // a cut text is written without its full text after it (svg.Options.NoFullText)
 	IDPrefix    string  // before the renderer's own IDs; give each editor in a page its own
 	DocIDPrefix string  // before each vertex's and edge's id in the page
+	Context     bool    // the host takes context requests: the browser's menu is not shown, and Host.Context is called
 	// MaxFollow is the most follow-up commands Changed may ask for in one
 	// event: 0 for DefaultMaxFollow, and at most the document's vertex
 	// and edge capacities together, enough for a rule that changes each
@@ -123,6 +134,7 @@ type Handle struct {
 	buf       bytes.Buffer
 	funcs     []js.Func
 	patch     bool     // patch the DOM by element, else re-render the whole drawing
+	context   bool     // the host takes context requests
 	lastSel   int      // the selection's size at the last report, to notice a change
 	ptr       pointers // the pointer that drives the editor
 	inHost    bool     // a Host method is running
@@ -149,7 +161,7 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	if opts.View {
 		mode = edit.View
 	}
-	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
+	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, context: opts.Context, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
 	h.opts.IDPrefix, h.opts.DocIDPrefix, h.opts.NoFullText = opts.IDPrefix, opts.DocIDPrefix, opts.NoFullText
 	h.ed = edit.New(d, mode, h.grid)
 	h.ed.SetExpand(!h.noExpand)

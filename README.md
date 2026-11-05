@@ -28,6 +28,7 @@ imports only merilo's `fsm`, which itself imports nothing.
   - moving shapes into and out of containers, and resizing shapes and
     containers by a corner handle;
   - double-clicking or typing to edit a label;
+  - a right-click, or the menu key, reporting what is there to the host's own menu;
   - a properties panel for the selected shape or line;
   - pan and zoom, by wheel, keys or buttons; undo and redo.
 - **JSON documents** that are read strictly: every size is checked

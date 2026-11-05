@@ -185,6 +185,65 @@ async function main() {
   bounded.done = { share: xv.attrs && xv.attrs.share, label: xv.label || "" };
   graphedwright.destroy(hb);
   out.bounded = bounded;
+  // Context requests: a right-click on a vertex, with a "context"
+  // listener, selects it and reports it with the browser's menu
+  // prevented; one on a port or an edge names it; one from the keyboard
+  // is on the selection, whether told by a point off the drawing or a
+  // pointer event of no pointer type; label editing under way is kept;
+  // the menu's actions are commands, each undone by Ctrl+Z. Without a
+  // listener the browser's menu stays.
+  const ctx = {};
+  graphedwright.registerSchema("ported", { vertexKinds: [{ name: "box", shape: "rect", w: 100, h: 36, ports: [{ name: "in", side: "left" }, { name: "out", side: "right" }] }], edgeKinds: [{ name: "arrow", arrow: true }] });
+  const twoBoxes = { schema: "ported", vertices: [{ id: "m", kind: "box", label: "m", x: 100, y: 80, placed: true }, { id: "n", kind: "box", label: "n", x: 400, y: 80, placed: true }], edges: [{ id: "mn", kind: "arrow", from: "m", to: "n", from_port: "out", to_port: "in" }] };
+  const tick = () => new Promise((r) => setTimeout(r, 0)); // the callbacks are microtasks
+  const centreOf = (sel) => { const r = clash.querySelector("svg").querySelector(sel).getBoundingClientRect(); return { clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }; };
+  // A secondary click, as a pointer event: its pointer type is "".
+  const menuOn = (sel) => {
+    const ev = new PointerEvent("contextmenu", Object.assign({ button: 2, bubbles: true, cancelable: true }, centreOf(sel)));
+    clash.querySelector("svg").querySelector(sel).dispatchEvent(ev);
+    return ev.defaultPrevented;
+  };
+  const hx = graphedwright.create(clash, { schema: "ported" }).ok;
+  ctx.load = graphedwright.load(hx, twoBoxes);
+  const asked = [];
+  ctx.on = graphedwright.on(hx, "context", (r) => asked.push(r));
+  ctx.port = menuOn('#m circle.port[data-port="out"]');
+  menuOn("#mn path");
+  ctx.prevented = menuOn("#n");
+  await tick();
+  ctx.portRequest = asked[0] || null;
+  ctx.edgeRequest = asked[1] || null;
+  ctx.request = asked[2] || null;
+  clash.querySelector("svg").dispatchEvent(new MouseEvent("contextmenu", { clientX: 0, clientY: 0, button: 0, bubbles: true, cancelable: true }));
+  clash.querySelector("svg #m").dispatchEvent(new PointerEvent("contextmenu", Object.assign({ button: 0, bubbles: true, cancelable: true }, centreOf("#m"))));
+  await tick();
+  ctx.keyboard = asked[3] || null;
+  ctx.keyboardTyped = asked[4] || null;
+  const nr = clash.querySelector("svg #n").getBoundingClientRect();
+  ctx.keyboardOnN = ctx.keyboard !== null && ctx.keyboard.clientX > nr.left && ctx.keyboard.clientX < nr.right && ctx.keyboard.clientY > nr.top && ctx.keyboard.clientY < nr.bottom;
+  const labelOfN = () => (graphedwright.export(hx).ok.vertices.find((v) => v.id === "n") || {}).label;
+  const vertexCount = () => graphedwright.export(hx).ok.vertices.length;
+  const ctrlZ = () => clash.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+  // A label being edited is kept when a request ends the editing.
+  clash.querySelector("svg #n").dispatchEvent(new MouseEvent("dblclick", Object.assign({ button: 0, bubbles: true }, centreOf("#n"))));
+  clash.querySelector("input.graphedwright-label").value = "typed";
+  menuOn("#n");
+  ctx.typed = labelOfN();
+  ctrlZ();
+  ctx.setLabel = graphedwright.setLabel(hx, "from the menu");
+  ctx.relabelled = labelOfN();
+  clash.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+  ctx.deleted = vertexCount();
+  ctrlZ();
+  ctx.undeleted = vertexCount();
+  ctrlZ();
+  ctx.unlabelled = labelOfN();
+  graphedwright.destroy(hx);
+  const hn = graphedwright.create(clash, { schema: "ported" }).ok;
+  graphedwright.load(hn, twoBoxes);
+  ctx.unlistened = menuOn("#n");
+  graphedwright.destroy(hn);
+  out.ctx = ctx;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }
