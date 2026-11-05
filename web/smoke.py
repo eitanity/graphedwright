@@ -189,6 +189,10 @@ def check(out, native, example):
     if c["unlistened"] is not False:
         raise SystemExit("without a context listener the browser's menu was prevented")
 
+    h = out["hold"]
+    if h != {"hold": {"ok": True}, "inputHidden": True, "labelKept": "k", "marked": True, "heldMoved": False, "setLabel": {"ok": True}, "label": "by the host", "loadedMoved": False, "loadedMarked": True, "release": {"ok": True}, "unmarked": True, "releasedMoved": True}:
+        raise SystemExit(f"the hold: {h}")
+
 def check_eventtree(seen):
     """What a person using the event-tree example would see: the figures
     the app computed, the split its rule made, one undo for an edit and

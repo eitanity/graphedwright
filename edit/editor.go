@@ -102,6 +102,10 @@ type ContextRequest struct {
 // ErrView is the refusal of any command in view mode.
 var ErrView = errors.New("view mode: the document cannot be changed")
 
+// ErrHeld is the refusal of the user's edits and gestures while the host
+// holds the editor.
+var ErrHeld = errors.New("the editor is held while the host finishes its work: try again once it is released")
+
 // ErrNoEdgeKind is the refusal of a connection no edge kind allows.
 var ErrNoEdgeKind = errors.New("no edge kind joins these vertices")
 
@@ -201,6 +205,30 @@ func (e *Editor) SetMode(m Mode) {
 	// A mode change has no refusal and changes no document.
 	_ = e.fire(gesture.Event{Kind: k}, input{})
 }
+
+// Hold holds the editor while the host waits on work of its own: a
+// fetch, a save, a check. It ends the gesture under way as a mode change
+// does, a drag going back to where it began, and cancels label editing.
+// While held, every event that would change the document or start a
+// gesture but a pan is refused with ErrHeld; hover, pan, zoom and
+// selection by Tab or a context request still work. The host's own
+// commands are not held. It reports what the drag's return changed;
+// holding twice does nothing.
+func (e *Editor) Hold() gw.Change {
+	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+	// A hold has no refusal and applies no command.
+	_ = e.fire(gesture.Event{Kind: gesture.EvHold}, input{})
+	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}
+}
+
+// Release ends the hold, leaving the mode as it was.
+func (e *Editor) Release() {
+	// A release has no refusal and changes nothing.
+	_ = e.fire(gesture.Event{Kind: gesture.EvUnhold}, input{})
+}
+
+// Held reports whether the host holds the editor.
+func (e *Editor) Held() bool { return e.g.Held() }
 
 // EdgeKind is the edge kind chosen from the palette, which every new
 // edge takes, or None when the editor takes the schema's first kind
@@ -497,7 +525,8 @@ type input struct {
 }
 
 // fire hands the gesture machine one event and carries out its actions,
-// in the order they are declared. A refusal in view mode is ErrView. Every action runs, so a
+// in the order they are declared. A refusal while held is ErrHeld, and
+// in view mode ErrView. Every action runs, so a
 // gesture ends even when its command is refused, and the first error is
 // the event's.
 func (e *Editor) fire(ge gesture.Event, in input) error {
@@ -506,6 +535,9 @@ func (e *Editor) fire(ge gesture.Event, in input) error {
 	e.g, acts, out = e.g.Fire(ge)
 	switch out {
 	case fsm.Rejected:
+		if e.g.Held() {
+			return ErrHeld
+		}
 		return ErrView
 	case fsm.Invalid:
 		return errInvalid

@@ -89,6 +89,7 @@ throws. The first argument of every call after `create` is the handle
 | `deletePort(g, name)` | removes a port of the one selected vertex's own that no edge uses |
 | `zoom(g, factor)` | zooms the view about its centre: in by a factor above 1, out by one below |
 | `fit(g)` | sets the view to the drawing's bounds |
+| `hold(g)`, `release(g)` | hold the editor while the page waits on work of its own, and release it (below) |
 | `annotate(g, {id: {text, class, weight}})` | draws a figure on each element named, replacing the last set: text under a vertex's label or at an edge's middle, a class added to it, and on an edge a weight that sets its stroke width |
 | `on(g, event, callback)` | listens for an event (below) |
 | `destroy(g)` | removes the editor and frees what it holds |
@@ -124,6 +125,36 @@ Callbacks run as a microtask, just after the call or the event that
 caused them, never in the middle of a redraw. One that throws is
 reported by the browser like any uncaught exception and doesn't affect
 the editor.
+
+### Holding the editor
+
+`hold(g)` stops the user changing the document while the page does
+something it must finish first: a fetch, a save, a check that runs
+elsewhere. A drag, connection, marquee, placement or resize under way
+ends, a drag going back to where it began, and a label being edited is
+dropped. While held, every press, double-click, palette item and key
+that would edit is refused, and the `"error"` callback says so. Hover,
+pan, zoom, Tab and context requests still work, so the user can look.
+The page's own calls are not held, and `load` keeps the hold. The host
+element carries `data-held` meanwhile, for the stylesheet.
+`release(g)` ends the hold, in the mode it was in.
+
+Loading a document is hold, fetch, load, release:
+
+```js
+async function open(g, url) {
+  graphedwright.hold(g);
+  try {
+    graphedwright.load(g, await (await fetch(url)).text());
+  } finally {
+    graphedwright.release(g);
+  }
+}
+```
+
+A check that waits is the same around the edit just made: hold on its
+`"change"`, and when the answer comes, keep the edit or `undo` it.
+Nothing else can have been edited in between.
 
 ### Context requests
 
@@ -224,7 +255,8 @@ func main() {
 
 - **The handle** draws whatever the host changes through it: `Apply`,
   `Undo`, `Redo`, `Load`, `Layout`, `SetMode`, `Annotate`, `Zoom`,
-  `Fit` and `Destroy`. `Document` and `Editor` are for reading; change
+  `Fit` and `Destroy`. `Hold` and `Release` hold the editor while the
+  host waits on work of its own, as `hold(g)` and `release(g)` do. `Document` and `Editor` are for reading; change
   the document through the handle, so that the drawing follows.
 - **The host** implements `dom.Host`: `Changed`, `Selected`,
   `Refused`, `EditingLabel` and `Context`. It embeds `dom.NoHost` to
@@ -357,7 +389,8 @@ restyle it with CSS or script it.
   `.graphedwright-palette` with `.graphedwright-item` buttons
   (`.graphedwright-vertex` and `.graphedwright-edge`, the chosen one
   `.graphedwright-chosen`), `.graphedwright-drawing` and the
-  `.graphedwright-label` input.
+  `.graphedwright-label` input. The host element carries `data-held`
+  while the page holds the editor.
 
 The default stylesheet sets an edge halo's colour but not its width,
 which the renderer writes from the edge's own. A rule that sets

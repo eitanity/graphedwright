@@ -53,6 +53,8 @@ const (
 	EvView                    // switch to view mode
 	EvEdit                    // switch to edit mode
 	EvContext                 // a context request: the host's own actions on what is hit
+	EvHold                    // the host holds the editor while it waits on work of its own
+	EvUnhold                  // the host releases the hold
 )
 
 // Hit is what a press or a double-click is over.
@@ -120,6 +122,7 @@ const (
 type Machine struct {
 	state State
 	view  bool // view mode: no event may change the document
+	held  bool // held by the host: no event may change the document or start a gesture but a pan
 	moved bool // the pointer moved since the press that began the gesture
 }
 
@@ -132,11 +135,17 @@ func (m Machine) State() State { return m.state }
 // View reports view mode.
 func (m Machine) View() bool { return m.view }
 
+// Held reports whether the host holds the machine.
+func (m Machine) Held() bool { return m.held }
+
 // Fire applies e and returns the next machine, the actions the editor
 // must carry out and what happened.
 func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 	if !m.state.valid() {
 		return m, 0, fsm.Invalid
+	}
+	if m.held && heldRefuses(m, e) {
+		return m, 0, fsm.Rejected
 	}
 	var next Machine
 	var acts Actions
@@ -165,10 +174,47 @@ func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 		next, acts = m.cancel(0)
 		next.view = e.Kind == EvView
 		out = fsm.Moved
+	case EvHold, EvUnhold:
+		next, acts, out = m.hold(e.Kind == EvHold)
 	default:
 		return m, 0, fsm.Invalid
 	}
 	return next, acts, out
+}
+
+// hold holds the machine, ending what is in progress as a mode change
+// does, or releases it, leaving the mode as it was. Holding twice, or
+// releasing what is not held, is ignored.
+func (m Machine) hold(on bool) (Machine, Actions, fsm.Outcome) {
+	if m.held == on {
+		return m, 0, fsm.Ignored
+	}
+	if !on {
+		m.held = false
+		return m, 0, fsm.Moved
+	}
+	next, acts := m.cancel(0)
+	next.held = true
+	return next, acts, fsm.Moved
+}
+
+// heldRefuses reports whether a held machine refuses e: every event
+// that would change the document or start a gesture but a pan. Hover,
+// pan, zoom, Tab, Escape and a context request still act, and so do a
+// mode change and the release.
+func heldRefuses(m Machine, e Event) bool {
+	switch e.Kind {
+	case EvPress:
+		return m.state == Idle && !e.Pan
+	case EvDelete, EvNudge, EvUndo, EvRedo, EvStartText, EvType,
+		EvPaletteVertex, EvPaletteEdge, EvDoubleClick:
+		return true
+	case EvMove, EvRelease, EvEscape, EvTab, EvOtherKey, EvBlur, EvTextDone, EvTextCancel,
+		EvView, EvEdit, EvContext, EvHold, EvUnhold:
+		return false
+	default:
+		return false
+	}
 }
 
 // valid reports whether s is a state New or Fire gives.
@@ -364,7 +410,7 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	case EvOtherKey:
 		return m, 0, fsm.Ignored
 	case EvPress, EvMove, EvRelease, EvEscape, EvTab, EvPaletteVertex, EvPaletteEdge,
-		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit, EvContext:
+		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit, EvContext, EvHold, EvUnhold:
 		return m, 0, fsm.Invalid
 	default:
 		return m, 0, fsm.Invalid
@@ -502,6 +548,10 @@ func (k EventKind) String() string {
 		return "Edit"
 	case EvContext:
 		return "Context"
+	case EvHold:
+		return "Hold"
+	case EvUnhold:
+		return "Unhold"
 	default:
 		return invalidName
 	}

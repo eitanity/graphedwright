@@ -233,7 +233,8 @@ func (h *Handle) Redo() bool {
 }
 
 // Load shows another document in place of the one shown, in a new
-// editor with the handle's options and mode, its annotations cleared.
+// editor with the handle's options, mode and hold, its annotations
+// cleared.
 func (h *Handle) Load(d *gw.Document) error {
 	if err := h.refuse(); err != nil {
 		return err
@@ -246,8 +247,12 @@ func (h *Handle) Load(d *gw.Document) error {
 		return err
 	}
 	h.d, h.maxFollow = d, maxFollow
+	held := h.ed.Held()
 	h.ed = edit.New(d, h.ed.Mode(), h.grid)
 	h.ed.SetExpand(!h.noExpand)
+	if held {
+		h.ed.Hold()
+	}
 	h.lay = layout.New(d.Caps())
 	if c := d.Caps(); c.Vertices != len(h.notesV) || c.Edges != len(h.notesE) {
 		h.notesV, h.notesE = make([]svg.Annotation, c.Vertices), make([]svg.Annotation, c.Edges)
@@ -362,6 +367,38 @@ func (h *Handle) Zoom(f float64) error {
 	}
 	h.d.Group()
 	h.report(h.ed.Zoom(f), nil)
+	return nil
+}
+
+// Hold holds the editor while the host waits on work of its own, so
+// that the user cannot change the document meanwhile (edit.Editor.Hold):
+// a gesture under way ends, a label being edited is dropped, and the
+// host element carries data-held. The host's own calls still work, and
+// Load keeps the hold, so a fetched document is loaded by Hold, fetch,
+// Load, Release.
+func (h *Handle) Hold() error {
+	if err := h.refuse(); err != nil {
+		return err
+	}
+	// As SetMode does, the input goes with the editing the hold
+	// cancels, the editor hearing first.
+	if h.ed.State() == edit.EditingText {
+		h.handle(edit.Event{Kind: edit.TextCancel})
+		h.hideInput()
+	}
+	h.d.Group()
+	h.report(h.ed.Hold(), nil)
+	h.el.Call("setAttribute", "data-held", "")
+	return nil
+}
+
+// Release ends the hold, leaving the mode as it was.
+func (h *Handle) Release() error {
+	if err := h.refuse(); err != nil {
+		return err
+	}
+	h.ed.Release()
+	h.el.Call("removeAttribute", "data-held")
 	return nil
 }
 

@@ -88,7 +88,7 @@ func hostSteps(k gesture.EventKind) []step {
 	case gesture.EvRelease, gesture.EvEscape, gesture.EvTab, gesture.EvDelete, gesture.EvNudge,
 		gesture.EvUndo, gesture.EvRedo, gesture.EvStartText, gesture.EvType, gesture.EvOtherKey,
 		gesture.EvPaletteVertex, gesture.EvPaletteEdge, gesture.EvBlur, gesture.EvTextDone,
-		gesture.EvTextCancel, gesture.EvView, gesture.EvEdit:
+		gesture.EvTextCancel, gesture.EvView, gesture.EvEdit, gesture.EvHold, gesture.EvUnhold:
 		return []step{{k, 0, plain}}
 	default:
 		return nil
@@ -267,6 +267,7 @@ func (w *world) Invariants() []string {
 		"undo-all from Idle restores the start, and redo-all restores the document",
 		"a refused event leaves the document as it was",
 		"in View mode no event changes the document",
+		"while held no event changes the document",
 		"Escape leaves the editor Idle",
 		"the selection, and while editing text the label being edited, name live elements",
 		"a label committed in the host's input is applied or refused, never dropped",
@@ -282,8 +283,8 @@ func (w *world) Enabled(k int) bool {
 		return false
 	}
 	if st.how == undoAll {
-		// View mode refuses undo and redo (edit.ErrView).
-		return w.held == 0 && w.e.State() == edit.Idle && w.e.Mode() == edit.Edit
+		// View mode and a hold refuse undo and redo (edit.ErrView, edit.ErrHeld).
+		return w.held == 0 && w.e.State() == edit.Idle && w.e.Mode() == edit.Edit && !w.e.Held()
 	}
 	typing := w.input
 	switch st.kind {
@@ -308,6 +309,10 @@ func (w *world) Enabled(k int) bool {
 		return w.e.Mode() == edit.Edit
 	case gesture.EvEdit:
 		return w.e.Mode() == edit.View
+	case gesture.EvHold:
+		return !w.e.Held()
+	case gesture.EvUnhold:
+		return w.e.Held()
 	default:
 		return false
 	}
@@ -333,7 +338,19 @@ func (w *world) Apply(k int) error {
 			mode = edit.View
 		}
 		w.e.SetMode(mode)
-		w.after(st, false)
+		w.after(st, false, false)
+		return nil
+	}
+	if st.kind == gesture.EvHold || st.kind == gesture.EvUnhold {
+		// The host's hold, like setMode, hides the label input: the hold
+		// cancels the editing it was for.
+		if st.kind == gesture.EvHold {
+			w.input = false
+			w.e.Hold()
+		} else {
+			w.e.Release()
+		}
+		w.after(st, false, false)
 		return nil
 	}
 	ev, ok := w.event(st)
@@ -350,7 +367,7 @@ func (w *world) Apply(k int) error {
 			w.commit()
 		}
 	}
-	view := w.e.Mode() == edit.View
+	view, held := w.e.Mode() == edit.View, w.e.Held()
 	switch st.kind {
 	case gesture.EvTextDone:
 		w.input = false
@@ -366,7 +383,7 @@ func (w *world) Apply(k int) error {
 		w.input = true
 		w.label, w.edge = w.e.Editing()
 	}
-	w.after(st, view && w.e.Mode() == edit.View)
+	w.after(st, view && w.e.Mode() == edit.View, held && w.e.Held())
 	return nil
 }
 
@@ -458,8 +475,8 @@ func (w *world) event(st step) (edit.Event, bool) {
 		return edit.Event{Kind: edit.TextDone, Text: text}, true
 	case gesture.EvTextCancel:
 		return edit.Event{Kind: edit.TextCancel}, true
-	case gesture.EvView, gesture.EvEdit:
-		return edit.Event{}, false // SetMode, not an event
+	case gesture.EvView, gesture.EvEdit, gesture.EvHold, gesture.EvUnhold:
+		return edit.Event{}, false // SetMode, Hold and Release, not events
 	default:
 		return edit.Event{}, false
 	}
@@ -481,12 +498,15 @@ func (w *world) send(ev edit.Event) {
 	}
 }
 
-// after checks what a step left: View mode unchanged and Escape
-// cancelled, and records the document at Idle.
-func (w *world) after(st step, inView bool) {
+// after checks what a step left: View mode and a hold unchanged and
+// Escape cancelled, and records the document at Idle.
+func (w *world) after(st step, inView, held bool) {
 	now := w.content()
 	if inView && now != w.idle {
 		w.broke("in View mode no event changes the document", "the document changed in View mode")
+	}
+	if held && now != w.idle {
+		w.broke("while held no event changes the document", "the document changed while held")
 	}
 	if st.kind == gesture.EvEscape && w.e.State() != edit.Idle {
 		w.broke("Escape leaves the editor Idle", "state %s after Escape", stateName(w.e.State()))
@@ -562,6 +582,7 @@ type view struct {
 	doc              string
 	state            edit.State
 	mode             edit.Mode
+	hold             bool
 	canUndo, canRedo bool
 	held             int
 	input            bool
@@ -585,7 +606,7 @@ type view struct {
 
 func (w *world) World() any {
 	sv, se := w.e.Selected(w.selV[:0], w.selE[:0])
-	v := view{doc: w.encode(), state: w.e.State(), mode: w.e.Mode(), canUndo: w.d.CanUndo(), canRedo: w.d.CanRedo(),
+	v := view{doc: w.encode(), state: w.e.State(), mode: w.e.Mode(), hold: w.e.Held(), canUndo: w.d.CanUndo(), canRedo: w.d.CanRedo(),
 		held: w.held, input: w.input, label: w.label, edge: w.edge, at: w.at,
 		selected: fmt.Sprint(sv, se), edgeKind: w.e.EdgeKind(), typed: w.e.Typed(), idle: w.idle, fault: w.fault}
 	v.editV, v.editE = w.e.Editing()
@@ -629,6 +650,9 @@ func (w *world) Tuple() string {
 	mode := "Edit"
 	if w.e.Mode() == edit.View {
 		mode = "View"
+	}
+	if w.e.Held() {
+		mode += "/held"
 	}
 	return stateName(w.e.State()) + "/" + mode
 }

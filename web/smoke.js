@@ -244,6 +244,47 @@ async function main() {
   ctx.unlistened = menuOn("#n");
   graphedwright.destroy(hn);
   out.ctx = ctx;
+  // A hold: the user's drag moves nothing and the host element carries
+  // data-held; the host's own calls still apply; load keeps the hold;
+  // released, a drag moves again.
+  const hold = {};
+  const hk = graphedwright.create(clash, { schema: "basic" }).ok;
+  const oneBox = { schema: "basic", vertices: [{ id: "k", kind: "box", label: "k", x: 200, y: 80, placed: true }], edges: [] };
+  graphedwright.load(hk, oneBox);
+  const xOfK = () => graphedwright.export(hk).ok.vertices[0].x;
+  const dragK = (id) => {
+    const r = clash.querySelector("svg #k").getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    clash.querySelector("svg #k").dispatchEvent(new PointerEvent("pointerdown", { clientX: x, clientY: y, pointerId: id, button: 0, buttons: 1, bubbles: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: x + 40, clientY: y, pointerId: id, buttons: 1, bubbles: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: x + 80, clientY: y, pointerId: id, buttons: 1, bubbles: true }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: x + 80, clientY: y, pointerId: id, button: 0, bubbles: true }));
+  };
+  const kr = clash.querySelector("svg #k").getBoundingClientRect();
+  const atK = { clientX: kr.x + kr.width / 2, clientY: kr.y + kr.height / 2, pointerId: 20, button: 0, bubbles: true };
+  clash.querySelector("svg #k").dispatchEvent(new PointerEvent("pointerdown", atK));
+  window.dispatchEvent(new PointerEvent("pointerup", atK));
+  const x0k = xOfK();
+  // A label being edited is dropped by the hold, and its input hidden.
+  clash.querySelector("svg #k").dispatchEvent(new MouseEvent("dblclick", { clientX: atK.clientX, clientY: atK.clientY, button: 0, bubbles: true }));
+  clash.querySelector("input.graphedwright-label").value = "dropped";
+  hold.hold = graphedwright.hold(hk);
+  hold.inputHidden = clash.querySelector("input.graphedwright-label").style.display === "none";
+  hold.labelKept = graphedwright.export(hk).ok.vertices[0].label;
+  hold.marked = clash.hasAttribute("data-held");
+  dragK(21);
+  hold.heldMoved = xOfK() !== x0k;
+  hold.setLabel = graphedwright.setLabel(hk, "by the host");
+  hold.label = graphedwright.export(hk).ok.vertices[0].label;
+  graphedwright.load(hk, oneBox);
+  dragK(22);
+  hold.loadedMoved = xOfK() !== x0k;
+  hold.loadedMarked = clash.hasAttribute("data-held");
+  hold.release = graphedwright.release(hk);
+  hold.unmarked = !clash.hasAttribute("data-held");
+  dragK(23);
+  hold.releasedMoved = xOfK() !== x0k;
+  graphedwright.destroy(hk);
+  out.hold = hold;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

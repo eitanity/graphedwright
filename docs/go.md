@@ -262,6 +262,12 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
   a panel, and `SetLabel` and `SetAttr` change it as commands.
 - **Mode:** `SetMode(edit.View)` turns editing off; edits are then
   refused with `edit.ErrView`.
+- **Hold:** `Hold()` stops the user's edits while the host waits on
+  work of its own, ending the gesture under way and returning the
+  change the drag's return made; the user's edits and gestures, but a
+  pan, are then refused with `edit.ErrHeld`, while hover, pan, zoom and
+  the host's own commands work. `Release()` ends it, in the mode it was
+  in, and `Held()` reports it.
 
 In a browser, `dom.Mount` puts an editor in an element and drives it
 from the element's events; [the browser guide](browser.md#a-host-written-in-go)

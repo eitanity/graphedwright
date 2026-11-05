@@ -72,6 +72,8 @@ const (
 	opDeletePort
 	opZoom
 	opFit
+	opHold
+	opRelease
 	opCount
 )
 
@@ -91,7 +93,7 @@ func Install(schemas ...doc.Named) {
 		opCreate: "create", opRegisterSchema: "registerSchema", opLoad: "load", opExport: "export", opSVG: "svg",
 		opSetMode: "setMode", opLayout: "layout", opAnnotate: "annotate", opOn: "on", opUndo: "undo", opRedo: "redo",
 		opDestroy: "destroy", opProperties: "properties", opSetLabel: "setLabel", opSetAttr: "setAttr",
-		opAddPort: "addPort", opDeletePort: "deletePort", opZoom: "zoom", opFit: "fit",
+		opAddPort: "addPort", opDeletePort: "deletePort", opZoom: "zoom", opFit: "fit", opHold: "hold", opRelease: "release",
 	}
 	obj := js.Global().Get("Object").New()
 	for op, name := range names {
@@ -173,6 +175,10 @@ func (c *call) invoke(_ js.Value, args []js.Value) any {
 		return zoom(j, args)
 	case opFit:
 		return fit(j, args)
+	case opHold:
+		return result(true, j.h.Hold())
+	case opRelease:
+		return result(true, j.h.Release())
 	}
 	return fail("no such function")
 }

@@ -184,6 +184,7 @@ func run(page js.Value, r *report) {
 	r.check("one undo takes back the edit and its follow-up", d.Vertex(a).Pos() == before && d.Vertex(a).Label() == "a", "label "+d.Vertex(a).Label()+" pos "+num(d.Vertex(a).Pos().X))
 	chains(page, el, h, t, a, r)
 	contexts(page, r)
+	holds(page, r)
 	lifecycle(el, h, t, r)
 }
 
@@ -265,6 +266,55 @@ func contexts(page js.Value, r *report) {
 		r.check("the menu's action is a command, undone as any edit", err == nil && relabelled == "from the menu" && d.Vertex(b).Label() == "b", "label "+relabelled+" then "+d.Vertex(b).Label()+" "+errText(err))
 		_ = h.Destroy()
 	}
+	page.Get("body").Call("removeChild", el)
+}
+
+// holds checks the hold from Go: the user's drag moves nothing and the
+// element carries data-held, the host's own Apply still works, Load
+// keeps the hold, and released, a drag moves again.
+func holds(page js.Value, r *report) {
+	el := page.Call("createElement", "div")
+	el.Get("style").Set("cssText", "width:500px;height:200px")
+	page.Get("body").Call("appendChild", el)
+	d, err := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	t := &host{first: gw.None}
+	var h *dom.Handle
+	if err == nil {
+		h, err = dom.Mount(el, d, dom.Options{IDPrefix: "goh-"}, t)
+	}
+	if err != nil {
+		r.check("mount for the hold", false, err.Error())
+		return
+	}
+	t.h = h
+	a := d.VertexByID("a")
+	x0 := d.Vertex(a).Pos().X
+	// A hold during a drag puts the vertex back, and draws it there.
+	v := el.Call("querySelector", "#a")
+	box := v.Call("getBoundingClientRect")
+	bx, by := box.Get("left").Float()+box.Get("width").Float()/2, box.Get("top").Float()+box.Get("height").Float()/2
+	v.Call("dispatchEvent", pointerAt("pointerdown", bx, by, 9))
+	js.Global().Call("dispatchEvent", pointerAt("pointermove", bx+40, by, 9))
+	errHold := h.Hold()
+	back := el.Call("querySelector", "#a").Call("getBoundingClientRect").Get("left").Float()
+	js.Global().Call("dispatchEvent", pointerAt("pointerup", bx+40, by, 9))
+	r.check("a hold during a drag puts the vertex back and draws it there", d.Vertex(a).Pos().X == x0 && back == box.Get("left").Float(), "x "+num(d.Vertex(a).Pos().X)+", drawn at "+num(back)+" from "+num(box.Get("left").Float()))
+	marked := el.Call("hasAttribute", "data-held").Bool()
+	drag(el, "a", 80)
+	heldMoved := d.Vertex(a).Pos().X != x0
+	_, errApply := h.Apply(gw.Command{Op: gw.Relabel, Vertex: a, Text: "by the host"})
+	r.check("held, a drag moves nothing, the element is marked, and the host's Apply works", errHold == nil && marked && !heldMoved && errApply == nil && d.Vertex(a).Label() == "by the host", "marked "+strconv.FormatBool(marked)+", moved "+strconv.FormatBool(heldMoved)+" "+errText(errors.Join(errHold, errApply)))
+	d2, err := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	if err == nil {
+		err = h.Load(d2)
+	}
+	a2 := d2.VertexByID("a")
+	drag(el, "a", 80)
+	r.check("Load keeps the hold", err == nil && d2.Vertex(a2).Pos().X == x0 && h.Editor().Held() && el.Call("hasAttribute", "data-held").Bool(), errText(err))
+	errRelease := h.Release()
+	drag(el, "a", 80)
+	r.check("released, the mark goes and a drag moves", errRelease == nil && !el.Call("hasAttribute", "data-held").Bool() && d2.Vertex(a2).Pos().X != x0, "x "+num(d2.Vertex(a2).Pos().X)+" "+errText(errRelease))
+	_ = h.Destroy()
 	page.Get("body").Call("removeChild", el)
 }
 
