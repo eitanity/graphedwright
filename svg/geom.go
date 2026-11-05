@@ -24,7 +24,9 @@ const outlineBand = 6
 // for the hit test.
 const edgeSamples = 16
 
-// PortAt is the absolute position of port p of vertex v, as drawn.
+// PortAt is the absolute position of port p of vertex v on its box's
+// side, where a built-in shape draws it; PortOn is where it is drawn on
+// any shape.
 func PortAt(v gw.VertexView, p gw.PortIndex) gw.Point { return portAt(v, p) }
 
 // portAt is the absolute position of port p of vertex v: ports on a side
@@ -74,10 +76,10 @@ func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
 	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight && e.From() != e.To() {
 		a, b = from.Pos(), to.Pos()
 		if e.FromPort() != gw.None {
-			a = portAt(from, e.FromPort())
+			a = portOn(d, e.From(), e.FromPort())
 		}
 		if e.ToPort() != gw.None {
-			b = portAt(to, e.ToPort())
+			b = portOn(d, e.To(), e.ToPort())
 		}
 		ta, tb := b, a
 		if n := through.Len(); n > 0 {
@@ -85,10 +87,10 @@ func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
 		}
 		ca, cb := a, b
 		if e.FromPort() == gw.None {
-			ca = clip(d.Kinds().Vertex(from.Kind()).Shape(), from, ta)
+			ca = vertexClip(d, from, ta)
 		}
 		if e.ToPort() == gw.None {
-			cb = clip(d.Kinds().Vertex(to.Kind()).Shape(), to, tb)
+			cb = vertexClip(d, to, tb)
 		}
 		return ca, cb
 	}
@@ -99,7 +101,7 @@ func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
 	}
 	switch {
 	case e.FromPort() != gw.None:
-		a = portAt(from, e.FromPort())
+		a = portOn(d, e.From(), e.FromPort())
 	case down:
 		a = gw.Point{X: from.Pos().X, Y: from.Pos().Y + fromH}
 	default:
@@ -107,7 +109,7 @@ func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
 	}
 	switch {
 	case e.ToPort() != gw.None:
-		b = portAt(to, e.ToPort())
+		b = portOn(d, e.To(), e.ToPort())
 	case down:
 		b = gw.Point{X: to.Pos().X, Y: to.Pos().Y - toH}
 	default:
@@ -473,7 +475,7 @@ func outlineDistance(shape gw.Shape, v gw.VertexView, p gw.Point) float64 {
 			return (dx/a + dy/b - 1) / math.Sqrt(1/(a*a)+1/(b*b))
 		case gw.Circle:
 			return (math.Sqrt(dx*dx/(a*a)+dy*dy/(b*b)) - 1) * math.Min(a, b)
-		case gw.Rect, gw.RoundRect, gw.Pill, gw.Actor, gw.DataStore:
+		case gw.Rect, gw.RoundRect, gw.Pill, gw.Actor, gw.DataStore, gw.Provided:
 		}
 	}
 	return math.Max(dx-a, dy-b)
@@ -493,7 +495,7 @@ func clip(shape gw.Shape, v gw.VertexView, p gw.Point) gw.Point {
 		t = 1 / (math.Abs(dx)/a + math.Abs(dy)/b)
 	case gw.Circle:
 		t = 1 / math.Sqrt(dx*dx/(a*a)+dy*dy/(b*b))
-	case gw.Rect, gw.RoundRect, gw.Pill, gw.Actor, gw.DataStore:
+	case gw.Rect, gw.RoundRect, gw.Pill, gw.Actor, gw.DataStore, gw.Provided:
 		t = math.Min(a/math.Abs(dx), b/math.Abs(dy))
 	}
 	return gw.Point{X: v.Pos().X + float64(dx*t), Y: v.Pos().Y + float64(dy*t)}
@@ -583,7 +585,7 @@ func bounds(d *gw.Document) gw.Viewport {
 			continue
 		}
 		half := v.Size().W / 2
-		if d.Kinds().Vertex(v.Kind()).Shape() == gw.Actor {
+		if labelBelow(d, v) {
 			half = math.Max(half, float64(d.VertexLabelRunes(gw.VertexIndex(i)))*defaultCharWidth/2) //nolint:gosec // bounded by the capacity
 		}
 		x0 = math.Min(x0, v.Pos().X-half)

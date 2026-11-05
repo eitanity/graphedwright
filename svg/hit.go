@@ -43,10 +43,10 @@ func HitTest(d *gw.Document, p gw.Point) Hit {
 		if !v.Live() || d.Kinds().Vertex(v.Kind()).Container() {
 			continue
 		}
-		if v.Ports().Len() == 0 && math.Abs(outlineDistance(d.Kinds().Vertex(v.Kind()).Shape(), v, p)) <= band(v) {
+		if v.Ports().Len() == 0 && math.Abs(vertexOutlineDistance(d, v, p)) <= band(v) {
 			return Hit{Kind: OutlineHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
 		}
-		if inBox(v, p) {
+		if inVertex(d, v, p) {
 			return Hit{Kind: VertexHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -75,17 +75,8 @@ func hitPort(d *gw.Document, p gw.Point) (Hit, bool) {
 		if !v.Live() || ports.Len() == 0 {
 			continue
 		}
-		// Each port's place on its side, as portAt finds it, from the
-		// count on each side.
-		var n, k [gw.Bottom + 1]int
 		for j := range ports.Len() {
-			n[ports.At(j).Side]++
-		}
-		pos, size := v.Pos(), v.Size()
-		for j := range ports.Len() {
-			side := ports.At(j).Side
-			q := sidePoint(pos, size, side, k[side], n[side])
-			k[side]++
+			q := portOn(d, gw.VertexIndex(i), gw.PortIndex(j)) //nolint:gosec // bounded by the capacities
 			dx, dy := p.X-q.X, p.Y-q.Y
 			if float64(dx*dx)+float64(dy*dy) <= (portRadius+2)*(portRadius+2) {
 				return Hit{Kind: PortHit, Vertex: gw.VertexIndex(i), Port: gw.PortIndex(j), Edge: gw.None}, true //nolint:gosec // bounded by the capacities

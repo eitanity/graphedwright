@@ -36,9 +36,14 @@ func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 	case d.ShowsCompartments(v):
 		top := x.Pos().Y - float64(x.Size().H/2)
 		return centred(x.Pos().X, top+gw.TitleRoom(kind)-8-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth))
-	case kind.Shape() == gw.Actor:
+	case labelBelow(d, x):
 		w := math.Max(textW+16, minLabelWidth)
 		return centred(x.Pos().X, x.Pos().Y+float64(x.Size().H/2)-4-defaultFontSize/3, w)
+	}
+	if kind.Shape() >= gw.Provided {
+		// Between a provided shape's margins.
+		lx, ly, lw, _, _ := labelSlot(d, x)
+		return centred(x.Pos().X+lx, x.Pos().Y+ly+4-defaultFontSize/3, math.Max(lw+8, minLabelWidth))
 	}
 	return centred(x.Pos().X, x.Pos().Y+4-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth))
 }
@@ -120,7 +125,7 @@ const anchorEnd = "end"
 // is the text's estimated extent.
 func portLabel(d *gw.Document, i gw.VertexIndex, p gw.PortIndex) (x, y float64, anchor string, box gw.Viewport) {
 	v := d.Vertex(i)
-	at := portAt(v, p)
+	at := portOn(d, i, p)
 	w := float64(float64(runeCount(v.Ports().At(int(p)).Name)) * gw.PortLabelChar)
 	side := v.Ports().At(int(p)).Side
 	// An edge is followed as far as the label reaches from the port.

@@ -145,8 +145,9 @@ type EdgeKind struct {
 type Schema struct {
 	VertexKinds []VertexKind
 	EdgeKinds   []EdgeKind
-	Acyclic     bool // the graph must stay a DAG
-	Connected   bool // every vertex reachable from a root kind: a warning, not a refusal
+	Acyclic     bool       // the graph must stay a DAG
+	Connected   bool       // every vertex reachable from a root kind: a warning, not a refusal
+	Shapes      []ShapeDef // shapes the schema provides, named by its vertex kinds as Provided + index
 }
 
 // checkSchema validates a schema: at least one kind, unique names, kind
@@ -185,11 +186,8 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 	if err := checkPorts(where, k.Ports); err != nil {
 		return err
 	}
-	if err := checkText("keyword", k.Keyword); err != nil {
+	if err := checkLook(s, k); err != nil {
 		return schemaError(where, err.Error())
-	}
-	if k.Keyword != "" && !k.Container && k.Shape != Actor && k.Size.H < KeywordHeight {
-		return schemaError(where, "has a keyword and is under "+itoa(KeywordHeight)+" high, the room for it and the label")
 	}
 	if err := checkCompartments(k); err != nil {
 		return schemaError(where, err.Error())
@@ -208,10 +206,23 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 			return schemaError(where, "contains vertex kind "+itoa(int(kind))+" out of range")
 		}
 	}
-	if k.Max < 0 || k.Shape > DataStore || !(k.Size.W >= 0) || !(k.Size.H >= 0) || math.IsInf(k.Size.W, 1) || math.IsInf(k.Size.H, 1) {
+	if k.Max < 0 || !(k.Size.W >= 0) || !(k.Size.H >= 0) || math.IsInf(k.Size.W, 1) || math.IsInf(k.Size.H, 1) {
 		return schemaError(where, "max, shape and size must be in range")
 	}
 	return checkAttrSpecs(where, k.Attrs)
+}
+
+// checkLook refuses a keyword that is not text, or that a kind under
+// KeywordHeight has no room for, and a shape that is neither built in
+// nor one of the schema's.
+func checkLook(s Schema, k VertexKind) error {
+	if err := checkText("keyword", k.Keyword); err != nil {
+		return err
+	}
+	if k.Keyword != "" && !k.Container && k.Shape != Actor && k.Size.H < KeywordHeight {
+		return refusal("has a keyword and is under " + itoa(KeywordHeight) + " high, the room for it and the label")
+	}
+	return checkShapeRef(s, k.Shape)
 }
 
 // checkCompartments refuses compartments on a shape that cannot hold

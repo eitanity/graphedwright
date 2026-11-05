@@ -533,7 +533,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	o.str(`)"`)
 	r.dataAttrs(v.Attrs())
 	o.byte('>')
-	r.shape(shapeClass, kind.Shape(), v.Size())
+	r.shape(shapeClass, d.Kinds(), kind.Shape(), v.Size())
 	r.texts(d, opts, i)
 	r.ports(d, i)
 	o.str(`</g>`)
@@ -546,20 +546,25 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 	v := d.Vertex(i)
 	kind := d.Kinds().Vertex(v.Kind())
 	note := noteOf(opts.VertexNotes, int(i))
-	labelY, labelW := 4.0, v.Size().W-8
+	// The label's slot: across the shape, between a provided shape's
+	// margins, at the foot, or none.
+	labelX, slotY, labelW, below, none := labelSlot(d, v)
+	noteW := labelW
+	labelY := slotY + 4
 	if note.Text != "" {
-		labelY = -2
+		labelY = slotY - 2
 	}
-	if kind.Shape() == gw.Actor {
+	if below {
 		// An actor's label is at the foot of its box, under the
 		// figure, as wide as it needs.
-		labelY, labelW = float64(v.Size().H/2)-4, 0
+		labelY, labelW, noteW = float64(v.Size().H/2)-4, 0, v.Size().W-8
 	}
 	switch {
 	case kind.Container():
 		r.title(v, kind, opts)
 	case d.ShowsCompartments(i):
 		r.compartments(v, kind, labelW, opts)
+	case none:
 	default:
 		if kw := kind.Keyword(); kw != "" {
 			// The keyword is the line above the label, the two centred
@@ -567,17 +572,17 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 			// above its head.
 			half := float64(opts.FontSize/2) + 1
 			kwY := labelY - half
-			if kind.Shape() == gw.Actor {
+			if below {
 				kwY = float64(-v.Size().H/2) - 4
 			} else {
 				labelY += half
 			}
-			r.label("keyword", kw, 0, kwY, labelW, opts)
+			r.label("keyword", kw, labelX, kwY, labelW, opts)
 		}
-		r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), 0, labelY, labelW, "middle", opts)
+		r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), labelX, labelY, labelW, "middle", opts)
 	}
 	if note.Text != "" {
-		r.label("annotation", note.Text, 0, labelY+opts.FontSize, v.Size().W-8, opts)
+		r.label("annotation", note.Text, labelX, labelY+opts.FontSize, noteW, opts)
 	}
 }
 
@@ -647,8 +652,18 @@ func (r *Renderer) title(v gw.VertexView, kind gw.VertexKindView, opts Options) 
 // overlay's ring.
 const shapeClass = "shape"
 
-// shape writes the vertex's shape centred on the origin, with the class.
-func (r *Renderer) shape(class string, shape gw.Shape, s gw.Size) {
+// shape writes the vertex's shape centred on the origin, with the class:
+// a built-in, or one of the kinds' provided shapes.
+func (r *Renderer) shape(class string, kinds *gw.Kinds, shape gw.Shape, s gw.Size) {
+	if shape >= gw.Provided {
+		r.provided(class, kinds.ShapeOf(shape), s)
+		return
+	}
+	r.builtin(class, shape, s)
+}
+
+// builtin writes a built-in shape centred on the origin, with the class.
+func (r *Renderer) builtin(class string, shape gw.Shape, s gw.Size) {
 	o := r.o
 	w, h := s.W, s.H
 	switch shape {
@@ -705,6 +720,7 @@ func (r *Renderer) shape(class string, shape gw.Shape, s gw.Size) {
 		if class == shapeClass {
 			r.figure(shape, s)
 		}
+	case gw.Provided: // drawn by provided, above
 	}
 }
 
@@ -916,7 +932,7 @@ func (r *Renderer) ports(d *gw.Document, vi gw.VertexIndex) {
 	o := r.o
 	o.str(`<g class="ports">`)
 	for i := range v.Ports().Len() {
-		p := portAt(v, gw.PortIndex(i)) //nolint:gosec // bounded by the ports per vertex
+		p := portOn(d, vi, gw.PortIndex(i)) //nolint:gosec // bounded by the ports per vertex
 		o.str(`<circle class="port" data-port="`)
 		o.attr(v.Ports().At(i).Name)
 		o.byte('"')
@@ -1049,7 +1065,7 @@ func (r *Renderer) target(d *gw.Document, v gw.VertexView) {
 	o.str(`)"`)
 	o.numAttr("stroke-width", 2*band(v))
 	o.byte('>')
-	r.shape("ring", d.Kinds().Vertex(v.Kind()).Shape(), v.Size())
+	r.shape("ring", d.Kinds(), d.Kinds().Vertex(v.Kind()).Shape(), v.Size())
 	o.str(`</g>`)
 }
 

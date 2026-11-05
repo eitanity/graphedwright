@@ -191,8 +191,9 @@ The geometry the renderer draws from is also exported:
   its bottom right corner.
 - **`VertexLabelBox` and `EdgeLabelBox`** are where a label is drawn,
   for placing an input to edit it.
-- **`PortAt`** is where a port is, and **`Bounds`** is the box around
-  the drawing.
+- **`PortOn(d, v, p)`** is where a port is drawn, on the outline of a
+  provided shape; `PortAt` is its place on the box's side, where a
+  built-in shape draws it. **`Bounds`** is the box around the drawing.
 
 ## doc
 
@@ -294,4 +295,4 @@ without pauses, and that keep each package's state its own:
 
 `make ci` checks all of these, with the linters and the project's own
 analyzers in `internal/lint`, and it checks the TinyGo build stays under
-700 KiB.
+768 KiB.

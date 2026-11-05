@@ -139,13 +139,14 @@ commands.
 | `EdgeKinds` | the edge kinds, the palette's lines in order |
 | `Acyclic` | an edge that would close a cycle is refused |
 | `Connected` | every vertex should be reachable from a root kind; a warning that `Document.Unreachable` reports, not a refusal |
+| `Shapes` | shapes the schema provides (below), which its vertex kinds name as `gw.Provided + i` |
 
 ### `VertexKind`
 
 | Field | Meaning |
 |---|---|
 | `Name` | the palette entry, the name in documents, and the SVG class after `kind-`, with spaces as `_` (`kind-use_case`) |
-| `Shape` | `Rect`, `RoundRect`, `Pill`, `Diamond`, `Circle` (an ellipse filling the size), `Actor` (a stick figure, label below) or `DataStore` (a line above and a line below) |
+| `Shape` | `Rect`, `RoundRect`, `Pill`, `Diamond`, `Circle` (an ellipse filling the size), `Actor` (a stick figure, label below) or `DataStore` (a line above and a line below); or `gw.Provided + i`, the schema's `i`th shape |
 | `Size` | a new vertex's width and height; a vertex can be resized |
 | `Ports` | named places on the sides where edges attach: `{Name, Side, Max}`, with `Side` one of `Left`, `Right`, `Top`, `Bottom`, and `Max` the edges it takes, 0 for any. A side's ports are spaced evenly along it |
 | `Attrs` | the attributes the kind takes (below) |
@@ -159,6 +160,41 @@ commands.
 | `MaxWidth` | how wide compartments may make a vertex; 0 for the kind's width. A longer line is cut with an ellipsis |
 | `LabelFormat` | builds the label drawn from the label as set and the attributes ([Concepts](concepts.md#schemas)); empty draws the label as set |
 | `EditAttr` | an attribute of the kind that the label input edits in place of the label, for a kind whose `LabelFormat` draws it: a double-click, Enter or typing then edits that value, and the text done sets it as a `SetAttr`. Empty edits the label |
+
+### `ShapeDef`
+
+A schema can provide shapes of its own: paths drawn in a box, scaled to
+each vertex. A start node, a package with a tab, a note with a folded
+corner or a flowchart symbol is one of these.
+
+```go
+gw.ShapeDef{
+	Name:    "package",
+	Box:     gw.Size{W: 100, H: 60},
+	Margins: [4]float64{40, 12, 0, 0}, // the tab keeps its size
+	Paths: []gw.ShapePath{
+		{D: "M 0 12 H 100 V 60 H 0 Z"},
+		{D: "M 0 0 H 40 V 12 H 0 Z"},
+	},
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `Name` | lowercase letters, digits and `-`, starting with a letter; not a built-in's (`rect`, `round`, `pill`, `diamond`, `circle`, `actor`, `datastore`) and not another shape's. The shape is drawn with the class `shape-<name>` |
+| `Box` | the size the paths are drawn in, the origin at its top left; at most 10000 |
+| `Margins` | left, top, right, bottom. A point within a margin keeps its distance from that side, a point between the margins scales across the middle, and an arc's radii scale as the part its end point is in. So a tab, a fold or a corner icon keeps its size, and a circle with no margins becomes the vertex's ellipse. Margins wider than the vertex shrink to fit it |
+| `Paths` | up to 8, drawn in order: `{D, Fill}`. `D` takes `M`, `L`, `H`, `V`, `C`, `Q`, `A` and `Z`, absolute, at most 64 commands, every number in the box, arcs unrotated. `Fill` draws the path filled solid (`path.mark`), else as the shape is (`path.line`) |
+| `Outline` | what edges are clipped to and the hit test reads: `OutlineBox` (the default), `OutlineDiamond`, `OutlineEllipse`, or `OutlinePolygon` |
+| `Polygon` | with `OutlinePolygon`: a convex polygon of 3 to 16 points in the box, scaled as the paths are |
+| `Label` | `LabelInside` (the default), centred between the margins and cut at that width; `LabelBelow`, at the foot as an actor's; or `LabelNone` |
+
+A schema has at most 32 shapes. The paths are parsed when the schema is
+compiled, and the renderer writes the parsed numbers, so nothing of the
+path text reaches the SVG. Anything else in it is refused, naming the
+shape, the path and the byte. A port sits where the outline meets the
+line in from its place on the box's side, and `svg.PortOn` gives where
+that is.
 
 ### `EdgeKind`
 

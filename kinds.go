@@ -11,6 +11,7 @@ type Kinds struct {
 	edge      []EdgeKind
 	acyclic   bool
 	connected bool
+	shapes    []shape
 }
 
 // Compile checks a schema and copies it. It refuses a schema without a
@@ -21,7 +22,11 @@ func Compile(s Schema) (*Kinds, error) {
 	if err := checkSchema(s); err != nil {
 		return nil, err
 	}
-	k := &Kinds{vertex: make([]VertexKind, len(s.VertexKinds)), edge: make([]EdgeKind, len(s.EdgeKinds)), acyclic: s.Acyclic, connected: s.Connected}
+	shapes, err := compileShapes(s.Shapes)
+	if err != nil {
+		return nil, err
+	}
+	k := &Kinds{shapes: shapes, vertex: make([]VertexKind, len(s.VertexKinds)), edge: make([]EdgeKind, len(s.EdgeKinds)), acyclic: s.Acyclic, connected: s.Connected}
 	for i, v := range s.VertexKinds {
 		v.Ports = clonePorts(v.Ports)
 		v.Attrs = cloneSpecs(v.Attrs)

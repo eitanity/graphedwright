@@ -476,7 +476,7 @@ func (e *Editor) portPoint(v gw.VertexIndex, p gw.PortIndex) gw.Point {
 	if p == gw.None {
 		return e.d.Vertex(v).Pos()
 	}
-	return svg.PortAt(e.d.Vertex(v), p)
+	return svg.PortOn(e.d, v, p)
 }
 
 // record merges a command's change into the event's.

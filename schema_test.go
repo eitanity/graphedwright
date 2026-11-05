@@ -39,7 +39,8 @@ func TestSchemaRefusals(t *testing.T) {
 			s.VertexKinds[0].Container = true
 			s.VertexKinds[0].Contains = []gw.KindIndex{9}
 		}, "contains vertex kind 9 out of range"},
-		{"shape range", func(s *gw.Schema) { s.VertexKinds[0].Shape = gw.DataStore + 1 }, "max, shape and size must be in range"},
+		{"shape range", func(s *gw.Schema) { s.VertexKinds[0].Shape = gw.DataStore + 1 }, "shape 7 is neither built in nor one the schema provides"},
+		{"provided shape range", func(s *gw.Schema) { s.VertexKinds[0].Shape = gw.Provided }, "shape 64 is neither built in nor one the schema provides"},
 		{"too many attrs", func(s *gw.Schema) {
 			s.VertexKinds[1].Attrs = make([]gw.AttrSpec, 17)
 			for i := range s.VertexKinds[1].Attrs {
