@@ -205,7 +205,8 @@ type drawn struct {
 	a, b  gw.Point
 }
 
-func (l *Layouter) drawnOf(d *gw.Document, e gw.EdgeView) drawn {
+func (l *Layouter) drawnOf(d *gw.Document, i gw.EdgeIndex) drawn {
+	e := d.Edge(i)
 	fb, tb := l.frame(d.Vertex(e.From())), l.frame(d.Vertex(e.To()))
 	fx, tx := (fb.x0+fb.x1)/2, (tb.x0+tb.x1)/2
 	w := drawn{route: d.Kinds().Edge(e.Kind()).Route(), back: tx < fx}
@@ -215,6 +216,9 @@ func (l *Layouter) drawnOf(d *gw.Document, e gw.EdgeView) drawn {
 		if w.back {
 			w.a.X, w.b.X = fb.x0, tb.x1
 		}
+		// Off the side's middle where others are drawn to it too.
+		w.a.Y += d.EndOffset(i, false)
+		w.b.Y += d.EndOffset(i, true)
 	}
 	return w
 }
@@ -223,7 +227,7 @@ func (l *Layouter) drawnOf(d *gw.Document, e gw.EdgeView) drawn {
 // through a vertex that holds neither of its ends.
 func (l *Layouter) crosses(d *gw.Document, e gw.EdgeIndex) bool {
 	ed := d.Edge(e)
-	w := l.drawnOf(d, ed)
+	w := l.drawnOf(d, e)
 	l.walls(d, ed)
 	var through [1]gw.Point
 	bends := ed.Bends()
@@ -368,22 +372,35 @@ func (l *Layouter) into(d *gw.Document, e gw.EdgeView, p, q gw.Point, u int32) b
 
 // reroute gives edge e, the j-th of n between its two vertices, a
 // detour, if one is found, and keeps its route otherwise. The j-th runs
-// j gaps further out than the first, and leaves and arrives off its
-// ends' middles by as much as its lane is off the middle lane, so that
-// edges between the same two vertices run apart. Where vertices stand
-// too close for the gap, half of it is tried.
+// j gaps further out than the first, and a straight one leaves and
+// arrives off its ends' middles by as much as its lane is off the middle
+// lane, so that edges between the same two vertices run apart; a curved
+// or orthogonal one's ends are already apart, spread along their sides.
+// Where vertices stand too close for the gap, half of it is tried.
 func (l *Layouter) reroute(d *gw.Document, e gw.EdgeIndex, j, n int) {
 	ed := d.Edge(e)
-	w := l.drawnOf(d, ed)
+	w := l.drawnOf(d, e)
 	dt := l.dt
 	for _, base := range [2]float64{detourGap, detourGap / 2} {
 		dt.gap = float64(base * float64(1+j))
-		off := float64((float64(j) - float64(float64(n-1)/2)) * base)
+		off := laneOff(w.route, j, n, base)
 		if m := l.find(d, ed, w, off); m >= 2 {
 			l.setDetour(d, e, w, m)
 			return
 		}
 	}
+}
+
+// laneOff is how far the j-th of n detours between the same two
+// vertices leaves and arrives off its ends: as far as its lane is off
+// the middle lane, in steps of base, for a straight edge, and not at all
+// for a curved or orthogonal one, whose ends are spread along their
+// sides already (gw.Document.EndOffset).
+func laneOff(route gw.Route, j, n int, base float64) float64 {
+	if route != gw.Straight {
+		return 0
+	}
+	return float64((float64(j) - float64(float64(n-1)/2)) * base)
 }
 
 // find finds a detour for edge e, drawn as w, at the detour's gap and

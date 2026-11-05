@@ -351,20 +351,7 @@ func portOn(d *gw.Document, i gw.VertexIndex, p gw.PortIndex) gw.Point {
 	case gw.Top, gw.Bottom:
 		in.Y = v.Pos().Y
 	}
-	if vertexOutlineDistance(d, v, in) > 0 {
-		return q
-	}
-	out := q
-	// bound: outlineSteps
-	for range outlineSteps {
-		mid := gw.Point{X: (out.X + in.X) / 2, Y: (out.Y + in.Y) / 2}
-		if vertexOutlineDistance(d, v, mid) > 0 {
-			out = mid
-		} else {
-			in = mid
-		}
-	}
-	return in
+	return toOutline(d, v, q, in)
 }
 
 // labelSlot is where a vertex's label goes on its shape: the centre's

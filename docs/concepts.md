@@ -296,6 +296,23 @@ next, so that their labels stack (`Document.Parallel`). A lane's texts
 go on its outer side, away from the middle, so that of two edges
 neither's label crosses the other.
 
+**Spread ends.** A curved or right-angled edge arrives level, so two
+drawn to one side of a vertex at its middle would lie on each other
+there. Their ends are spread along the side instead, ordered across the
+flow by where their other ends stand, up to 20 apart (`EndGap`) and
+closer where the side is short, each on the shape's outline
+(`Document.EndSlot`, `Document.EndOffset`). A straight edge, drawn
+toward the centre, and an edge with a port keep their ends, and past 8
+on a side (`MaxEndSlots`) every end stays at the middle. A lone edge
+with a spread end puts its texts on the side away from the others.
+
+A layout makes room for a name drawn under a figure, an actor's, which
+is wider than the figure. A straight edge into a member of a container
+comes in from the side, along the free band and across the flow at
+the member's middle, where the members of its layer leave that clear;
+otherwise it comes along the gap before the member's layer, level with
+its end.
+
 ## Containers
 
 A vertex of a **container** kind holds other vertices: the system

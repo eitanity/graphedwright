@@ -83,26 +83,46 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	if math.Abs(r.fy-bands[1]) < math.Abs(r.fy-bands[0]) {
 		bands[0], bands[1] = bands[1], bands[0] // the band on the far point's side first
 	}
-	if l.straightTo(d, r.e, m) {
+	straight := l.straightTo(d, r.e, m)
+	if straight {
 		if n := l.beside(d, c, m, r, in, bands, mb, buf); n > 0 {
 			return n
 		}
 	}
-	side := uint8(faceLow)
-	if !low {
-		side = faceHigh
+	return l.alongGap(d, c, m, r, gapRun{in: in, gx: gx, last: last, bands: bands, straight: straight}, mb, buf)
+}
+
+// gapRun is the run along the gap before a member's layer: in at in,
+// along a band to the gap at gx, along it, and in to the member from
+// last; bands are the two to try, the better first.
+type gapRun struct {
+	in, gx, last float64
+	bands        [2]float64
+	straight     bool // the edge is straight and ends at the member
+}
+
+// alongGap writes the run g to member m of container c along the first
+// band whose way is clear, and returns 4, or 0 when neither is. It runs
+// along the gap to the level of m's end, which is off the side's middle
+// where other edges are drawn to that side too (gw.Document.EndOffset),
+// the band on that side tried first, so that the run crosses no end
+// beside it. A straight edge, drawn toward m's centre, keeps off the
+// middle, on its band's side, where the edge from the layer before would
+// run on it.
+func (l *Layouter) alongGap(d *gw.Document, c, m gw.VertexIndex, r run, g gapRun, mb frameBox, buf []gw.Point) int {
+	off := l.endOffset(d, r.e, m)
+	if off != 0 && (g.bands[0]-mb.cy)*off < 0 {
+		g.bands[0], g.bands[1] = g.bands[1], g.bands[0]
 	}
-	for _, by := range bands {
-		if !l.clearRun(d, c, m, gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, in, by) {
+	for _, by := range g.bands {
+		if !l.clearRun(d, c, m, g.gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, g.in, by) {
 			continue
 		}
-		// Where an edge from m's own level comes in on this side, at its
-		// middle, the run comes in off it, on the band's side.
-		y := mb.cy
-		if l.faced[m]&side != 0 {
-			y += math.Copysign(math.Min(laneGap, (mb.y1-mb.y0)/4), by-mb.cy)
+		y := mb.cy + off
+		if g.straight {
+			y += math.Copysign(math.Min(gw.EndGap, (mb.y1-mb.y0)/4), by-mb.cy)
 		}
-		pts := [4][2]float64{{in, by}, {gx, by}, {gx, y}, {last, y}}
+		pts := [4][2]float64{{g.in, by}, {g.gx, by}, {g.gx, y}, {g.last, y}}
 		for k, p := range pts {
 			x, y := l.swap(p[0], p[1])
 			buf[k] = gw.Point{X: x, Y: y}
@@ -112,37 +132,17 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	return 0
 }
 
-// The sides of a vertex, in the frame, that an edge from its own level
-// comes into: the low side, facing lower x, and the high.
-const (
-	faceLow  = 1
-	faceHigh = 2
-)
-
-// facings marks, for each vertex, the sides that an edge between it and
-// another vertex of its own level comes into: the side facing the other
-// end, where the edge is drawn at the middle.
-func (l *Layouter) facings(d *gw.Document) {
-	clear(l.faced)
-	for i := range d.EdgeSlots() {
-		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
-		if !e.Live() || e.From() == e.To() || d.Vertex(e.From()).Parent() != d.Vertex(e.To()).Parent() {
-			continue
-		}
-		l.face(d, e.From(), e.To())
-		l.face(d, e.To(), e.From())
+// endOffset is how far edge e's end at m is drawn off the middle of its
+// side (gw.Document.EndOffset); none when m is not an end of e, but a
+// container holding it.
+func (l *Layouter) endOffset(d *gw.Document, e gw.EdgeIndex, m gw.VertexIndex) float64 {
+	switch m {
+	case d.Edge(e).To():
+		return d.EndOffset(e, true)
+	case d.Edge(e).From():
+		return d.EndOffset(e, false)
 	}
-}
-
-// face marks the side of vertex m that faces vertex o.
-func (l *Layouter) face(d *gw.Document, m, o gw.VertexIndex) {
-	mb, ob := l.frame(d.Vertex(m)), l.frame(d.Vertex(o))
-	switch ox := (ob.x0 + ob.x1) / 2; {
-	case ox < mb.x0:
-		l.faced[m] |= faceLow
-	case ox > mb.x1:
-		l.faced[m] |= faceHigh
-	}
+	return 0
 }
 
 // straightTo reports whether edge e is drawn straight and ends at m,

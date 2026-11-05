@@ -104,11 +104,10 @@ func TestEntryBeside(t *testing.T) {
 }
 
 // TestEntryOffSide: an orthogonal or curved edge into a member of a
-// zone, which must arrive on the side facing the flow, comes in off the middle of
-// that side, where the edge from the member before arrives: by a lane's
-// gap, 20, or a quarter of the member across the flow if less, on the
-// side of the band it comes along, so that it does not cross that edge;
-// in either flow.
+// zone, which must arrive on the side facing the flow, comes in level
+// with its end there, which is off the middle where the edge from the
+// member before arrives too (gw.Document.EndOffset), and along the band
+// on that side, so that it does not cross that edge; in either flow.
 func TestEntryOffSide(t *testing.T) {
 	for _, c := range [...]struct {
 		f     gw.Flow
@@ -125,10 +124,9 @@ func TestEntryOffSide(t *testing.T) {
 		_, pc := frameOf(f, bends.At(bends.Len()-2))
 		_, bc := frameOf(f, bends.At(bends.Len()-3))
 		_, qc := frameOf(f, q.Pos())
-		_, size := frameOf(f, gw.Point{X: q.Size().W, Y: q.Size().H})
-		want := math.Min(20, size/4)
-		if math.Abs(lc-qc) != want || pc != lc || (lc-qc)*(bc-qc) <= 0 {
-			t.Errorf("flow %d: the last two bends %v, %v arrive %v off q's middle %v, want %v towards the band at %v", f, bends.At(bends.Len()-2), bends.At(bends.Len()-1), lc-qc, q.Pos(), want, bc)
+		off := d.EndOffset(e, true)
+		if off == 0 || lc-qc != off || pc != lc || (lc-qc)*(bc-qc) <= 0 {
+			t.Errorf("flow %d: the last two bends %v, %v arrive %v off q's middle %v, want %v towards the band at %v", f, bends.At(bends.Len()-2), bends.At(bends.Len()-1), lc-qc, q.Pos(), off, bc)
 		}
 	}
 }
@@ -198,6 +196,61 @@ func TestFootWidth(t *testing.T) {
 		}
 		if gap := math.Abs(d.Vertex(1).Pos().X-d.Vertex(0).Pos().X) - c.width; gap < 24 {
 			t.Errorf("%q, %q: the texts are %v apart, want 24", c.label, c.keyword, gap)
+		}
+	}
+}
+
+// TestExitOffSide: an orthogonal edge out of a member of a zone to a
+// vertex past the zone, where an edge to a later member leaves the same
+// side, leaves level with its end there, off the side's middle
+// (gw.Document.EndOffset); in either flow.
+func TestExitOffSide(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		s := gw.Schema{
+			VertexKinds: []gw.VertexKind{
+				{Name: "node", Shape: gw.Rect, Size: gw.Size{W: 60, H: 60}},
+				{Name: "zone", Shape: gw.Rect, Size: gw.Size{W: 60, H: 40}, Container: true},
+			},
+			EdgeKinds: []gw.EdgeKind{{Name: "wire", Route: gw.Orthogonal}},
+		}
+		d, err := makeDoc(s, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		add := func(kind gw.KindIndex) gw.VertexIndex {
+			ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: kind})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return ch.Vertices[0]
+		}
+		z, q, r, o := add(1), add(0), add(0), add(0)
+		for _, v := range [2]gw.VertexIndex{q, r} {
+			if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: v, To: z}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: q, To: r, FromPort: gw.None, ToPort: gw.None}); err != nil {
+			t.Fatal(err)
+		}
+		ch, err := d.Apply(gw.Command{Op: gw.AddEdge, From: q, To: o, FromPort: gw.None, ToPort: gw.None})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := ch.Edges[0]
+		d.SetFlow(f)
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		bends := d.Edge(e).Bends()
+		if bends.Len() < 2 {
+			t.Fatalf("flow %d: %d bends", f, bends.Len())
+		}
+		_, fc := frameOf(f, bends.At(0))
+		_, sc := frameOf(f, bends.At(1))
+		_, qc := frameOf(f, d.Vertex(q).Pos())
+		if off := d.EndOffset(e, false); off == 0 || fc-qc != off || sc != fc {
+			t.Errorf("flow %d: the first two bends %v, %v leave %v off q's middle %v, want %v", f, bends.At(0), bends.At(1), fc-qc, d.Vertex(q).Pos(), off)
 		}
 	}
 }

@@ -126,7 +126,7 @@ func TestPolygonOutline(t *testing.T) {
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 			t.Fatal(err)
 		}
-		a, b := ends(d, d.Edge(0), gw.PointList{})
+		a, b := ends(d, 0, gw.PointList{})
 		for i, p := range []gw.Point{a, b} {
 			v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // two vertices
 			if dist := vertexOutlineDistance(d, v, p); math.Abs(dist) > 1e-9 || p == v.Pos() {

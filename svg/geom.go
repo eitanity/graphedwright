@@ -89,8 +89,11 @@ func sidePoint(pos gw.Point, size gw.Size, side gw.Side, k, n int) gw.Point {
 // each shape, and for a curve or an elbow the right and left edge
 // centres, or the bottom and top in a top-to-bottom flow, the way the
 // layers run; for a backward edge, the left and right, or the top and
-// bottom.
-func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
+// bottom. Where more than one edge is drawn to one side, each end is
+// moved along it by its offset (gw.Document.EndOffset) and in to the
+// shape's outline.
+func ends(d *gw.Document, i gw.EdgeIndex, through gw.PointList) (a, b gw.Point) {
+	e := d.Edge(i)
 	from, to := d.Vertex(e.From()), d.Vertex(e.To())
 	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight && e.From() != e.To() {
 		a, b = from.Pos(), to.Pos()
@@ -122,19 +125,51 @@ func ends(d *gw.Document, e gw.EdgeView, through gw.PointList) (a, b gw.Point) {
 	case e.FromPort() != gw.None:
 		a = portOn(d, e.From(), e.FromPort())
 	case down:
-		a = gw.Point{X: from.Pos().X, Y: from.Pos().Y + fromH}
+		a = spread(d, from, gw.Point{X: from.Pos().X + d.EndOffset(i, false), Y: from.Pos().Y + fromH}, down)
 	default:
-		a = gw.Point{X: from.Pos().X + fromW, Y: from.Pos().Y}
+		a = spread(d, from, gw.Point{X: from.Pos().X + fromW, Y: from.Pos().Y + d.EndOffset(i, false)}, down)
 	}
 	switch {
 	case e.ToPort() != gw.None:
 		b = portOn(d, e.To(), e.ToPort())
 	case down:
-		b = gw.Point{X: to.Pos().X, Y: to.Pos().Y - toH}
+		b = spread(d, to, gw.Point{X: to.Pos().X + d.EndOffset(i, true), Y: to.Pos().Y - toH}, down)
 	default:
-		b = gw.Point{X: to.Pos().X - toW, Y: to.Pos().Y}
+		b = spread(d, to, gw.Point{X: to.Pos().X - toW, Y: to.Pos().Y + d.EndOffset(i, true)}, down)
 	}
 	return a, b
+}
+
+// spread is an end at q on a side of vertex v, moved off the side's
+// middle across the flow by its offset, brought in along the flow to
+// the shape's outline.
+func spread(d *gw.Document, v gw.VertexView, q gw.Point, down bool) gw.Point {
+	in := gw.Point{X: v.Pos().X, Y: q.Y}
+	if down {
+		in = gw.Point{X: q.X, Y: v.Pos().Y}
+	}
+	return toOutline(d, v, q, in)
+}
+
+// toOutline is where the line from q, on the vertex's box, in to the
+// point in meets the shape's outline, by bisection: q itself when it is
+// on or inside the outline, or when in is outside it, as where the line
+// misses the shape.
+func toOutline(d *gw.Document, v gw.VertexView, q, in gw.Point) gw.Point {
+	if vertexOutlineDistance(d, v, q) <= 0 || vertexOutlineDistance(d, v, in) > 0 {
+		return q
+	}
+	out := q
+	// bound: outlineSteps
+	for range outlineSteps {
+		mid := gw.Point{X: (out.X + in.X) / 2, Y: (out.Y + in.Y) / 2}
+		if vertexOutlineDistance(d, v, mid) > 0 {
+			out = mid
+		} else {
+			in = mid
+		}
+	}
+	return in
 }
 
 // backward reports whether an edge runs against the layers, to a vertex
@@ -237,7 +272,8 @@ type way struct {
 	a, b    gw.Point
 	through gw.PointList
 	k, n    int
-	ownLeg  bool // its label goes on its last leg: an orthogonal edge whose turn another shares
+	ownLeg  bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
+	away    float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -248,10 +284,11 @@ const laneGap = labelHeight
 func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	e := d.Edge(i)
 	w := way{f: frameOf(d, e), through: e.Bends(), n: 1}
-	w.a, w.b = ends(d, e, e.Bends())
+	w.a, w.b = ends(d, i, e.Bends())
 	k, n := d.Parallel(i)
 	if n < 2 {
 		w.ownLeg = sharesTurn(d, i, w)
+		w.away = endAway(d, i)
 		return w
 	}
 	p, q := w.f.t(w.a), w.f.t(w.b)
@@ -268,7 +305,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	off := float64((float64(k) - float64(float64(n-1)/2)) * laneGap)
 	lane[0] = w.f.t(gw.Point{X: float64((p.X + q.X) / 2), Y: float64((p.Y+q.Y)/2) + off})
 	w.through, w.k, w.n = gw.PointsOf(lane[:]), k, n
-	w.a, w.b = ends(d, e, w.through)
+	w.a, w.b = ends(d, i, w.through)
 	return w
 }
 
@@ -310,12 +347,38 @@ func along(f frame, route gw.Route, a gw.Point, bends gw.PointList, b gw.Point, 
 	return f.t(f.at(legRoute(route, bends.Len() > 0, p, q), p, q, s-float64(k)))
 }
 
+// endAway is the way across the flow from the other ends spread along
+// the side that edge i's target is drawn to, or failing that its
+// source's (gw.Document.EndSlot): -1 for an end before the middle, 1
+// for one after it, and 0 for one alone or at the middle.
+func endAway(d *gw.Document, i gw.EdgeIndex) float64 {
+	k, n := d.EndSlot(i, true)
+	if n < 2 {
+		k, n = d.EndSlot(i, false)
+	}
+	switch off := 2*k - (n - 1); {
+	case off < 0:
+		return -1
+	case off > 0:
+		return 1
+	}
+	return 0
+}
+
 // side is the side of its lane an edge's texts go on: away from the
-// lanes beside it, so that they cross none of them. 1 is the usual
-// side, above the stroke left to right and to its right top to bottom;
-// -1 is the other. A lone edge, and the middle one of an odd number,
-// keep the usual side.
+// lanes beside it, so that they cross none of them, or for a lone edge
+// whose end is spread along a side with others, away from those, which
+// may turn across the flow just past its texts. 1 is the usual side,
+// above the stroke left to right and to its right top to bottom; -1 is
+// the other. A lone edge alone at its sides, and the middle one of an
+// odd number, keep the usual side.
 func (w *way) side() float64 {
+	if w.away != 0 { // set only for an edge not in a lane
+		if w.f.down {
+			return w.away
+		}
+		return -w.away
+	}
 	off := 2*w.k - (w.n - 1) // the lane's offset from the middle, in half gaps
 	if w.f.down {
 		if off < 0 {
@@ -377,7 +440,7 @@ func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
 		if _, n := d.Parallel(o); n > 1 {
 			continue
 		}
-		a, b := ends(d, x, gw.PointList{})
+		a, b := ends(d, o, gw.PointList{})
 		if math.Abs(turnAt(w.f.t(a), w.f.t(b))-turn) < 0.5 {
 			return true
 		}

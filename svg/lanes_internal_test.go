@@ -384,12 +384,10 @@ func TestExampleLabelsClear(t *testing.T) {
 // edge, and no two edges run along each other: an edge into a use case
 // inside the system came in along the gap before the use case's layer,
 // through the stereotype of the edge from that layer and then on top of
-// that edge, at the middle of the side they shared. The edges are
-// checked in the examples with no two curved or orthogonal edges into
-// one side of a vertex: the renderer ends those at its middle, so that
-// the last leg of one lies on the other.
+// that edge, at the middle of the side they shared; and a curved and an
+// orthogonal edge drawn to one side of a vertex both ended at its
+// middle, where the last leg of one lay on the other.
 func TestLaidOutExamplesClear(t *testing.T) {
-	apart := map[string]bool{"use-case": true, "threat-model": true, "dependencies": true}
 	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
 		for _, name := range exampleNames {
 			d := readExample(t, name)
@@ -399,10 +397,8 @@ func TestLaidOutExamplesClear(t *testing.T) {
 			}
 			label := name + " " + strconv.Itoa(int(flow))
 			footLabelsClear(t, label, d)
-			if apart[name] {
-				edgeTextsClear(t, label, d)
-				edgesApart(t, label, d)
-			}
+			edgeTextsClear(t, label, d)
+			edgesApart(t, label, d)
 		}
 	}
 }

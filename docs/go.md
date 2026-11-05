@@ -64,8 +64,10 @@ d.Redo()
   functions that take a list, such as `gw.LabelRunes`.
 - **`VertexByID`, `EdgeByID`, `EdgesAt`, `LiveVertices`, `LiveEdges`**
   answer common questions, **`FirstOut(v)` and `NextOut(e)`** walk a
-  vertex's out edges without allocating, and **`Parallel(e)`** gives an
-  edge's lane among those between the same two vertices.
+  vertex's out edges without allocating, **`Parallel(e)`** gives an
+  edge's lane among those between the same two vertices, and
+  **`EndSlot(e, target)`** and **`EndOffset(e, target)`** where an end is
+  spread along its vertex's side among the others drawn to it.
 - **`Unreachable(dst)`** lists the vertices no root kind reaches, for a
   schema with `Connected`.
 - **`Depth(v)` and `Within(v, c)`** answer questions about containers,

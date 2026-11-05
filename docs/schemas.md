@@ -187,7 +187,7 @@ gw.ShapeDef{
 | `Paths` | up to 8, drawn in order: `{D, Fill}`. `D` takes `M`, `L`, `H`, `V`, `C`, `Q`, `A` and `Z`, absolute, at most 64 commands, every number in the box, arcs unrotated. `Fill` draws the path filled solid (`path.mark`), else as the shape is (`path.line`) |
 | `Outline` | what edges are clipped to and the hit test reads: `OutlineBox` (the default), `OutlineDiamond`, `OutlineEllipse`, or `OutlinePolygon` |
 | `Polygon` | with `OutlinePolygon`: a convex polygon of 3 to 16 points in the box, scaled as the paths are |
-| `Label` | `LabelInside` (the default), centred between the margins and cut at that width; `LabelBelow`, at the foot as an actor's; or `LabelNone` |
+| `Label` | `LabelInside` (the default), centred between the margins and cut at that width; `LabelBelow`, at the foot as an actor's, as wide as it needs, which a layout makes room for (`Kinds.LabelBelow`); or `LabelNone` |
 | `Turns` | the shape turns with the flow, as a fork bar does to stay across it. Its kinds' sizes are given for a left-to-right flow; in a top-to-bottom one its paths and outline are drawn transposed, its vertices' width and height are swapped, and their ports' sides turn, left to top and right to bottom. A `Layout` that changes the flow swaps the sizes and its undo swaps them back; `Document.NewSize` is the size a new vertex takes, and `Document.Turned` reports whether one is turned |
 
 A schema has at most 32 shapes. The paths are parsed when the schema is

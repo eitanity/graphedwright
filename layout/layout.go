@@ -174,7 +174,6 @@ type Layouter struct {
 	cx, cy   []float64 // where that box's centre fell from the container's centre
 	rx, ry   []float64 // a vertex's position from its container's centre, or the document's
 	depth    []int32
-	faced    []uint8          // per vertex, the sides an edge from its own level comes into (facings)
 	dFirst   []int32          // an edge's first dummy node in the level it is laid out in
 	dN       []int32          // and how many it has
 	eLevel   []gw.VertexIndex // the container whose level gave an edge its bends, or None
@@ -211,7 +210,7 @@ func New(caps gw.Caps) *Layouter {
 		eOn: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
 		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1),
 		fx: make([]float64, caps.Vertices), fy: make([]float64, caps.Vertices), bw: make([]float64, caps.Vertices), bh: make([]float64, caps.Vertices),
-		rx: make([]float64, caps.Vertices), ry: make([]float64, caps.Vertices), depth: make([]int32, caps.Vertices), faced: make([]uint8, caps.Vertices),
+		rx: make([]float64, caps.Vertices), ry: make([]float64, caps.Vertices), depth: make([]int32, caps.Vertices),
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
 		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
@@ -333,7 +332,6 @@ func (l *Layouter) compose(d *gw.Document, deepest int) {
 // reserved rather than the edges' Bends, which hide a route while an
 // end is not where it was recorded for, as after a container is fitted.
 func (l *Layouter) placeBends(d *gw.Document) {
-	l.facings(d)
 	for i := range d.EdgeSlots() {
 		w := l.route[i]
 		if !w.Valid() {

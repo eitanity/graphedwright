@@ -53,7 +53,7 @@ func TestBentRoutesClear(t *testing.T) {
 			}
 			bent++
 			route := d.Kinds().Edge(e.Kind()).Route()
-			a, b := ends(d, e, e.Bends())
+			a, b := ends(d, gw.EdgeIndex(i), e.Bends()) //nolint:gosec // bounded by the capacity
 			f := frameOf(d, e)
 			for k := 1; k < e.Bends().Len(); k++ {
 				p, q := leg(a, e.Bends(), b, k)
@@ -115,7 +115,7 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 			if e.Bends().Len() == 0 || !backward(d, e) {
 				t.Fatalf("flow %d kind %d: the edge back has bends %v, backward %t", flow, kind, e.Bends(), backward(d, e))
 			}
-			a, b := ends(d, e, e.Bends())
+			a, b := ends(d, back, e.Bends())
 			f := frameOf(d, e)
 			route := d.Kinds().Edge(kind).Route()
 			prev := f.t(a).X
