@@ -598,3 +598,50 @@ func (p PathView) At(i int) PathCommand {
 	}
 	return p.cmds[i]
 }
+
+// turns reports whether a vertex kind's shape turns with the flow.
+func (k *Kinds) turns(kind KindIndex) bool {
+	if k == nil || kind < 0 || int(kind) >= len(k.vertex) {
+		return false
+	}
+	s := k.vertex[kind].Shape
+	return s >= Provided && int(s-Provided) < len(k.shapes) && k.shapes[s-Provided].def.Turns
+}
+
+// Turned reports whether a vertex is drawn turned: its kind's shape
+// turns with the flow, and the flow is top to bottom. Its size is then
+// its kind's with the width and height swapped, and its ports' sides
+// are turned, left to top and right to bottom.
+func (d *Document) Turned(v VertexIndex) bool {
+	return d.flow == TopToBottom && v >= 0 && int(v) < len(d.vertices) && d.kinds.turns(d.vertices[v].Kind)
+}
+
+// NewSize is the size a new vertex of the kind takes: the kind's, with
+// the width and height swapped for a kind that turns in a top-to-bottom
+// flow.
+func (d *Document) NewSize(kind KindIndex) Size {
+	if kind < 0 || int(kind) >= len(d.kinds.vertex) {
+		return Size{}
+	}
+	s := d.kinds.vertex[kind].Size
+	if d.flow == TopToBottom && d.kinds.turns(kind) {
+		s.W, s.H = s.H, s.W
+	}
+	return s
+}
+
+// turnSizes swaps the width and height, and those of the least size, of
+// every vertex of a kind that turns, live or not, as the flow changes:
+// so a turning vertex keeps the size for its flow, and undoing the
+// change swaps them back.
+func (d *Document) turnSizes() {
+	if !d.kinds.anyTurns {
+		return
+	}
+	for i := range d.vertices {
+		if v := &d.vertices[i]; d.kinds.turns(v.Kind) {
+			v.Size.W, v.Size.H = v.Size.H, v.Size.W
+			v.Min.W, v.Min.H = v.Min.H, v.Min.W
+		}
+	}
+}

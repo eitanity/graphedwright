@@ -39,7 +39,7 @@ return the same shape as a string or an object.
 | `id` | the vertex's ID; minted (`v1`, `v2`, …) when missing. Must be unique among vertices and edges. |
 | `label` | the label text. |
 | `x`, `y` | the position of its centre, within 10⁹ of the origin. A document in which any vertex has no position is laid out when it is read. |
-| `w`, `h` | its size, when not the kind's: both positive, at most 10⁹. A container's are its own size: what it is when it holds nothing, and least when it holds something; a container fitted to what it holds writes none. |
+| `w`, `h` | its size, when not the kind's: both positive, at most 10⁹. A container's are its own size: what it is when it holds nothing, and least when it holds something; a container fitted to what it holds writes none. A vertex whose kind's shape turns with the flow has its size as drawn in the document's flow; a `flow` named after the vertices turns them. |
 | `placed` | `true` when a user or a host placed it: a layout leaves it where it is. |
 | `parent` | the ID of the container it is in. The container may come later in the list. A container that holds anything is fitted around it when read, whatever its own position says, at least its own size. |
 | `attrs` | its attributes, an object of strings, keyed by lowercase letters, digits, `-` and `_` (not `kind`, `from` or `to`). |

@@ -265,3 +265,65 @@ func TestAllocProvided(t *testing.T) {
 		t.Errorf("hit test: %g allocations", a)
 	}
 }
+
+// TestTurned: a fork bar is drawn across the flow in both flows, its
+// ports at each end of it along the flow; turned, an arc's radii swap
+// and its sweep flips, a polygon outline turns with the paths, and the
+// label sits between the turned margins.
+func TestTurned(t *testing.T) {
+	fork := gw.ShapeDef{Name: "bar", Box: gw.Size{W: 8, H: 80}, Turns: true, Paths: []gw.ShapePath{{D: "M 0 0 H 8 V 80 H 0 Z", Fill: true}}}
+	hook := gw.ShapeDef{Name: "hook", Box: gw.Size{W: 20, H: 60}, Margins: [4]float64{0, 10, 0, 0}, Turns: true, Outline: gw.OutlinePolygon,
+		Polygon: []gw.Point{{X: 0, Y: 0}, {X: 20, Y: 10}, {X: 20, Y: 60}, {X: 0, Y: 60}}, Paths: []gw.ShapePath{{D: "M 0 0 A 10 30 0 0 1 20 60"}}}
+	ports := []gw.Port{{Name: "in", Side: gw.Left}, {Name: "out", Side: gw.Right}}
+	d := shapedDoc(t, []gw.ShapeDef{fork, hook}, [][]gw.Port{ports}, gw.Point{X: 200, Y: 100}, gw.Point{X: 400, Y: 100})
+	svg := render(t, d, Options{})
+	if !strings.Contains(svg, `<path class="mark" d="M -4 -40 H 4 V 40 H -4 Z"/>`) || PortOn(d, 0, 0) != (gw.Point{X: 196, Y: 100}) || PortOn(d, 0, 1) != (gw.Point{X: 204, Y: 100}) {
+		t.Errorf("left to right: ports %v %v\n%s", PortOn(d, 0, 0), PortOn(d, 0, 1), svg)
+	}
+	if _, err := d.Apply(gw.Command{Op: gw.Layout, Value: "top-to-bottom"}); err != nil {
+		t.Fatal(err)
+	}
+	svg = render(t, d, Options{Target: 1, HasTarget: true, Mode: Edit})
+	for _, want := range []string{
+		`<path class="mark" d="M -40 -4 V 4 H 40 V -4 Z"/>`,
+		// The hook's box turned is 60 by 20 with its 10 top margin on
+		// the left: the arc's end (20,60) is (60,20), its radii 30 by 10
+		// and its sweep 0.
+		`<path class="line" d="M -30 -10 A 30 10 0 0 0 30 10"/>`,
+		`<polygon class="ring" points="-30 -10 -20 10 30 10 30 -10"/>`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("top to bottom: want %s in\n%s", want, svg)
+		}
+	}
+	if PortOn(d, 0, 0) != (gw.Point{X: 200, Y: 96}) || PortOn(d, 0, 1) != (gw.Point{X: 200, Y: 104}) {
+		t.Errorf("top to bottom: ports %v %v", PortOn(d, 0, 0), PortOn(d, 0, 1))
+	}
+	if h := HitTest(d, gw.Point{X: 200, Y: 96}); h.Kind != PortHit || h.Port != 0 {
+		t.Errorf("the turned port's hit: %+v", h)
+	}
+	// The hook's polygon turned: its edge from (0,0) to (10,20) in the
+	// box, from (-30,-10) to (-20,10) on the vertex at (400,100).
+	if dist := vertexOutlineDistance(d, d.Vertex(1), gw.Point{X: 375, Y: 100}); math.Abs(dist) > 1e-9 {
+		t.Errorf("a point on the turned polygon is %g from it", dist)
+	}
+	if x, _, w, _, _ := labelSlot(d, d.Vertex(1)); x != 5 || w != 42 {
+		t.Errorf("the turned label: x %g, w %g", x, w)
+	}
+	// A port of the hook's own on its top, turned to its left, sits on
+	// the slanted side, where the line in across the flow meets it; its
+	// label goes beside it as a left port's does.
+	if _, err := d.Apply(gw.Command{Op: gw.AddPort, Vertex: 1, Port: gw.Port{Name: "p", Side: gw.Top}}); err != nil {
+		t.Fatal(err)
+	}
+	// The slanted side runs from the top left corner to 10 in at the
+	// bottom, across the vertex's own size, which the port grew; at its middle
+	// height it is 5 in.
+	want := 400 - d.Vertex(1).Size().W/2 + 5
+	if got := PortOn(d, 1, 0); math.Abs(got.X-want) > 1e-9 || got.Y != 100 {
+		t.Errorf("the hook's turned port: %v, want (%g,100), size %v", got, want, d.Vertex(1).Size())
+	}
+	if _, _, anchor, _ := portLabel(d, 1, 0); anchor != anchorEnd {
+		t.Errorf("the turned port's label is anchored %q", anchor)
+	}
+}

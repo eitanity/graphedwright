@@ -323,7 +323,7 @@ func (d *Document) addVertex(c Command) error {
 		v.ID = d.mintVertexID()
 	}
 	if v.Size == (Size{}) {
-		v.Size = kind.Size
+		v.Size = d.NewSize(c.Kind)
 	} else if kind.Container || len(kind.Compartments) > 0 {
 		v.Min = v.Size
 	}
@@ -677,6 +677,9 @@ func (d *Document) layout(c Command) error {
 	}
 	d.seq++
 	d.record(entry{cmd: c, seq: d.seq, layout: d.layouts, flows: [2]Flow{d.flow, flow}})
+	if flow != d.flow {
+		d.turnSizes()
+	}
 	d.flow = flow
 	return nil
 }

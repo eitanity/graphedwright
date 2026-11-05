@@ -156,7 +156,7 @@ func (e *encoder) vertex(d *gw.Document, v gw.VertexView) {
 	if kind.Container() || kind.Compartments().Len() > 0 || own.Len() > 0 {
 		size = v.Min()
 	}
-	if size != kind.Size() && size != (gw.Size{}) {
+	if size != d.NewSize(v.Kind()) && size != (gw.Size{}) {
 		e.field("w")
 		e.num(size.W)
 		e.field("h")

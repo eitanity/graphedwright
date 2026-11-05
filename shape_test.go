@@ -205,3 +205,127 @@ func TestShapeParsed(t *testing.T) {
 
 func cos(a float64) float64 { return math.Cos(a) }
 func sin(a float64) float64 { return math.Sin(a) }
+
+// bar is a fork bar: 80 by 8 across a left-to-right flow, filled, with
+// a port at each end of the flow, that turns.
+func bar() gw.Schema {
+	return gw.Schema{
+		VertexKinds: []gw.VertexKind{
+			{Name: "fork", Shape: gw.Provided, Size: gw.Size{W: 8, H: 80}, Ports: []gw.Port{{Name: "in", Side: gw.Left}, {Name: "out", Side: gw.Right}}},
+			{Name: "box", Size: gw.Size{W: 100, H: 40}},
+		},
+		Shapes: []gw.ShapeDef{{Name: "bar", Box: gw.Size{W: 8, H: 80}, Turns: true, Paths: []gw.ShapePath{{D: "M 0 0 H 8 V 80 H 0 Z", Fill: true}}}},
+	}
+}
+
+// sizes is every vertex's size and least size, as text.
+func sizes(d *gw.Document) string {
+	var b strings.Builder
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		b.WriteString(strconv.FormatFloat(v.Size().W, 'g', -1, 64) + "x" + strconv.FormatFloat(v.Size().H, 'g', -1, 64) + "/" + strconv.FormatFloat(v.Min().W, 'g', -1, 64) + "x" + strconv.FormatFloat(v.Min().H, 'g', -1, 64) + " ")
+	}
+	return b.String()
+}
+
+// TestTurning: a kind that turns is its size in a left-to-right flow and
+// turned in a top-to-bottom one: a Layout to the other flow swaps the
+// sizes of its vertices, tombstones among them, and its undo and redo
+// swap them back and again; a new vertex takes the size for the flow,
+// SetFlow turns them as a Layout does, and a kind that does not turn
+// keeps its size throughout.
+func TestTurning(t *testing.T) {
+	k, err := gw.Compile(bar())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := gw.New(k, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []gw.Command{
+		{Op: gw.AddVertex, Kind: 0}, {Op: gw.AddVertex, Kind: 1}, {Op: gw.AddVertex, Kind: 0, Size: gw.Size{W: 12, H: 60}},
+		{Op: gw.AddVertex, Kind: 0}, {Op: gw.DeleteVertex, Vertex: 3},
+	} {
+		if _, err := d.Apply(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	across := "8x80/0x0 100x40/0x0 12x60/0x0 8x80/0x0 "
+	if got := sizes(d); got != across || d.Turned(0) || d.NewSize(0) != (gw.Size{W: 8, H: 80}) {
+		t.Fatalf("left to right: %s, turned %v", got, d.Turned(0))
+	}
+	if _, err := d.Apply(gw.Command{Op: gw.Layout, Value: "top-to-bottom"}); err != nil {
+		t.Fatal(err)
+	}
+	down := "80x8/0x0 100x40/0x0 60x12/0x0 80x8/0x0 "
+	if got := sizes(d); got != down || !d.Turned(0) || d.Turned(1) || d.Turned(99) || d.Turned(-1) || d.NewSize(0) != (gw.Size{W: 80, H: 8}) || d.NewSize(1) != (gw.Size{W: 100, H: 40}) || d.NewSize(7) != (gw.Size{}) {
+		t.Fatalf("top to bottom: %s, turned %v", got, d.Turned(0))
+	}
+	ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0})
+	if err != nil || d.Vertex(ch.Vertices[0]).Size() != (gw.Size{W: 80, H: 8}) {
+		t.Fatalf("a new fork top to bottom: %v %v", d.Vertex(ch.Vertices[0]).Size(), err)
+	}
+	// The fork added and undone stays as a tombstone, turned with the rest.
+	d.Undo()
+	down += "80x8/0x0 "
+	if _, err := d.Apply(gw.Command{Op: gw.Layout}); err != nil || sizes(d) != down {
+		t.Errorf("a layout in the same flow turned them: %s %v", sizes(d), err)
+	}
+	d.Undo()
+	d.Undo()
+	across += "8x80/0x0 "
+	if got := sizes(d); got != across || d.Flow() != gw.LeftToRight {
+		t.Errorf("undone: %s", got)
+	}
+	if _, ok := d.Undo(); !ok || !d.Vertex(3).Live() || sizes(d) != across {
+		t.Fatalf("the delete undone: %s", sizes(d))
+	}
+	d.Redo()
+	d.Redo()
+	if got := sizes(d); got != down {
+		t.Errorf("redone: %s", got)
+	}
+	if !d.SetFlow(gw.LeftToRight) || sizes(d) != across || !d.SetFlow(gw.LeftToRight) || sizes(d) != across {
+		t.Errorf("SetFlow: %s", sizes(d))
+	}
+	// A turning container's own size, its least, turns too.
+	lanes := bar()
+	lanes.VertexKinds[0].Container, lanes.VertexKinds[0].Ports = true, nil
+	lk, err := gw.Compile(lanes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ld, _ := gw.New(lk, gw.Caps{})
+	if _, err := ld.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Size: gw.Size{W: 30, H: 90}}); err != nil {
+		t.Fatal(err)
+	}
+	ld.SetFlow(gw.TopToBottom)
+	if got := sizes(ld); got != "90x30/90x30 " {
+		t.Errorf("a turning container top to bottom: %s", got)
+	}
+	// A provided shape that does not turn keeps its size.
+	still := bar()
+	still.Shapes[0].Turns = false
+	sk, err := gw.Compile(still)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd, _ := gw.New(sk, gw.Caps{})
+	if _, err := sd.Apply(gw.Command{Op: gw.AddVertex, Kind: 0}); err != nil {
+		t.Fatal(err)
+	}
+	sd.SetFlow(gw.TopToBottom)
+	if sd.Vertex(0).Size() != (gw.Size{W: 8, H: 80}) || sd.Turned(0) || sd.NewSize(0) != (gw.Size{W: 8, H: 80}) {
+		t.Errorf("a provided shape that does not turn: %v", sd.Vertex(0).Size())
+	}
+	plain, _ := gw.Compile(gw.Schema{VertexKinds: []gw.VertexKind{{Name: "box", Size: gw.Size{W: 10, H: 20}}}})
+	p, _ := gw.New(plain, gw.Caps{})
+	if _, err := p.Apply(gw.Command{Op: gw.AddVertex, Kind: 0}); err != nil {
+		t.Fatal(err)
+	}
+	p.SetFlow(gw.TopToBottom)
+	if p.Vertex(0).Size() != (gw.Size{W: 10, H: 20}) || p.Turned(0) {
+		t.Errorf("a schema without turning shapes turned: %v", p.Vertex(0).Size())
+	}
+}

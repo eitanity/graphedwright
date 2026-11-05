@@ -264,6 +264,9 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 		// The positions the layout gave are kept for its redo.
 		d.savePositions(d.layoutSnap(en.layout, true))
 		d.loadPositions(d.layoutSnap(en.layout, false))
+		if en.flows[0] != en.flows[1] {
+			d.turnSizes()
+		}
 		d.flow = en.flows[0]
 	case Compact:
 	case SetParent:
@@ -344,6 +347,9 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 		d.removePort(en.vertex, en.at)
 	case Layout:
 		d.loadPositions(d.layoutSnap(en.layout, true))
+		if en.flows[0] != en.flows[1] {
+			d.turnSizes()
+		}
 		d.flow = en.flows[1]
 	case Compact:
 	case SetParent:

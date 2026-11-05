@@ -308,7 +308,7 @@ func (e *Editor) place(p gw.Point) error {
 // wholly inside the viewport, when there is one.
 func (e *Editor) inView(p gw.Point, kind gw.KindIndex) gw.Point {
 	v := e.d.View()
-	size := e.d.Kinds().Vertex(kind).Size()
+	size := e.d.NewSize(kind)
 	if v.W <= 0 || v.H <= 0 || size.W > v.W || size.H > v.H {
 		return p
 	}

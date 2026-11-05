@@ -10,20 +10,33 @@ import (
 // in the vertex's own coordinates, centred on the origin: a point within
 // a margin keeps its distance from that side, one between the margins
 // scales across the middle. Margins wider than the vertex shrink in
-// proportion, leaving no middle.
+// proportion, leaving no middle. Turned, the box is transposed first: x
+// and y swap, and with them the margins, left with top and right with
+// bottom.
 type nine struct {
-	bw, bh         float64 // the box
+	bw, bh         float64 // the box, as drawn
 	l0, t0, r0, b0 float64 // the margins in the box
 	l, t, r, b     float64 // the margins on the vertex
 	w, h           float64 // the vertex
+	turned         bool
 }
 
-func nineOf(s gw.ShapeView, size gw.Size) nine {
+func nineOf(s gw.ShapeView, size gw.Size, turned bool) nine {
 	box, m := s.Box(), s.Margins()
-	n := nine{bw: box.W, bh: box.H, l0: m[0], t0: m[1], r0: m[2], b0: m[3], w: size.W, h: size.H}
+	if turned {
+		box.W, box.H = box.H, box.W
+		m = [4]float64{m[1], m[0], m[3], m[2]}
+	}
+	n := nine{bw: box.W, bh: box.H, l0: m[0], t0: m[1], r0: m[2], b0: m[3], w: size.W, h: size.H, turned: turned}
 	n.l, n.r = fitMargins(m[0], m[2], size.W)
 	n.t, n.b = fitMargins(m[1], m[3], size.H)
 	return n
+}
+
+// turned reports whether a vertex is drawn turned: its kind's provided
+// shape turns, and the flow is top to bottom.
+func turned(d *gw.Document, v gw.VertexView) bool {
+	return d.Flow() == gw.TopToBottom && d.Kinds().ShapeOf(d.Kinds().Vertex(v.Kind()).Shape()).Turns()
 }
 
 // fitMargins are two margins on a side of length n: as they are, or
@@ -60,8 +73,11 @@ func slice(x, box, a, b, sa, sb, n float64) (float64, float64) {
 func (n nine) x(x float64) (float64, float64) { return slice(x, n.bw, n.l0, n.r0, n.l, n.r, n.w) }
 func (n nine) y(y float64) (float64, float64) { return slice(y, n.bh, n.t0, n.b0, n.t, n.b, n.h) }
 
-// pt maps a point of the box.
+// pt maps a point of the shape's own box, transposed when turned.
 func (n nine) pt(x, y float64) (float64, float64) {
+	if n.turned {
+		x, y = y, x
+	}
 	px, _ := n.x(x)
 	py, _ := n.y(y)
 	return px, py
@@ -69,13 +85,13 @@ func (n nine) pt(x, y float64) (float64, float64) {
 
 // provided writes a provided shape: with the shape's class, its group
 // and paths; with the overlay's ring, its outline.
-func (r *Renderer) provided(class string, s gw.ShapeView, size gw.Size) {
+func (r *Renderer) provided(class string, s gw.ShapeView, size gw.Size, turned bool) {
 	o := r.o
 	if class != shapeClass {
-		r.outline(class, s, size)
+		r.outline(class, s, size, turned)
 		return
 	}
-	n := nineOf(s, size)
+	n := nineOf(s, size, turned)
 	o.str(`<g class="shape shape-`)
 	o.str(s.Name()) // a word of lowercase letters, digits and '-', as the schema checked it
 	o.str(`">`)
@@ -100,10 +116,18 @@ func (r *Renderer) provided(class string, s gw.ShapeView, size gw.Size) {
 }
 
 // command writes one command of a path, its numbers scaled. An arc's
-// radii scale as the slices its end point is in.
+// radii scale as the slices its end point is in. Turned, a horizontal
+// line is vertical and the other way round, an arc's radii swap, and
+// its sweep, mirrored, flips.
 func (n nine) command(o *out, c gw.PathCommand) {
 	a := c.Args
-	switch c.Op {
+	op := c.Op
+	if n.turned && op == gw.HLineTo {
+		op = gw.VLineTo
+	} else if n.turned && op == gw.VLineTo {
+		op = gw.HLineTo
+	}
+	switch op {
 	case gw.MoveTo, gw.LineTo:
 		o.str(opLetter(c.Op))
 		x, y := n.pt(a[0], a[1])
@@ -129,14 +153,18 @@ func (n nine) command(o *out, c gw.PathCommand) {
 			o.point(x, y)
 		}
 	case gw.ArcTo:
-		x, kx := n.x(a[5])
-		y, ky := n.y(a[6])
+		rx, ry, ex, ey, sweep := a[0], a[1], a[5], a[6], a[4]
+		if n.turned {
+			rx, ry, ex, ey, sweep = ry, rx, ey, ex, 1-sweep
+		}
+		x, kx := n.x(ex)
+		y, ky := n.y(ey)
 		o.str(`A `)
-		o.point(float64(a[0]*kx), float64(a[1]*ky))
+		o.point(float64(rx*kx), float64(ry*ky))
 		o.str(` 0 `)
 		o.num(a[3])
 		o.byte(' ')
-		o.num(a[4])
+		o.num(sweep)
 		o.byte(' ')
 		o.point(x, y)
 	case gw.Close:
@@ -162,13 +190,13 @@ func opLetter(op gw.PathOp) string {
 
 // outline writes the outline of a provided shape, for the overlay's
 // ring: its box, diamond, ellipse or polygon.
-func (r *Renderer) outline(class string, s gw.ShapeView, size gw.Size) {
+func (r *Renderer) outline(class string, s gw.ShapeView, size gw.Size, turned bool) {
 	if s.Outline() != gw.OutlinePolygon {
 		r.builtin(class, builtinOutline(s.Outline()), size)
 		return
 	}
 	o := r.o
-	n := nineOf(s, size)
+	n := nineOf(s, size, turned)
 	poly := s.Polygon()
 	o.str(`<polygon class="`)
 	o.str(class)
@@ -213,8 +241,8 @@ func outlineOf(d *gw.Document, v gw.VertexView) (gw.Shape, gw.ShapeView) {
 
 // polygon is a provided shape's outline polygon on a vertex, in
 // document coordinates, in the array, and how many points it has.
-func polygon(s gw.ShapeView, v gw.VertexView, ps *[gw.MaxPolygonPoints]gw.Point) int {
-	n := nineOf(s, v.Size())
+func polygon(d *gw.Document, s gw.ShapeView, v gw.VertexView, ps *[gw.MaxPolygonPoints]gw.Point) int {
+	n := nineOf(s, v.Size(), turned(d, v))
 	poly := s.Polygon()
 	k := min(poly.Len(), len(ps))
 	for i := range k {
@@ -232,7 +260,7 @@ func vertexOutlineDistance(d *gw.Document, v gw.VertexView, p gw.Point) float64 
 		return outlineDistance(shape, v, p)
 	}
 	var ps [gw.MaxPolygonPoints]gw.Point
-	n := polygon(s, v, &ps)
+	n := polygon(d, s, v, &ps)
 	dist, inside := math.Inf(1), true
 	for i := range n {
 		a, b := ps[i], ps[(i+1)%n]
@@ -266,7 +294,7 @@ func vertexClip(d *gw.Document, v gw.VertexView, p gw.Point) gw.Point {
 		return clip(shape, v, p)
 	}
 	var ps [gw.MaxPolygonPoints]gw.Point
-	n := polygon(s, v, &ps)
+	n := polygon(d, s, v, &ps)
 	c := v.Pos()
 	ux, uy := p.X-c.X, p.Y-c.Y
 	best := 0.0
@@ -309,14 +337,15 @@ const outlineSteps = 40
 
 func portOn(d *gw.Document, i gw.VertexIndex, p gw.PortIndex) gw.Point {
 	v := d.Vertex(i)
-	q := portAt(v, p)
+	turn := turned(d, v)
+	q := portAt(v, p, turn)
 	if d.Kinds().Vertex(v.Kind()).Shape() < gw.Provided || vertexOutlineDistance(d, v, q) <= 0 {
 		return q
 	}
 	// The point across the vertex from the port, on the line in: inside
 	// unless the line misses the shape, when the port stays on the box.
 	in := q
-	switch v.Ports().At(int(p)).Side {
+	switch turnSide(v.Ports().At(int(p)).Side, turn) {
 	case gw.Left, gw.Right:
 		in.X = v.Pos().X
 	case gw.Top, gw.Bottom:
@@ -358,7 +387,7 @@ func labelSlot(d *gw.Document, v gw.VertexView) (x, y, w float64, below, none bo
 		return 0, 0, 0, false, true
 	case gw.LabelInside:
 	}
-	n := nineOf(s, v.Size())
+	n := nineOf(s, v.Size(), turned(d, v))
 	return float64((n.l - n.r) / 2), float64((n.t - n.b) / 2), math.Max(0, v.Size().W-n.l-n.r-8), false, false
 }
 

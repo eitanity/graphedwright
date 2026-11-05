@@ -127,7 +127,7 @@ func portLabel(d *gw.Document, i gw.VertexIndex, p gw.PortIndex) (x, y float64, 
 	v := d.Vertex(i)
 	at := portOn(d, i, p)
 	w := float64(float64(runeCount(v.Ports().At(int(p)).Name)) * gw.PortLabelChar)
-	side := v.Ports().At(int(p)).Side
+	side := turnSide(v.Ports().At(int(p)).Side, turned(d, v))
 	// An edge is followed as far as the label reaches from the port.
 	reach := w + portRadius + 4
 	if side == gw.Top || side == gw.Bottom {

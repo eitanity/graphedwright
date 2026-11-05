@@ -27,11 +27,11 @@ const edgeSamples = 16
 // PortAt is the absolute position of port p of vertex v on its box's
 // side, where a built-in shape draws it; PortOn is where it is drawn on
 // any shape.
-func PortAt(v gw.VertexView, p gw.PortIndex) gw.Point { return portAt(v, p) }
+func PortAt(v gw.VertexView, p gw.PortIndex) gw.Point { return portAt(v, p, false) }
 
 // portAt is the absolute position of port p of vertex v: ports on a side
-// are spaced evenly along it.
-func portAt(v gw.VertexView, p gw.PortIndex) gw.Point {
+// are spaced evenly along it, the side turned with a turned vertex.
+func portAt(v gw.VertexView, p gw.PortIndex, turned bool) gw.Point {
 	ports, pos := v.Ports(), v.Pos()
 	side := ports.At(int(p)).Side
 	n, k := 0, 0
@@ -43,7 +43,26 @@ func portAt(v gw.VertexView, p gw.PortIndex) gw.Point {
 			n++
 		}
 	}
-	return sidePoint(pos, v.Size(), side, k, n)
+	return sidePoint(pos, v.Size(), turnSide(side, turned), k, n)
+}
+
+// turnSide is the side a port is drawn on: its own, or for a turned
+// vertex, left as top and right as bottom, and back.
+func turnSide(s gw.Side, turned bool) gw.Side {
+	if !turned {
+		return s
+	}
+	switch s {
+	case gw.Left:
+		return gw.Top
+	case gw.Top:
+		return gw.Left
+	case gw.Right:
+		return gw.Bottom
+	case gw.Bottom:
+		return gw.Right
+	}
+	return s
 }
 
 // sidePoint is where the kth of n ports on a side of a vertex at pos of

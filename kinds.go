@@ -12,6 +12,7 @@ type Kinds struct {
 	acyclic   bool
 	connected bool
 	shapes    []shape
+	anyTurns  bool // a vertex kind's shape turns with the flow
 }
 
 // Compile checks a schema and copies it. It refuses a schema without a
@@ -33,6 +34,9 @@ func Compile(s Schema) (*Kinds, error) {
 		v.Contains = cloneKinds(v.Contains)
 		v.Compartments = cloneStrings(v.Compartments)
 		k.vertex[i] = v
+	}
+	for i := range k.vertex {
+		k.anyTurns = k.anyTurns || k.turns(KindIndex(i)) //nolint:gosec // bounded by the kinds
 	}
 	for i, e := range s.EdgeKinds {
 		e.From, e.To = cloneKinds(e.From), cloneKinds(e.To)

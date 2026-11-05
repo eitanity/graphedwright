@@ -533,7 +533,7 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	o.str(`)"`)
 	r.dataAttrs(v.Attrs())
 	o.byte('>')
-	r.shape(shapeClass, d.Kinds(), kind.Shape(), v.Size())
+	r.shape(shapeClass, d.Kinds(), kind.Shape(), v.Size(), turned(d, v))
 	r.texts(d, opts, i)
 	r.ports(d, i)
 	o.str(`</g>`)
@@ -653,10 +653,11 @@ func (r *Renderer) title(v gw.VertexView, kind gw.VertexKindView, opts Options) 
 const shapeClass = "shape"
 
 // shape writes the vertex's shape centred on the origin, with the class:
-// a built-in, or one of the kinds' provided shapes.
-func (r *Renderer) shape(class string, kinds *gw.Kinds, shape gw.Shape, s gw.Size) {
+// a built-in, or one of the kinds' provided shapes, turned for a turned
+// vertex.
+func (r *Renderer) shape(class string, kinds *gw.Kinds, shape gw.Shape, s gw.Size, turned bool) {
 	if shape >= gw.Provided {
-		r.provided(class, kinds.ShapeOf(shape), s)
+		r.provided(class, kinds.ShapeOf(shape), s, turned)
 		return
 	}
 	r.builtin(class, shape, s)
@@ -1065,7 +1066,7 @@ func (r *Renderer) target(d *gw.Document, v gw.VertexView) {
 	o.str(`)"`)
 	o.numAttr("stroke-width", 2*band(v))
 	o.byte('>')
-	r.shape("ring", d.Kinds(), d.Kinds().Vertex(v.Kind()).Shape(), v.Size())
+	r.shape("ring", d.Kinds(), d.Kinds().Vertex(v.Kind()).Shape(), v.Size(), turned(d, v))
 	o.str(`</g>`)
 }
 

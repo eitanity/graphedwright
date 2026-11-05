@@ -27,10 +27,14 @@ func (d *Document) Flow() Flow { return d.flow }
 
 // SetFlow sets the way the layers run outside the command log: for a
 // loader. It refuses, reporting false, while the document is locked,
-// and a flow that is not one of the flows.
+// and a flow that is not one of the flows. A change swaps the width and
+// height of the vertices of kinds that turn, as a Layout's does.
 func (d *Document) SetFlow(f Flow) bool {
 	if d.locked || f > TopToBottom {
 		return false
+	}
+	if f != d.flow {
+		d.turnSizes()
 	}
 	d.flow = f
 	return true
