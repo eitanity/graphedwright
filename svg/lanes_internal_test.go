@@ -2,6 +2,7 @@ package svg
 
 import (
 	"bytes"
+	"math"
 	"math/rand/v2"
 	"os"
 	"regexp"
@@ -348,21 +349,170 @@ func TestRoutesClearOfContainers(t *testing.T) {
 	}
 }
 
-// TestExampleLabelsClear: in the demo's examples as they are laid out,
-// no edge's label or stereotype crosses another edge, sampled finely
+// exampleNames are the demo's examples.
+var exampleNames = [...]string{"shapes", "diamond", "dependencies", "use-case", "threat-model"}
+
+func readExample(t *testing.T, name string) *gw.Document {
+	t.Helper()
+	data, err := os.ReadFile("../web/examples/" + name + ".json") //nolint:gosec // the demo's examples, by fixed name
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// TestExampleLabelsClear: in the demo's examples as they are stored, no
+// edge's label or stereotype crosses another edge, sampled finely
 // along its whole length, or another edge's texts: among them a wire
 // that turns alone, whose label stays at its turn rather than on a last
 // leg that runs beside a curve into the same vertex, under the curve's.
 func TestExampleLabelsClear(t *testing.T) {
-	for _, name := range []string{"shapes", "diamond", "dependencies", "use-case", "threat-model"} {
-		data, err := os.ReadFile("../web/examples/" + name + ".json") //nolint:gosec // the demo's examples, by fixed name
-		if err != nil {
-			t.Fatal(err)
+	for _, name := range exampleNames {
+		edgeTextsClear(t, name, readExample(t, name))
+	}
+}
+
+// TestLaidOutExamplesClear: the demo's examples laid out afresh in
+// either flow keep their texts and edges apart. The name at an actor's
+// foot, wider than the actor, clears the names and boxes of the
+// vertices beside it, which stood a gap apart by their boxes alone and
+// so overlapped in a top-to-bottom flow. No edge's text crosses another
+// edge, and no two edges run along each other: an edge into a use case
+// inside the system came in along the gap before the use case's layer,
+// through the stereotype of the edge from that layer and then on top of
+// that edge, at the middle of the side they shared. The edges are
+// checked in the examples with no two curved or orthogonal edges into
+// one side of a vertex: the renderer ends those at its middle, so that
+// the last leg of one lies on the other.
+func TestLaidOutExamplesClear(t *testing.T) {
+	apart := map[string]bool{"use-case": true, "threat-model": true, "dependencies": true}
+	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		for _, name := range exampleNames {
+			d := readExample(t, name)
+			d.SetFlow(flow)
+			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+				t.Fatal(err)
+			}
+			label := name + " " + strconv.Itoa(int(flow))
+			footLabelsClear(t, label, d)
+			if apart[name] {
+				edgeTextsClear(t, label, d)
+				edgesApart(t, label, d)
+			}
 		}
-		d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
-		if err != nil {
-			t.Fatal(err)
+	}
+}
+
+// footLabelsClear checks that each label drawn at an actor's foot
+// overlaps neither another such label nor another vertex's box.
+func footLabelsClear(t *testing.T, name string, d *gw.Document) {
+	t.Helper()
+	box := func(i int) (gw.Viewport, bool) {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() || d.Kinds().Vertex(v.Kind()).Shape() != gw.Actor {
+			return gw.Viewport{}, false
 		}
+		return textBox(v.Pos().X, v.Pos().Y+v.Size().H/2-4, "middle", v.Label()), true
+	}
+	for i := range d.VertexSlots() {
+		a, ok := box(i)
+		if !ok {
+			continue
+		}
+		for j := range d.VertexSlots() {
+			v := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+			if j == i || !v.Live() || d.Kinds().Vertex(v.Kind()).Container() {
+				continue
+			}
+			b, below := box(j)
+			if !below {
+				b = gw.Viewport{X: v.Pos().X - v.Size().W/2, Y: v.Pos().Y - v.Size().H/2, W: v.Size().W, H: v.Size().H}
+			}
+			if a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H {
+				t.Errorf("%s: the label of %q overlaps %q", name, d.Vertex(gw.VertexIndex(i)).Label(), v.Label()) //nolint:gosec // bounded by the capacity
+			}
+		}
+	}
+}
+
+// apartSamples is how finely edgesApart samples an edge.
+const apartSamples = 400
+
+// edgesApart checks that no edge runs within a unit of another for more
+// than 8 units outside the vertices: they may cross, and meet at a
+// vertex, but not share a stretch of line.
+func edgesApart(t *testing.T, name string, d *gw.Document) {
+	t.Helper()
+	pts := make([][]gw.Point, d.EdgeSlots())
+	for i := range d.EdgeSlots() {
+		if !d.Edge(gw.EdgeIndex(i)).Live() { //nolint:gosec // bounded by the capacity
+			continue
+		}
+		var lane [1]gw.Point
+		w := wayOf(d, gw.EdgeIndex(i), &lane)                           //nolint:gosec // bounded by the capacity
+		route := d.Kinds().Edge(d.Edge(gw.EdgeIndex(i)).Kind()).Route() //nolint:gosec // bounded by the capacity
+		pts[i] = make([]gw.Point, 0, apartSamples+1)
+		for k := 0; k <= apartSamples; k++ {
+			pts[i] = append(pts[i], along(w.f, route, w.a, w.through, w.b, float64(k)/apartSamples))
+		}
+	}
+	for i, a := range pts {
+		for j, b := range pts {
+			if i != j && len(a) > 0 && len(b) > 0 && sharedRun(d, a, b) > 8 {
+				t.Errorf("%s: edge %s runs along edge %s", name, d.Edge(gw.EdgeIndex(i)).ID(), d.Edge(gw.EdgeIndex(j)).ID()) //nolint:gosec // bounded by the capacity
+			}
+		}
+	}
+}
+
+// sharedRun is the longest stretch of a, outside every vertex but the
+// containers, that lies within a unit of b.
+func sharedRun(d *gw.Document, a, b []gw.Point) float64 {
+	run, longest := 0.0, 0.0
+	for k := 1; k < len(a); k++ {
+		if !near(a[k], b) || nearVertex(d, a[k]) {
+			run = 0
+			continue
+		}
+		run += math.Hypot(a[k].X-a[k-1].X, a[k].Y-a[k-1].Y)
+		longest = math.Max(longest, run)
+	}
+	return longest
+}
+
+func near(p gw.Point, b []gw.Point) bool {
+	for k := 1; k < len(b); k++ {
+		if segmentDistance(p, b[k-1], b[k]) < 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// nearVertex reports whether p is within 2 units of a vertex's box that
+// holds nothing.
+func nearVertex(d *gw.Document, p gw.Point) bool {
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		if !v.Live() || d.Kinds().Vertex(v.Kind()).Container() {
+			continue
+		}
+		if math.Abs(p.X-v.Pos().X) < v.Size().W/2+2 && math.Abs(p.Y-v.Pos().Y) < v.Size().H/2+2 {
+			return true
+		}
+	}
+	return false
+}
+
+// edgeTextsClear checks that no edge's label or stereotype, as drawn,
+// crosses another edge or another edge's texts.
+func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
+	t.Helper()
+	{
 		var buf bytes.Buffer
 		if err := Render(d, Options{}, &buf); err != nil {
 			t.Fatal(err)

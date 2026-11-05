@@ -394,6 +394,5 @@ func labelSlot(d *gw.Document, v gw.VertexView) (x, y, w float64, below, none bo
 // labelBelow reports whether a vertex's label is drawn at its foot, as
 // an actor's is, as wide as it needs.
 func labelBelow(d *gw.Document, v gw.VertexView) bool {
-	_, _, _, below, _ := labelSlot(d, v)
-	return below
+	return d.Kinds().LabelBelow(v.Kind())
 }

@@ -83,16 +83,92 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	if math.Abs(r.fy-bands[1]) < math.Abs(r.fy-bands[0]) {
 		bands[0], bands[1] = bands[1], bands[0] // the band on the far point's side first
 	}
+	if l.straightTo(d, r.e, m) {
+		if n := l.beside(d, c, m, r, in, bands, mb, buf); n > 0 {
+			return n
+		}
+	}
+	side := uint8(faceLow)
+	if !low {
+		side = faceHigh
+	}
 	for _, by := range bands {
 		if !l.clearRun(d, c, m, gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, in, by) {
 			continue
 		}
-		pts := [4][2]float64{{in, by}, {gx, by}, {gx, mb.cy}, {last, mb.cy}}
+		// Where an edge from m's own level comes in on this side, at its
+		// middle, the run comes in off it, on the band's side.
+		y := mb.cy
+		if l.faced[m]&side != 0 {
+			y += math.Copysign(math.Min(laneGap, (mb.y1-mb.y0)/4), by-mb.cy)
+		}
+		pts := [4][2]float64{{in, by}, {gx, by}, {gx, y}, {last, y}}
 		for k, p := range pts {
 			x, y := l.swap(p[0], p[1])
 			buf[k] = gw.Point{X: x, Y: y}
 		}
 		return 4
+	}
+	return 0
+}
+
+// The sides of a vertex, in the frame, that an edge from its own level
+// comes into: the low side, facing lower x, and the high.
+const (
+	faceLow  = 1
+	faceHigh = 2
+)
+
+// facings marks, for each vertex, the sides that an edge between it and
+// another vertex of its own level comes into: the side facing the other
+// end, where the edge is drawn at the middle.
+func (l *Layouter) facings(d *gw.Document) {
+	clear(l.faced)
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() || e.From() == e.To() || d.Vertex(e.From()).Parent() != d.Vertex(e.To()).Parent() {
+			continue
+		}
+		l.face(d, e.From(), e.To())
+		l.face(d, e.To(), e.From())
+	}
+}
+
+// face marks the side of vertex m that faces vertex o.
+func (l *Layouter) face(d *gw.Document, m, o gw.VertexIndex) {
+	mb, ob := l.frame(d.Vertex(m)), l.frame(d.Vertex(o))
+	switch ox := (ob.x0 + ob.x1) / 2; {
+	case ox < mb.x0:
+		l.faced[m] |= faceLow
+	case ox > mb.x1:
+		l.faced[m] |= faceHigh
+	}
+}
+
+// straightTo reports whether edge e is drawn straight and ends at m,
+// so that its last leg may come into m from any side: the renderer
+// draws it toward m's centre, cut at m's outline.
+func (l *Layouter) straightTo(d *gw.Document, e gw.EdgeIndex, m gw.VertexIndex) bool {
+	ed := d.Edge(e)
+	return d.Kinds().Edge(ed.Kind()).Route() == gw.Straight && (ed.From() == m || ed.To() == m)
+}
+
+// beside is the run of a straight edge to its end m from the side: in
+// at in, along the band to m's middle, and straight into m across the
+// flow, off the gap before m's layer, which the edges from the layer
+// before and their labels use. It writes two points and returns 2, or
+// 0 when no band has a clear way across to m and a clear leg in.
+func (l *Layouter) beside(d *gw.Document, c, m gw.VertexIndex, r run, in float64, bands [2]float64, mb frameBox, buf []gw.Point) int {
+	mx := (mb.x0 + mb.x1) / 2
+	for _, by := range bands {
+		if !l.clearRun(d, c, m, mx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, in, by) {
+			continue
+		}
+		for k, p := range [2][2]float64{{in, by}, {mx, by}} {
+			x, y := l.swap(p[0], p[1])
+			buf[k] = gw.Point{X: x, Y: y}
+		}
+		return 2
 	}
 	return 0
 }

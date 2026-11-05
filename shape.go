@@ -608,6 +608,18 @@ func (k *Kinds) turns(kind KindIndex) bool {
 	return s >= Provided && int(s-Provided) < len(k.shapes) && k.shapes[s-Provided].def.Turns
 }
 
+// LabelBelow reports whether a vertex of the kind draws its label at
+// its foot, under the figure and as wide as the text needs, rather than
+// cut to its width: an actor's, or a provided shape's whose label goes
+// below. A layout makes room for it.
+func (k *Kinds) LabelBelow(kind KindIndex) bool {
+	if k == nil || kind < 0 || int(kind) >= len(k.vertex) {
+		return false
+	}
+	s := k.vertex[kind].Shape
+	return s == Actor || s >= Provided && int(s-Provided) < len(k.shapes) && k.shapes[s-Provided].def.Label == LabelBelow
+}
+
 // Turned reports whether a vertex is drawn turned: its kind's shape
 // turns with the flow, and the flow is top to bottom. Its size is then
 // its kind's with the width and height swapped, and its ports' sides
