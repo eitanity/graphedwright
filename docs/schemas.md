@@ -90,8 +90,9 @@ a transition its trigger, written `event [guard] / actions` in UML.
 | `transition` | from an initial state, a state, a choice or a composite state, to a state, a choice, a final state or a composite state; curved, with an arrowhead | `event`, `guard`, `actions` (text) |
 
 The example is graphedwright's own editor: the states between events,
-and what a press, a release, a key or the host's label input does in
-each.
+and what a press, a release, a key, the palette, a context request or
+the host's label input does in each, in edit and view mode and while
+the host holds the editor.
 
 ![A state machine](images/state-machine.svg)
 
