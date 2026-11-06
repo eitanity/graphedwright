@@ -147,3 +147,26 @@ func TestEndSlotsBound(t *testing.T) {
 		t.Errorf("an edge past the slots: slot %d of %d", k, n)
 	}
 }
+
+// TestEndSlotsNine: nine edges into one side of a vertex, as the state
+// machine example's Idle has, are spread, each a share of the side
+// apart, rather than all ending at its middle.
+func TestEndSlotsNine(t *testing.T) {
+	at := make([]gw.Point, 9)
+	for i := range at {
+		at[i] = gw.Point{X: -200, Y: float64(40 * i)}
+	}
+	d, tv, s := endDoc(t, gw.LeftToRight, 40, at...)
+	es := make([]gw.EdgeIndex, 0, len(s))
+	for _, v := range s {
+		es = append(es, edgeTo(t, d, esCurve, v, tv, gw.None))
+	}
+	for i, e := range es {
+		if k, n := d.EndSlot(e, true); k != i || n != 9 {
+			t.Errorf("edge %d: slot %d of %d, want %d of 9", i, k, n, i)
+		}
+		if want := float64(i-4) * 4; d.EndOffset(e, true) != want {
+			t.Errorf("edge %d: offset %v, want %v", i, d.EndOffset(e, true), want)
+		}
+	}
+}

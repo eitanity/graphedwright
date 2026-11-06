@@ -195,8 +195,10 @@ The layout (`layout.Layouter`) is layered:
    bottom), or further where a wide node needs it, or, left to right,
    the label or stereotype of an edge drawn in the gap between them
    (twice as wide for a right-angled edge, whose text is on the half
-   past its turn). Within a layer, vertices are centred on their
-   neighbours and kept a gap (24) apart. Everything lands on a grid (8).
+   past its turn), or where edges have far to go across the flow in the
+   room between them (uprights, below). Within a layer, vertices are
+   centred on their neighbours and kept a gap (24) apart. Everything
+   lands on a grid (8).
 5. **Routes:** each long edge is routed through its placeholders as
    bends, and an edge that would cross a vertex beside one of its ends
    is routed around it (below).
@@ -302,9 +304,22 @@ there. Their ends are spread along the side instead, ordered across the
 flow by where their other ends stand, up to 20 apart (`EndGap`) and
 closer where the side is short, each on the shape's outline
 (`Document.EndSlot`, `Document.EndOffset`). A straight edge, drawn
-toward the centre, and an edge with a port keep their ends, and past 8
+toward the centre, and an edge with a port keep their ends, and past 16
 on a side (`MaxEndSlots`) every end stays at the middle. A lone edge
 with a spread end puts its texts on the side away from the others.
+
+**Uprights.** A curved or right-angled leg between an end and the
+placeholder next to it, or an edge between adjacent layers, may have
+far to go across the flow in the room between two layers. Drawn as it
+arrives, level, such a leg is all but flat, and edges in lanes beside
+it lie on it. A leg that goes more than four times as far across as
+the room is deep is given an **upright** instead: a level run, a run
+straight across the flow, and a level run on, ending level with its end
+where it is drawn, or with the first point of its run into a
+container. The uprights in one gap stand 8 apart, nested so that they
+do not cross, and the gap is deepened to hold them and an arrowhead.
+A straight edge keeps its legs, and a level with a placed vertex keeps
+its layers where they are.
 
 A layout makes room for a name drawn under a figure, an actor's, which
 is wider than the figure. A straight edge into a member of a container

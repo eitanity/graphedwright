@@ -16,7 +16,7 @@ const EndGap = 20
 
 // MaxEndSlots is the most edges whose ends are spread along one side of
 // a vertex; with more, they all end at its middle.
-const MaxEndSlots = 8
+const MaxEndSlots = 16
 
 // endSide is the side of vertex v that edge e is drawn to: 1 for the
 // side facing on along the flow, -1 for the side facing back, and 0 when

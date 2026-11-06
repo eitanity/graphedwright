@@ -182,10 +182,17 @@ type Layouter struct {
 	rOff     []int32          // where in its route an edge's dummies' bends start, after room for its inside runs
 	rLen     []int32          // and how many there are
 	runs     [insidePts]gw.Point
-	dt       *detour // the working arrays of the detours round what a route would cross
-	n        int     // nodes in the layered graph
-	s        int     // segments
-	realN    int     // the document's vertex slots, live or not
+	zAt      []float64 // the x of the upright of an edge's end leg (shallow.go), by 2*edge+end; NaN for none
+	zIdx     []int32   // the legs given uprights, as 2*edge+end, sorted by gap and order
+	zGap     []int32   // and the layer after each one's gap
+	zKey     []float64 // and its order in the gap
+	zKey2    []float64 // and where two tie
+	zHi      []bool    // and whether it stacks back from the later layer
+	zRt      []int32   // where in its route an edge's end leg's upright starts, by 2*edge+end; -1 for none
+	dt       *detour   // the working arrays of the detours round what a route would cross
+	n        int       // nodes in the layered graph
+	s        int       // segments
+	realN    int       // the document's vertex slots, live or not
 	layers   int
 	x0       float64 // the x of layer zero
 	down     bool    // the flow is top to bottom: the frame's axes are swapped
@@ -215,6 +222,7 @@ func New(caps gw.Caps) *Layouter {
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
 		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
+		zAt: make([]float64, 2*caps.Edges), zIdx: make([]int32, 2*caps.Edges), zGap: make([]int32, 2*caps.Edges), zKey: make([]float64, 2*caps.Edges), zKey2: make([]float64, 2*caps.Edges), zRt: make([]int32, 2*caps.Edges), zHi: make([]bool, 2*caps.Edges),
 		dt: newDetour(caps.Vertices),
 	}
 }
@@ -254,6 +262,9 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 	}
 	l.rev = l.rev[:0]
 	clear(l.route)
+	for i := range l.zRt {
+		l.zRt[i] = -1
+	}
 	d.ClearBends()
 	crossings, err := l.contents(d, opts, deepest)
 	if err != nil {
@@ -346,7 +357,9 @@ func (l *Layouter) placeBends(d *gw.Document) {
 				w.Set(j, gw.Point{X: p.X + l.rx[c], Y: p.Y + l.ry[c]})
 			}
 		}
-		w.Keep(l.withRuns(d, gw.EdgeIndex(i), w)) //nolint:gosec // bounded by the capacity
+		all, src, n := l.withRuns(d, gw.EdgeIndex(i), w)  //nolint:gosec // bounded by the capacity
+		l.uprightEnds(d, gw.EdgeIndex(i), w, src, n, all) //nolint:gosec // bounded by the capacity
+		w.Keep(all)
 		l.route[i] = gw.BendWriter{}
 	}
 }
@@ -354,8 +367,9 @@ func (l *Layouter) placeBends(d *gw.Document) {
 // withRuns puts edge e's inside runs round the bends its dummies gave it,
 // through w, and returns how many points the route then has: the runs
 // out of the containers holding its source, the bends, and the runs
-// into the containers holding its target.
-func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) int {
+// into the containers holding its target; and how many of them are the
+// source's runs, and the bends.
+func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) (all, srcRuns, bends int) {
 	ed := d.Edge(e)
 	off, n := int(l.rOff[e]), int(l.rLen[e])
 	from, to := d.Vertex(ed.From()).Pos(), d.Vertex(ed.To()).Pos()
@@ -371,7 +385,7 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) int
 	dst := l.insideRuns(d, e, ed.To(), farTo, back, l.runs[half:])
 	if src+n+dst > w.Len() {
 		w.Move(0, off, n) // no room: the bends alone
-		return n
+		return n, 0, n
 	}
 	w.Move(src, off, n)
 	// The source's runs lead out, innermost container first.
@@ -381,7 +395,7 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) int
 	for k := range dst {
 		w.Set(src+n+k, l.runs[half+k])
 	}
-	return src + n + dst
+	return src + n + dst, src, n
 }
 
 // bends routes each edge of the level just laid out that crosses a
@@ -413,14 +427,19 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		if tOK {
 			nt = 2
 		}
-		if l.dN[i] == 0 && src+dst+ns+nt == 0 {
+		zs, zt := l.uprights(i)
+		if l.dN[i] == 0 && src+dst+ns+nt+zt == 0 {
 			continue
 		}
-		all := d.ReserveBends(gw.EdgeIndex(i), src+ns+2*int(l.dN[i])+nt+dst) //nolint:gosec // bounded by the capacity
+		all := d.ReserveBends(gw.EdgeIndex(i), src+ns+zs+2*int(l.dN[i])+zt+nt+dst) //nolint:gosec // bounded by the capacity
+		if !all.Valid() && zs+zt > 0 {
+			zs, zt = 0, 0                                                       // no room for the uprights: the route without them
+			all = d.ReserveBends(gw.EdgeIndex(i), src+ns+2*int(l.dN[i])+nt+dst) //nolint:gosec // bounded by the capacity
+		}
 		if !all.Valid() {
 			continue
 		}
-		n := ns + 2*int(l.dN[i]) + nt // the route, from src in all
+		n := ns + zs + 2*int(l.dN[i]) + zt + nt // the route, from src in all
 		if sOK {
 			all.Set(src, gw.Point{X: sIn.X - ox, Y: sIn.Y - oy})
 			all.Set(src+1, gw.Point{X: sOut.X - ox, Y: sOut.Y - oy})
@@ -431,7 +450,7 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		}
 		l.eLevel[i], l.route[i] = c, all
 		l.rOff[i], l.rLen[i] = int32(src), int32(n) //nolint:gosec // bounded by the budget
-		l.dummyBends(i, g, ox, oy, all, src+ns)
+		l.middle(i, g, ox, oy, all, src, ns, zs, zt)
 	}
 }
 
@@ -675,6 +694,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 	l.initialOrder()
 	cr := l.reduceCrossings(opts.Sweeps)
 	l.coordinates(opts)
+	l.shallowEnds(d, opts)
 	return n, cr, nil
 }
 
