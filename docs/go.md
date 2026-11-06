@@ -320,4 +320,4 @@ without pauses, and that keep each package's state its own:
 
 `make ci` checks all of these, with the linters and the project's own
 analyzers in `internal/lint`, and it checks the TinyGo build stays under
-768 KiB.
+800 KiB.
