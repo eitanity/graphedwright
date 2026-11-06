@@ -207,8 +207,9 @@ func TestPortsOnOutline(t *testing.T) {
 }
 
 // TestProvidedLabel: a label inside is centred between the margins and
-// cut at that width; below, it is at the foot as an actor's; none, it is
-// not drawn. The ring follows the outline.
+// cut at that width; below, it is under the box, which the figure
+// fills, rather than at its foot as an actor's, and so is its box;
+// none, it is not drawn. The ring follows the outline.
 func TestProvidedLabel(t *testing.T) {
 	below, none := hexShape(), tabbedShape()
 	below.Name, below.Label = "below", gw.LabelBelow
@@ -227,13 +228,16 @@ func TestProvidedLabel(t *testing.T) {
 	if _, _, _, isBelow, _ := labelSlot(d, d.Vertex(1)); !isBelow || !labelBelow(d, d.Vertex(1)) {
 		t.Error("below")
 	}
+	if b := VertexLabelBox(d, 1); b.Y < 130 || b.Y > 134 {
+		t.Errorf("below's box %+v, not under the foot at 130", b)
+	}
 	if _, _, _, _, isNone := labelSlot(d, d.Vertex(2)); !isNone {
 		t.Error("none")
 	}
 	svg := render(t, d, Options{Target: 1, HasTarget: true, Mode: Edit})
 	for _, want := range []string{
 		`<text class="label" x="20" y="10"`,
-		`<text class="label" x="0" y="26"`,
+		`<text class="label" x="0" y="44"`,
 		`<polygon class="ring" points="-40 -30 40 -30 60 0 40 30 -40 30 -60 0"/>`,
 	} {
 		if !strings.Contains(svg, want) {

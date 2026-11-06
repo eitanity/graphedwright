@@ -13,6 +13,7 @@ how the pieces fit.
 | [`layout`](#layout) | the layered layout |
 | [`svg`](#svg) | the renderer, the hit test and the default stylesheet |
 | [`doc`](#doc) | the JSON format and the built-in schemas |
+| `shapes` | a library of common shapes for a schema to provide: start and final nodes, fork bars, packages, notes and flowchart symbols ([Schemas](schemas.md#the-shape-library)); `doc`'s `state-machine` schema imports it |
 | [`edit`](#edit) | the editor: input events in, commands out |
 | `dom` | the browser binding, for `GOOS=js` only: an editor mounted in an element from Go (`Mount`), or from JavaScript (`Main`) ([browser guide](browser.md)) |
 

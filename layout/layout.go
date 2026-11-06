@@ -82,6 +82,7 @@ const columnGap = 40
 // renderer's default, and labelPad the room either side of a label.
 const (
 	labelChar = 7
+	labelLine = 16 // a line of text under or over a figure, and room
 	labelPad  = 8
 )
 
@@ -635,7 +636,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 			continue
 		}
 		n++
-		l.w[i], l.h[i] = l.swap(footWidth(d, gw.VertexIndex(i)), v.Size().H) //nolint:gosec // bounded by the capacity
+		l.w[i], l.h[i] = l.swap(footWidth(d, gw.VertexIndex(i)), footHeight(d, gw.VertexIndex(i))) //nolint:gosec // bounded by the capacity
 		if l.bw[i] > 0 {
 			l.w[i], l.h[i] = l.swap(l.bw[i], l.bh[i])
 		}
@@ -675,6 +676,23 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 	cr := l.reduceCrossings(opts.Sweeps)
 	l.coordinates(opts)
 	return n, cr, nil
+}
+
+// footHeight is the height vertex i takes in the layout: its own, or,
+// where its kind is a provided shape that draws its label under its box
+// and its keyword over it, a line more above and below, kept about the
+// centre, so that a vertex above or below in its layer clears them.
+func footHeight(d *gw.Document, i gw.VertexIndex) float64 {
+	v := d.Vertex(i)
+	h := v.Size().H
+	kind := d.Kinds().Vertex(v.Kind())
+	if kind.Shape() < gw.Provided || !d.Kinds().LabelBelow(v.Kind()) {
+		return h
+	}
+	if d.VertexLabelRunes(i) == 0 && kind.Keyword() == "" {
+		return h
+	}
+	return h + 2*labelLine
 }
 
 // footWidth is the width vertex i takes in the layout: its own, or,

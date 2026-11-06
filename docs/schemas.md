@@ -79,10 +79,10 @@ a transition its trigger, written `event [guard] / actions` in UML.
 
 | Vertex kind | Shape | Notes |
 |---|---|---|
-| `initial` | a small circle | where the machine starts; takes no incoming transition |
+| `initial` | a filled circle (`shapes.FilledCircle`) | where the machine starts; takes no incoming transition |
 | `state` | rounded rectangle | `entry`, `exit` and `internal` (text): what it does on entering, on leaving, and for events that leave it where it is |
 | `choice` | diamond | a branch on guards |
-| `final` | a circle | where the machine ends; takes no outgoing transition |
+| `final` | a bullseye (`shapes.Bullseye`) | where the machine ends; takes no outgoing transition |
 | `composite state` | rounded rectangle, a container that nests | holds states, choices, initial and final states; `entry`, `exit`, `internal` |
 
 | Edge kind | Joins | Attributes |
@@ -188,7 +188,7 @@ gw.ShapeDef{
 | `Paths` | up to 8, drawn in order: `{D, Fill}`. `D` takes `M`, `L`, `H`, `V`, `C`, `Q`, `A` and `Z`, absolute, at most 64 commands, every number in the box, arcs unrotated. `Fill` draws the path filled solid (`path.mark`), else as the shape is (`path.line`) |
 | `Outline` | what edges are clipped to and the hit test reads: `OutlineBox` (the default), `OutlineDiamond`, `OutlineEllipse`, or `OutlinePolygon` |
 | `Polygon` | with `OutlinePolygon`: a convex polygon of 3 to 16 points in the box, scaled as the paths are |
-| `Label` | `LabelInside` (the default), centred between the margins and cut at that width; `LabelBelow`, at the foot as an actor's, as wide as it needs, which a layout makes room for (`Kinds.LabelBelow`); or `LabelNone` |
+| `Label` | `LabelInside` (the default), centred between the margins and cut at that width; `LabelBelow`, under the box, as wide as it needs, with the kind's keyword over it, which a layout makes room for (`Kinds.LabelBelow`); or `LabelNone` |
 | `Turns` | the shape turns with the flow, as a fork bar does to stay across it. Its kinds' sizes are given for a left-to-right flow; in a top-to-bottom one its paths and outline are drawn transposed, its vertices' width and height are swapped, and their ports' sides turn, left to top and right to bottom. A `Layout` that changes the flow swaps the sizes and its undo swaps them back; `Document.NewSize` is the size a new vertex takes, and `Document.Turned` reports whether one is turned |
 
 A schema has at most 32 shapes. The paths are parsed when the schema is
@@ -197,6 +197,38 @@ path text reaches the SVG. Anything else in it is refused, naming the
 shape, the path and the byte. A port sits where the outline meets the
 line in from its place on the box's side, and `svg.PortOn` gives where
 that is.
+
+### The shape library
+
+The package `graphedwright/shapes` holds common shapes written the same
+way, so that a host that does not import it does not link it.
+`shapes.Library()` gives them all and `shapes.Named(name)` one, each
+made afresh for the schema to keep:
+
+| Name | Shape | Outline | Label |
+|---|---|---|---|
+| `filled-circle` | a solid disc: an initial state or node | ellipse | below |
+| `bullseye` | a ring round a disc: a final state or node | ellipse | below |
+| `crossed-circle` | a ring with a cross: a flow final node | ellipse | below |
+| `double-circle` | two rings: an intermediate event | ellipse | below |
+| `bar` | a solid bar, 8 by 60, across a left-to-right flow and turning with it: a fork or a join | box | none |
+| `tabbed-rectangle` | a box with a tab 40 by 12 at its top left: a package or a folder | the body | inside |
+| `folded-note` | a box with its top right corner folded: a note or a data object | polygon | inside |
+| `document` | a box with a wavy foot | box | inside |
+| `cylinder` | a drum, its lid 12 high: a database or a store | box | inside |
+| `parallelogram` | input or output | polygon | inside |
+| `hexagon` | preparation | polygon | inside |
+| `trapezoid` | wider at the top: a manual operation | polygon | inside |
+
+```go
+end, _ := shapes.Named(shapes.Bullseye)
+s := gw.Schema{
+	Shapes:      []gw.ShapeDef{end},
+	VertexKinds: []gw.VertexKind{{Name: "final", Shape: gw.Provided, Size: gw.Size{W: 28, H: 28}}},
+}
+```
+
+![The shape library](images/library.svg)
 
 ### `EdgeKind`
 
@@ -262,7 +294,14 @@ differences:
   holds are named, not numbered.
 - **Size:** it is `w` and `h`.
 - **Shapes:** `"rect"`, `"round"`, `"pill"`, `"diamond"`, `"circle"`,
-  `"actor"` or `"datastore"`.
+  `"actor"` or `"datastore"`; the name of a shape the object defines
+  under `shapes`; or the name of one of the library's, such as
+  `"bullseye"`.
+- **Provided shapes:** `shapes` is a list of `{ name, w, h, margins:
+  [left, top, right, bottom], paths: [{ d, fill }], outline, polygon:
+  [[x, y], …], label, turns }`. Outlines are `"box"`, `"diamond"`,
+  `"ellipse"` or `"polygon"`; labels `"inside"`, `"below"` or `"none"`.
+  A shape defined there takes its name before the library's.
 - **Sides:** `"left"`, `"right"`, `"top"` or `"bottom"`.
 - **Routes:** `"straight"`, `"curve"` or `"orthogonal"`.
 - **Heads:** `"filled"`, `"open"`, `"hollow"`, `"typed"` or `"bar"`.

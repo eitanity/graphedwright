@@ -18,6 +18,10 @@ const labelHeight = defaultFontSize + 8
 // defaultFontSize is a label's size when the options give none.
 const defaultFontSize = 12
 
+// belowGap is how far under a provided shape's box the baseline of a
+// label drawn below it is: a line of text and a little room.
+const belowGap = defaultFontSize + 2
+
 // minLabelWidth is the least width of a label's box, so that a short or
 // empty label still has room to type in.
 const minLabelWidth = 80
@@ -38,7 +42,11 @@ func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 		return centred(x.Pos().X, top+gw.TitleRoom(kind)-8-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth))
 	case labelBelow(d, x):
 		w := math.Max(textW+16, minLabelWidth)
-		return centred(x.Pos().X, x.Pos().Y+float64(x.Size().H/2)-4-defaultFontSize/3, w)
+		foot := float64(x.Size().H/2) - 4
+		if kind.Shape() >= gw.Provided {
+			foot = float64(x.Size().H/2) + belowGap
+		}
+		return centred(x.Pos().X, x.Pos().Y+foot-defaultFontSize/3, w)
 	}
 	if kind.Shape() >= gw.Provided {
 		// Between a provided shape's margins.

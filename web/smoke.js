@@ -185,6 +185,26 @@ async function main() {
   bounded.done = { share: xv.attrs && xv.attrs.share, label: xv.label || "" };
   graphedwright.destroy(hb);
   out.bounded = bounded;
+  // Provided shapes from JavaScript: a kind names a library shape by
+  // name and another one the schema object defines under shapes; both
+  // are drawn as their paths, and a path that carries markup, or an
+  // unknown name, is refused.
+  const provided = {};
+  provided.registered = graphedwright.registerSchema("provided", {
+    shapes: [{ name: "flag", w: 60, h: 40, margins: [0, 0, 12, 0], outline: "polygon", polygon: [[0, 0], [60, 0], [48, 40], [0, 40]], paths: [{ d: "M 0 0 H 60 L 48 40 H 0 Z" }, { d: "M 50 4 H 56 V 10 H 50 Z", fill: true }] }],
+    vertexKinds: [{ name: "end", shape: "bullseye", w: 28, h: 28 }, { name: "send", shape: "flag", w: 60, h: 40 }],
+    edgeKinds: [{ name: "flow", arrow: true }],
+  });
+  provided.badPath = graphedwright.registerSchema("provided-bad", { shapes: [{ name: "evil", w: 10, h: 10, paths: [{ d: '"/><script>' }] }], vertexKinds: [{ name: "k", shape: "evil" }], edgeKinds: [] });
+  provided.badName = graphedwright.registerSchema("provided-unknown", { vertexKinds: [{ name: "k", shape: "blob" }], edgeKinds: [] });
+  const hq = graphedwright.create(clash, { schema: "provided" }).ok;
+  provided.load = graphedwright.load(hq, { schema: "provided", vertices: [{ id: "s", kind: "send", label: "send" }, { id: "f", kind: "end" }], edges: [{ kind: "flow", from: "s", to: "f" }] });
+  const drawnP = graphedwright.svg(hq).ok || "";
+  provided.bullseye = drawnP.includes('<g class="shape shape-bullseye"><path class="line" d="M ') && drawnP.includes('<path class="mark"');
+  provided.flag = drawnP.includes('<g class="shape shape-flag"><path class="line" d="M ');
+  provided.dom = clash.querySelectorAll("svg g.shape-bullseye path, svg g.shape-flag path").length;
+  graphedwright.destroy(hq);
+  out.provided = provided;
   // Context requests: a right-click on a vertex, with a "context"
   // listener, selects it and reports it with the browser's menu
   // prevented; one on a port or an edge names it; one from the keyboard

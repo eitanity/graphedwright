@@ -2,6 +2,7 @@ package doc
 
 import (
 	gw "code.eitanity.com/graphedwright"
+	"code.eitanity.com/graphedwright/shapes"
 )
 
 // Builtin are the schemas the command knows without a host:
@@ -18,8 +19,8 @@ import (
 //     analysis reads (trust levels, a flow's protocol and whether it is
 //     encrypted and authenticated) and a free-text list of threats.
 //   - "state-machine": a UML state machine diagram: an initial state,
-//     states and composite states that hold others, choices and final
-//     states, joined by transitions that carry their event, guard and
+//     a filled circle, states and composite states that hold others,
+//     choices and final states, bullseyes, joined by transitions that carry their event, guard and
 //     actions; a state carries its entry, exit and internal behaviour.
 //
 // Each is compiled afresh; one that did not compile would have nil
@@ -119,12 +120,15 @@ const (
 func stateMachine() gw.Schema {
 	text := func(key string) gw.AttrSpec { return gw.AttrSpec{Key: key, Kind: gw.Text} }
 	behaviour := []gw.AttrSpec{text("entry"), text("exit"), text("internal")}
+	initial, _ := shapes.Named(shapes.FilledCircle)
+	final, _ := shapes.Named(shapes.Bullseye)
 	return gw.Schema{
+		Shapes: []gw.ShapeDef{initial, final},
 		VertexKinds: []gw.VertexKind{
-			{Name: "initial", Shape: gw.Circle, Size: gw.Size{W: 24, H: 24}, Root: true},
+			{Name: "initial", Shape: gw.Provided, Size: gw.Size{W: 24, H: 24}, Root: true},
 			{Name: "state", Shape: gw.RoundRect, Size: gw.Size{W: 120, H: 40}, Attrs: behaviour},
 			{Name: "choice", Shape: gw.Diamond, Size: gw.Size{W: 72, H: 44}},
-			{Name: "final", Shape: gw.Circle, Size: gw.Size{W: 28, H: 28}, Leaf: true},
+			{Name: "final", Shape: gw.Provided + 1, Size: gw.Size{W: 28, H: 28}, Leaf: true},
 			{Name: "composite state", Shape: gw.RoundRect, Size: gw.Size{W: 240, H: 160}, Container: true,
 				Contains: []gw.KindIndex{smInitial, smState, smChoice, smFinal, smComposite}, Attrs: behaviour},
 		},

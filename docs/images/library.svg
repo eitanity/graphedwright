@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-69.5 -38 813.5 412" class="graphedwright" data-mode="view" role="img" aria-labelledby="graphedwright-title"><title id="graphedwright-title">The shape library</title><desc></desc><style>/* The default look of a graphedwright drawing. A host styles by class;
+   nothing here is required. */
+
+.graphedwright { font-family: system-ui, sans-serif; font-size: 12px; }
+
+.graphedwright .vertex .shape { fill: #f5f7fa; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .label { fill: #1a202c; }
+.graphedwright .vertex .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .vertex.container &gt; .shape { fill: #f8fafc; stroke: #718096; }
+.graphedwright .vertex.container &gt; .label { fill: #4a5568; font-weight: 600; }
+.graphedwright .vertex .box { fill: transparent; stroke: none; }
+.graphedwright .vertex .store { stroke: none; }
+.graphedwright .vertex .figure { fill: none; stroke: #4a5568; stroke-width: 1.2; }
+.graphedwright .vertex .shape .mark { fill: #4a5568; }
+.graphedwright .vertex.dashed .shape { stroke-dasharray: 6 4; }
+.graphedwright .port { fill: #ffffff; stroke: #4a5568; stroke-width: 1; }
+.graphedwright .port-label { fill: #4a5568; font-size: 10px; }
+
+.graphedwright .edge path { fill: none; stroke: #718096; }
+.graphedwright .edge .label { fill: #2d3748; }
+.graphedwright .edge .annotation { fill: #718096; font-size: 10px; }
+.graphedwright .arrowhead path { fill: #718096; stroke: none; }
+.graphedwright .arrowhead.open path { fill: none; stroke: #718096; stroke-width: 1.5; }
+.graphedwright .arrowhead.hollow path { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .arrowhead circle { fill: #718096; stroke: none; }
+.graphedwright .tail path { fill: #718096; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .tail.hollow path { fill: #ffffff; }
+.graphedwright .tail.plus circle { fill: #ffffff; stroke: #718096; stroke-width: 1.2; }
+.graphedwright .tail.plus path { fill: none; }
+.graphedwright .edge.dashed path { stroke-dasharray: 6 4; }
+.graphedwright .edge .stereotype { fill: #4a5568; font-size: 11px; }
+.graphedwright .vertex .keyword { fill: #4a5568; font-size: 11px; }
+.graphedwright .vertex .compartment line { stroke: #718096; stroke-width: 1; }
+.graphedwright .vertex .compartment .entry { fill: #2d3748; font-size: 11px; }
+.graphedwright .edge text { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A text cut to fit is followed by itself in full, not displayed; on
+   hover the full text takes the cut one's place, with a halo to read
+   over what it overruns. A vertex drawn later can still cover it; the
+   browser binding draws it in the overlay as well, over everything. */
+.graphedwright .vertex:hover .cut { display: none; }
+.graphedwright .vertex:hover .full { display: inline; }
+.graphedwright .vertex .full { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+
+/* A selected vertex is outlined; a selected edge has a halo as wide as
+   the stroke-width the renderer writes on it, which a width here would
+   override. */
+.graphedwright .overlay rect.selection { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.graphedwright .overlay path.selection { fill: none; stroke: #3182ce; stroke-opacity: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+.graphedwright .overlay .ghost { fill: none; stroke: #3182ce; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.graphedwright .overlay .marquee { fill: rgba(49, 130, 206, 0.08); stroke: #3182ce; stroke-width: 1; }
+.graphedwright .overlay .handle { fill: #ffffff; stroke: #3182ce; stroke-width: 1.5; cursor: nwse-resize; }
+.graphedwright .overlay .expanded { pointer-events: none; }
+.graphedwright .overlay .expanded .backing { fill: #ffffff; stroke: none; }
+.graphedwright .overlay .expanded text { fill: #1a202c; }
+.graphedwright .overlay .expanded .keyword, .graphedwright .overlay .expanded .entry { fill: #2d3748; font-size: 11px; }
+.graphedwright .overlay .expanded .annotation { fill: #4a5568; font-size: 10px; }
+.graphedwright .overlay .target .ring { fill: none; stroke: #3182ce; stroke-opacity: 0.35; cursor: crosshair; pointer-events: stroke; }
+
+.graphedwright[data-mode="edit"] .vertex { cursor: move; }
+.graphedwright[data-mode="edit"] .port { cursor: crosshair; }
+.graphedwright[data-mode="edit"] .edge path { cursor: pointer; }
+
+/* The elements the browser binding makes around the drawing: the host
+   holds the palette, the drawing, which takes the room below it, the
+   zoom buttons over the drawing's bottom right corner, and the input
+   that edits a label, placed over the label. A page gives the host or
+   the drawing a height. */
+.graphedwright-host { position: relative; display: flex; flex-direction: column; }
+.graphedwright-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid #e2e8f0; background: #f7fafc; }
+.graphedwright-palette:empty { display: none; }
+.graphedwright-item.graphedwright-edge { font-style: italic; }
+.graphedwright-drawing { flex: 1 1 auto; min-height: 320px; touch-action: none; }
+.graphedwright-drawing svg { width: 100%; height: 100%; display: block; }
+.graphedwright-label { position: absolute; box-sizing: border-box; padding: 0 4px; font: inherit; text-align: center; border: 1px solid #3182ce; border-radius: 3px; background: #ffffff; }
+.graphedwright-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.graphedwright-zoom button { min-width: 28px; }
+.graphedwright-chosen { background: #bee3f8; border-color: #3182ce; }
+</style><defs><marker id="arrow-0" class="arrowhead kind-line" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g class="containers"></g><g class="edges"><g class="edge kind-line" id="e1" data-kind="line" data-from="filled-circle" data-to="bullseye"><path d="M 12 0 L 197 0" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e2" data-kind="line" data-from="bullseye" data-to="crossed-circle"><path d="M 234 0 L 417 0" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e3" data-kind="line" data-from="crossed-circle" data-to="double-circle"><path d="M 454 0 L 637 0" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e4" data-kind="line" data-from="double-circle" data-to="bar"><path d="M 646.39 3.3 L 12.75 156.91" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e5" data-kind="line" data-from="bar" data-to="tabbed-rectangle"><path d="M 4 160 L 121 160" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e6" data-kind="line" data-from="tabbed-rectangle" data-to="folded-note"><path d="M 310 160 L 371 160" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e7" data-kind="line" data-from="folded-note" data-to="document"><path d="M 500 160 L 591 160" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e8" data-kind="line" data-from="document" data-to="cylinder"><path d="M 600 174.55 L 48.75 308.18" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e9" data-kind="line" data-from="cylinder" data-to="parallelogram"><path d="M 40 320 L 161 320" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e10" data-kind="line" data-from="parallelogram" data-to="hexagon"><path d="M 270 320 L 371 320" stroke-width="1.5" marker-end="url(#arrow-0)"/></g><g class="edge kind-line" id="e11" data-kind="line" data-from="hexagon" data-to="trapezoid"><path d="M 500 320 L 601 320" stroke-width="1.5" marker-end="url(#arrow-0)"/></g></g><g class="vertices"><g class="vertex kind-filled-circle" id="filled-circle" data-kind="filled-circle" transform="translate(0 0)"><g class="shape shape-filled-circle"><path class="mark" d="M -12 0 A 12 12 0 0 1 12 0 A 12 12 0 0 1 -12 0 Z"/></g><text class="label" x="0" y="26" text-anchor="middle">filled-circle</text></g><g class="vertex kind-bullseye" id="bullseye" data-kind="bullseye" transform="translate(220 0)"><g class="shape shape-bullseye"><path class="line" d="M -14 0 A 14 14 0 0 1 14 0 A 14 14 0 0 1 -14 0 Z"/><path class="mark" d="M -8 0 A 8 8 0 0 1 8 0 A 8 8 0 0 1 -8 0 Z"/></g><text class="label" x="0" y="28" text-anchor="middle">bullseye</text></g><g class="vertex kind-crossed-circle" id="crossed-circle" data-kind="crossed-circle" transform="translate(440 0)"><g class="shape shape-crossed-circle"><path class="line" d="M -14 0 A 14 14 0 0 1 14 0 A 14 14 0 0 1 -14 0 Z"/><path class="line" d="M -9.9 -9.9 L 9.9 9.9 M 9.9 -9.9 L -9.9 9.9"/></g><text class="label" x="0" y="28" text-anchor="middle">crossed-circle</text></g><g class="vertex kind-double-circle" id="double-circle" data-kind="double-circle" transform="translate(660 0)"><g class="shape shape-double-circle"><path class="line" d="M -14 0 A 14 14 0 0 1 14 0 A 14 14 0 0 1 -14 0 Z"/><path class="line" d="M -11 0 A 11 11 0 0 1 11 0 A 11 11 0 0 1 -11 0 Z"/></g><text class="label" x="0" y="28" text-anchor="middle">double-circle</text></g><g class="vertex kind-bar" id="bar" data-kind="bar" transform="translate(0 160)"><g class="shape shape-bar"><path class="mark" d="M -4 -30 H 4 V 30 H -4 Z"/></g></g><g class="vertex kind-tabbed-rectangle" id="tabbed-rectangle" data-kind="tabbed-rectangle" transform="translate(220 160)"><g class="shape shape-tabbed-rectangle"><path class="line" d="M -90 -28 H 90 V 40 H -90 Z"/><path class="line" d="M -90 -28 V -40 H -50 V -28 Z"/></g><text class="label cut" x="0" y="10" text-anchor="middle">tabbed-recta…</text><text class="label full" display="none" x="0" y="10" text-anchor="middle">tabbed-rectangle</text><title>tabbed-rectangle</title></g><g class="vertex kind-folded-note" id="folded-note" data-kind="folded-note" transform="translate(440 160)"><g class="shape shape-folded-note"><path class="line" d="M -60 -30 H 48 L 60 -18 V 30 H -60 Z"/><path class="line" d="M 48 -30 V -18 H 60"/></g><text class="label" x="0" y="4" text-anchor="middle">folded-note</text></g><g class="vertex kind-document" id="document" data-kind="document" transform="translate(660 160)"><g class="shape shape-document"><path class="line" d="M -60 -30 H 60 V 22 C 30 10 -30 30 -60 22 Z"/></g><text class="label" x="0" y="-2" text-anchor="middle">document</text></g><g class="vertex kind-cylinder" id="cylinder" data-kind="cylinder" transform="translate(0 320)"><g class="shape shape-cylinder"><path class="line" d="M -40 -24 A 40 6 0 0 1 40 -24 V 24 A 40 6 0 0 1 -40 24 Z"/><path class="line" d="M -40 -24 A 40 6 0 0 0 40 -24"/></g><text class="label" x="0" y="4" text-anchor="middle">cylinder</text></g><g class="vertex kind-parallelogram" id="parallelogram" data-kind="parallelogram" transform="translate(220 320)"><g class="shape shape-parallelogram"><path class="line" d="M -40 -30 H 60 L 40 30 H -60 Z"/></g><text class="label cut" x="0" y="4" text-anchor="middle">parallelo…</text><text class="label full" display="none" x="0" y="4" text-anchor="middle">parallelogram</text><title>parallelogram</title></g><g class="vertex kind-hexagon" id="hexagon" data-kind="hexagon" transform="translate(440 320)"><g class="shape shape-hexagon"><path class="line" d="M -40 -30 H 40 L 60 0 L 40 30 H -40 L -60 0 Z"/></g><text class="label" x="0" y="4" text-anchor="middle">hexagon</text></g><g class="vertex kind-trapezoid" id="trapezoid" data-kind="trapezoid" transform="translate(660 320)"><g class="shape shape-trapezoid"><path class="line" d="M -60 -30 H 60 L 40 30 H -40 Z"/></g><text class="label" x="0" y="4" text-anchor="middle">trapezoid</text></g></g><g class="overlay"></g></svg>

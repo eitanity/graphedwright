@@ -16,10 +16,12 @@ import (
 //	  labelFormat, editAttr, ports: [{name, side, max}],
 //	  attrs: [{key, kind, choices, required, default, min, max}]}],
 //	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
-//	  tail, dashed, stereotype, weighted, labelFormat, editAttr, attrs}] }
+//	  tail, dashed, stereotype, weighted, labelFormat, editAttr, attrs}],
+//	  shapes: [{name, w, h, margins, paths, outline, polygon, label, turns}] }
 //
 // Shapes are "rect", "round", "pill", "diamond", "circle", "actor",
-// "datastore"; sides "left", "right", "top", "bottom"; routes
+// "datastore", the name of one under shapes (shapesFromJS), or the name
+// of one of the library's (package shapes); sides "left", "right", "top", "bottom"; routes
 // "straight", "curve", "orthogonal"; heads "filled", "open", "hollow",
 // "typed", "bar"; tails "none", "filled-diamond", "hollow-diamond",
 // "circled-plus"; attribute kinds "text", "number", "choice". A number
@@ -37,9 +39,13 @@ func kindsFromJS(v js.Value) (*gw.Kinds, error) {
 
 func schemaFromJS(v js.Value) (gw.Schema, error) {
 	s := gw.Schema{Acyclic: get(v, "acyclic").Truthy(), Connected: get(v, "connected").Truthy()}
+	var err error
+	if s.Shapes, err = shapesFromJS(get(v, "shapes")); err != nil {
+		return s, err
+	}
 	vks := get(v, "vertexKinds")
 	for i := 0; vks.Type() == js.TypeObject && i < vks.Length(); i++ {
-		vk, err := vertexKindFromJS(vks.Index(i))
+		vk, err := vertexKindFromJS(&s, vks.Index(i))
 		if err != nil {
 			return s, err
 		}
@@ -62,14 +68,14 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 	return s, nil
 }
 
-func vertexKindFromJS(k js.Value) (gw.VertexKind, error) {
+func vertexKindFromJS(s *gw.Schema, k js.Value) (gw.VertexKind, error) {
 	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
 	compartments := get(k, "compartments")
 	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
 		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())
 	}
 	var err error
-	if vk.Shape, err = shapeOf(str(k, "shape")); err != nil {
+	if vk.Shape, err = shapeOf(s, str(k, "shape")); err != nil {
 		return vk, err
 	}
 	ports := get(k, "ports")
@@ -165,7 +171,9 @@ func kindsOf(s gw.Schema, v js.Value) ([]gw.KindIndex, error) {
 	return out, nil
 }
 
-func shapeOf(name string) (gw.Shape, error) {
+// shapeOf is the shape a vertex kind names: a built-in, one the schema
+// object defines, or one of the library's.
+func shapeOf(s *gw.Schema, name string) (gw.Shape, error) {
 	switch name {
 	case "", "rect":
 		return gw.Rect, nil
@@ -182,7 +190,10 @@ func shapeOf(name string) (gw.Shape, error) {
 	case "datastore":
 		return gw.DataStore, nil
 	}
-	return gw.Rect, errors.New("shape " + strconv.Quote(name) + " is not rect, round, pill, diamond, circle, actor or datastore")
+	if sh, ok := providedShape(s, name); ok {
+		return sh, nil
+	}
+	return gw.Rect, errors.New("shape " + strconv.Quote(name) + " is not rect, round, pill, diamond, circle, actor, datastore, one the schema defines or one of the library's")
 }
 
 func headOf(name string) (gw.Head, error) {

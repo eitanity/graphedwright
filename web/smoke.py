@@ -153,6 +153,12 @@ def check(out, native, example):
     if b["editing"] != "0.5" or b["done"] != {"share": "0.25", "label": ""}:
         raise SystemExit(f"the label input edits the attribute: started {b['editing']!r}, then {b['done']}")
 
+    p = out["provided"]
+    if p["registered"].get("ok") is not True or p["load"].get("ok") is not True or not p["bullseye"] or not p["flag"] or p["dom"] != 4:
+        raise SystemExit(f"provided shapes: {p}")
+    if "at byte 0" not in p["badPath"].get("error", "") or "is not rect" not in p["badName"].get("error", ""):
+        raise SystemExit(f"provided shape refusals: {p['badPath']} {p['badName']}")
+
     f = out["fns"]
     for key in ("on", "zoom", "fit", "setLabel", "setAttr", "addPort", "deletePort", "redo"):
         if f[key].get("ok") is not True:

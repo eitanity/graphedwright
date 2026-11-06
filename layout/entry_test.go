@@ -200,6 +200,40 @@ func TestFootWidth(t *testing.T) {
 	}
 }
 
+// TestFootHeight: provided shapes that draw their names under their
+// boxes, one above the other in a layer of a left-to-right flow, stand
+// apart by the name too, its baseline 14 under the foot and 4 more for
+// the descent, and keep the usual gap of 20 beyond it; without names
+// they stand the gap apart, short of a name's room more. A keyword over
+// the box, with no name, takes the line above as the name takes the one
+// below.
+func TestFootHeight(t *testing.T) {
+	for _, c := range []struct {
+		label, keyword string
+		room           float64
+	}{{"", "", 20}, {"a", "", 20 + 18}, {"", "«k»", 20 + 18}} {
+		s := gw.Schema{
+			Shapes:      []gw.ShapeDef{{Name: "dot", Box: gw.Size{W: 28, H: 28}, Outline: gw.OutlineEllipse, Label: gw.LabelBelow, Paths: []gw.ShapePath{{D: "M 0 14 A 14 14 0 0 1 28 14 A 14 14 0 0 1 0 14 Z"}}}},
+			VertexKinds: []gw.VertexKind{{Name: "dot", Shape: gw.Provided, Size: gw.Size{W: 32, H: 32}, Keyword: c.keyword}},
+		}
+		d, err := makeDoc(s, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if _, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: c.label}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		if gap := math.Abs(d.Vertex(1).Pos().Y-d.Vertex(0).Pos().Y) - 32; gap < c.room || c.room == 20 && gap >= 20+18 {
+			t.Errorf("%q: the boxes are %v apart, want %v", c.label, gap, c.room)
+		}
+	}
+}
+
 // TestExitOffSide: an orthogonal edge out of a member of a zone to a
 // vertex past the zone, where an edge to a later member leaves the same
 // side, leaves level with its end there, off the side's middle

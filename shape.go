@@ -27,7 +27,7 @@ type LabelPlace uint8
 // The places.
 const (
 	LabelInside LabelPlace = iota // centred between the margins, cut at that width
-	LabelBelow                    // at the foot, as wide as it needs, as an actor's
+	LabelBelow                    // under the box, as wide as it needs, the keyword over it
 	LabelNone                     // not drawn
 )
 

@@ -187,7 +187,7 @@ wasm-smoke: wasm
 # golden drawings and the editor's behaviour are the same there. wazero
 # is a tool, not a dependency, installed into bin/ like the linters.
 wasm-test: $(BIN)/wazero
-	PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit
+	PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit ./shapes
 
 # Every package's tests on the other Linux architectures under qemu-user,
 # the big-endian and 32-bit ones among them, so that a result that

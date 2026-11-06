@@ -15,6 +15,7 @@ import (
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/doc"
 	"code.eitanity.com/graphedwright/layout"
+	"code.eitanity.com/graphedwright/shapes"
 	"code.eitanity.com/graphedwright/svg"
 )
 
@@ -37,7 +38,27 @@ func schemas() []doc.Named {
 		Acyclic: true,
 	}
 	k, _ := gw.Compile(model) // nil if refused, which every decode then refuses
-	return append(doc.Builtin(), doc.Named{Name: "model", Kinds: k})
+	lk, _ := gw.Compile(library())
+	return append(doc.Builtin(), doc.Named{Name: "model", Kinds: k}, doc.Named{Name: "library", Kinds: lk})
+}
+
+// library is a schema of every shape of the library, a kind each named
+// as the shape, the bar with a port on each side, which turn with it,
+// and a group that holds any of them; joined by lines, curves and wires.
+func library() gw.Schema {
+	defs := shapes.Library()
+	s := gw.Schema{Shapes: defs, EdgeKinds: []gw.EdgeKind{{Name: "line", Arrow: true}, {Name: "curve", Route: gw.Curve}, {Name: "wire", Route: gw.Orthogonal}}}
+	all := make([]gw.KindIndex, 0, len(defs))
+	for i, def := range defs {
+		k := gw.VertexKind{Name: def.Name, Shape: gw.Provided + gw.Shape(i), Size: def.Box} //nolint:gosec // a dozen shapes
+		if def.Name == shapes.Bar {
+			k.Ports = []gw.Port{{Name: "in", Side: gw.Left}, {Name: "out", Side: gw.Right}}
+		}
+		s.VertexKinds = append(s.VertexKinds, k)
+		all = append(all, gw.KindIndex(i)) //nolint:gosec // a dozen shapes
+	}
+	s.VertexKinds = append(s.VertexKinds, gw.VertexKind{Name: "group", Size: gw.Size{W: 200, H: 120}, Container: true, Contains: all})
+	return s
 }
 
 const example = `{
@@ -397,6 +418,40 @@ func TestEncodeError(t *testing.T) {
 	}
 }
 
+// librarySeed is a document of the library schema: every kind of shape,
+// a bar joined by its ports, one in a group, by every route.
+const librarySeed = `{"schema":"library","vertices":[{"id":"a","kind":"filled-circle","label":"start"},{"id":"b","kind":"bar"},{"id":"c","kind":"tabbed-rectangle","label":"<pkg>"},{"id":"g","kind":"group"},{"id":"d","kind":"hexagon","parent":"g"},{"id":"e","kind":"cylinder"},{"id":"f","kind":"bullseye","label":"end &"},{"id":"h","kind":"folded-note"},{"id":"i","kind":"document"},{"id":"j","kind":"parallelogram"},{"id":"k","kind":"trapezoid"},{"id":"l","kind":"crossed-circle"},{"id":"m","kind":"double-circle"}],"edges":[{"kind":"line","from":"a","to":"b","to_port":"in"},{"kind":"wire","from":"b","to":"c","from_port":"out"},{"kind":"curve","from":"b","to":"d","from_port":"out"},{"kind":"wire","from":"d","to":"e"},{"kind":"line","from":"e","to":"f"},{"kind":"curve","from":"h","to":"i"},{"kind":"wire","from":"j","to":"k"},{"kind":"line","from":"k","to":"l"},{"kind":"curve","from":"l","to":"m"}]}`
+
+// TestLibrarySeed: the fuzzers' seed of the library schema decodes, a
+// vertex of every kind, and lays out and renders well-formed in either
+// flow, so that the fuzzers start from provided shapes.
+func TestLibrarySeed(t *testing.T) {
+	d, err := doc.Decode([]byte(librarySeed), doc.Options{Schemas: schemas()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.LiveVertices() != shapes.Count+1 || d.LiveEdges() != 9 {
+		t.Fatalf("%d vertices, %d edges", d.LiveVertices(), d.LiveEdges())
+	}
+	var buf bytes.Buffer
+	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		d.SetFlow(flow)
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		buf.Reset()
+		if err := svg.Render(d, svg.Options{Mode: svg.Edit}, &buf); err != nil {
+			t.Fatal(err)
+		}
+		if err := wellFormed(buf.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		if n := strings.Count(buf.String(), `<g class="shape shape-`); n != shapes.Count {
+			t.Errorf("flow %d: %d provided shapes drawn", flow, n)
+		}
+	}
+}
+
 // FuzzDecode: the decoder returns an error or a document, never
 // panics, and never makes more than the capacities allow; a document it
 // returns renders to well-formed XML with no attribute twice on an
@@ -419,6 +474,8 @@ func FuzzDecode(f *testing.F) {
 		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box"},{"id":"b","kind":"box"}],"edges":[{"kind":"arrow","from":"a","to":"b","label":"` + hostile + `"}]}`))
 	}
 	f.Add([]byte(`{"schema":"basic","vertices":[{"kind":"box","attrs":{"a b":"1","a_b":"2","A":"3","a":"4"}}]}`))
+	f.Add([]byte(librarySeed))
+	f.Add([]byte(`{"schema":"state-machine","vertices":[{"id":"i","kind":"initial","label":"<&>"},{"id":"s","kind":"state"},{"id":"f","kind":"final","label":"\"/><script>"}],"edges":[{"kind":"transition","from":"i","to":"s"},{"kind":"transition","from":"s","to":"f"}]}`))
 	r := svg.New()
 	var buf bytes.Buffer
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -452,6 +509,7 @@ func FuzzLayout(f *testing.F) {
 	f.Add([]byte(`{"schema":"basic","vertices":[{"id":"u","kind":"box"},{"id":"a","kind":"box","x":0,"y":0,"placed":true},{"id":"b","kind":"box","x":2000,"y":0,"placed":true}],"edges":[{"kind":"arrow","from":"a","to":"b"},{"kind":"arrow","from":"u","to":"b"}]}`))
 	f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box","x":-1e9,"y":-1e9,"placed":true},{"id":"g","kind":"group"},{"id":"c","kind":"box","parent":"g"}],"edges":[{"kind":"arrow","from":"a","to":"c"},{"kind":"arrow","from":"c","to":"a"}]}`))
 	f.Add([]byte(`{"schema":"model","vertices":[{"id":"s","kind":"source"},{"id":"n","kind":"node","x":5e8,"placed":true},{"id":"z","kind":"zone"},{"id":"l","kind":"leaf","parent":"z"}],"edges":[{"kind":"to","from":"s","to":"n","to_port":"in"},{"kind":"outcome","from":"n","to":"l","from_port":"out"}]}`))
+	f.Add([]byte(librarySeed))
 	r := svg.New()
 	var buf bytes.Buffer
 	f.Fuzz(func(t *testing.T, data []byte) {

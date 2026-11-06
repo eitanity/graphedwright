@@ -556,8 +556,12 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 	}
 	if below {
 		// An actor's label is at the foot of its box, under the
-		// figure, as wide as it needs.
+		// figure, as wide as it needs; a provided shape's is under its
+		// box, which the figure fills.
 		labelY, labelW, noteW = float64(v.Size().H/2)-4, 0, v.Size().W-8
+		if kind.Shape() >= gw.Provided {
+			labelY = float64(v.Size().H/2) + opts.FontSize + 2 // belowGap at the default size
+		}
 	}
 	switch {
 	case kind.Container():
