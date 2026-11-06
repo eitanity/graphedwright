@@ -7,6 +7,7 @@ import (
 
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/layout"
+	"code.eitanity.com/graphedwright/svg"
 )
 
 // wideDoc is a source a, a box b after it as long across the flow as
@@ -261,6 +262,58 @@ func TestUprightsBackAndInside(t *testing.T) {
 			}
 			if k < 0 || k+1 >= b.Len() || across(b.At(k+1)) != across(b.At(k)) {
 				t.Errorf("flow %d, lane %d into the container: no upright level with the run on: %v", f, e, b)
+			}
+		}
+	}
+}
+
+// TestLabelCarriers: edges that cross a layer side by side, each with a
+// label, stand their dummies apart by the room the label takes across
+// the flow, so that the labels, drawn on the runs through them, clear
+// each other: top to bottom, beside the run as wide as the text, they
+// lay across each other's runs when the dummies stood the gap (24)
+// apart; left to right, a line above the run, the gap holds them.
+func TestLabelCarriers(t *testing.T) {
+	const label = "a label of twenty ch"
+	for _, f := range []gw.Flow{gw.TopToBottom, gw.LeftToRight} {
+		s := gw.Schema{VertexKinds: []gw.VertexKind{{Name: "box", Size: gw.Size{W: 120, H: 40}}}, EdgeKinds: []gw.EdgeKind{{Name: "curve", Route: gw.Curve}}}
+		d, err := makeDoc(s, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.SetFlow(f)
+		add := func() gw.VertexIndex {
+			ch, err := d.Apply(gw.Command{Op: gw.AddVertex})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return ch.Vertices[0]
+		}
+		m, tv := add(), add()
+		es := make([]gw.EdgeIndex, 0, 3)
+		for range 3 {
+			sv := add()
+			if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: sv, To: m, FromPort: gw.None, ToPort: gw.None}); err != nil {
+				t.Fatal(err)
+			}
+			ch, err := d.Apply(gw.Command{Op: gw.AddEdge, From: sv, To: tv, FromPort: gw.None, ToPort: gw.None, Text: label})
+			if err != nil {
+				t.Fatal(err)
+			}
+			es = append(es, ch.Edges[0])
+		}
+		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: m, To: tv, FromPort: gw.None, ToPort: gw.None}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		for i, e := range es {
+			a := svg.EdgeLabelBox(d, e)
+			for _, o := range es[i+1:] {
+				if b := svg.EdgeLabelBox(d, o); a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H {
+					t.Errorf("flow %d: the labels of edges %d and %d overlap: %+v, %+v", f, e, o, a, b)
+				}
 			}
 		}
 	}

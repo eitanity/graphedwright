@@ -457,6 +457,16 @@ func middle(f frame, route gw.Route, a gw.Point, bends gw.PointList, b gw.Point)
 	}
 	k := bends.Len()/2 | 1
 	p, q := f.t(bends.At(k-1)), f.t(bends.At(k))
+	if p.X == q.X && p.Y != q.Y {
+		// An upright, straight across the flow, which a layout gives a
+		// leg at one end only: the run past it, toward the middle.
+		if k >= 3 {
+			k -= 2
+		} else if k+2 < bends.Len() {
+			k += 2
+		}
+		p, q = f.t(bends.At(k-1)), f.t(bends.At(k))
+	}
 	return f.t(f.at(legRoute(route, true, p, q), p, q, 0.5))
 }
 

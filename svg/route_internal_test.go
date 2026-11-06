@@ -224,3 +224,28 @@ func TestAcrossLegStraight(t *testing.T) {
 		}
 	}
 }
+
+// TestLabelOffUpright: a route whose middle leg, by its bends, is an
+// upright, straight across the flow, which a layout gives a leg at one
+// end only, puts its label on the run beside it toward the middle: the
+// run through the dummy before an upright at the target, after one at
+// the source; in either flow.
+func TestLabelOffUpright(t *testing.T) {
+	for _, f := range []frame{{}, {down: true}} {
+		pts := func(ps ...gw.Point) gw.PointList {
+			for i := range ps {
+				ps[i] = f.t(ps[i])
+			}
+			return gw.PointsOf(ps)
+		}
+		a, b := f.t(gw.Point{X: 0, Y: 0}), f.t(gw.Point{X: 400, Y: 300})
+		atTarget := pts(gw.Point{X: 100, Y: 0}, gw.Point{X: 200, Y: 0}, gw.Point{X: 240, Y: 0}, gw.Point{X: 240, Y: 300})
+		if got, want := f.t(middle(f, gw.Curve, a, atTarget, b)), (gw.Point{X: 150, Y: 0}); got != want {
+			t.Errorf("down %v, upright at the target: label at %v, want %v", f.down, got, want)
+		}
+		atSource := pts(gw.Point{X: 40, Y: 0}, gw.Point{X: 40, Y: 300}, gw.Point{X: 100, Y: 300}, gw.Point{X: 200, Y: 300})
+		if got, want := f.t(middle(f, gw.Curve, a, atSource, b)), (gw.Point{X: 150, Y: 300}); got != want {
+			t.Errorf("down %v, upright at the source: label at %v, want %v", f.down, got, want)
+		}
+	}
+}

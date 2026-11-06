@@ -319,7 +319,12 @@ where it is drawn, or with the first point of its run into a
 container. The uprights in one gap stand 8 apart, nested so that they
 do not cross, and the gap is deepened to hold them and an arrowhead.
 A straight edge keeps its legs, and a level with a placed vertex keeps
-its layers where they are.
+its layers where they are. A label goes on the run past an upright,
+toward the middle of the route, rather than on the upright.
+
+Top to bottom, where a label is drawn beside its run, the placeholders
+of a labelled edge take the label's width either side across the flow,
+so that the runs beside them in their layers clear it.
 
 A layout makes room for a name drawn under a figure, an actor's, which
 is wider than the figure. A straight edge into a member of a container

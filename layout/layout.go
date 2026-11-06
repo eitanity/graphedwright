@@ -133,6 +133,36 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	}
 }
 
+// labelCarriers gives the dummies of each labelled edge, top to bottom,
+// the room its text needs across the flow, so that the dummies beside
+// them in their layers stand clear of it: the renderer draws the label
+// beside the run through one of them, which depends on the bends the
+// edge's ends are given, as wide as the text. Each is as wide as twice
+// that, centred on its run, as the text may go either side. Left to
+// right the label is a line above its run, which the gap between
+// dummies holds.
+func (l *Layouter) labelCarriers(d *gw.Document) {
+	if !l.down {
+		return
+	}
+	for i := range l.edges {
+		if !l.eOn[i] || l.dN[i] == 0 {
+			continue
+		}
+		e := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
+		kind := d.Kinds().Edge(d.Edge(e).Kind())
+		chars := max(d.EdgeLabelRunes(e), utf8.RuneCountInString(kind.Stereotype()))
+		if chars == 0 {
+			continue
+		}
+		room := float64(float64(chars)*labelChar) + 2*labelPad
+		// bound: the edge's dummies
+		for k := range l.dN[i] {
+			l.h[l.dFirst[i]+k] = 2 * room
+		}
+	}
+}
+
 // Layouter holds the working arrays, sized from the capacities once.
 type Layouter struct {
 	caps     gw.Caps
@@ -691,6 +721,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 		return 0, 0, err
 	}
 	l.labelRoom(d)
+	l.labelCarriers(d)
 	l.initialOrder()
 	cr := l.reduceCrossings(opts.Sweeps)
 	l.coordinates(opts)
