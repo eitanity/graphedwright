@@ -328,9 +328,11 @@ func leg(a gw.Point, bends gw.PointList, b gw.Point, k int) (p, q gw.Point) {
 
 // legRoute is how a leg, in the frame, is drawn: as the edge's route,
 // except a level leg of a bent edge, which is a line, so that a run past
-// a layer stays level however short it is.
+// a layer stays level however short it is, and a leg straight across
+// the flow, which is a line too: a curve, leaving and arriving level,
+// would double back on itself to go nowhere along the flow.
 func legRoute(route gw.Route, bent bool, p, q gw.Point) gw.Route {
-	if bent && p.Y == q.Y {
+	if bent && (p.Y == q.Y || p.X == q.X) {
 		return gw.Straight
 	}
 	return route

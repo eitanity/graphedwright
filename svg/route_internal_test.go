@@ -201,3 +201,26 @@ func TestLanesApart(t *testing.T) {
 func insideBy(v gw.VertexView, p gw.Point, m float64) bool {
 	return p.X > v.Pos().X-v.Size().W/2+m && p.X < v.Pos().X+v.Size().W/2-m && p.Y > v.Pos().Y-v.Size().H/2+m && p.Y < v.Pos().Y+v.Size().H/2-m
 }
+
+// TestAcrossLegStraight: a leg of a bent curve straight across the
+// flow, which the layout gives a run along the gap before a container's
+// member, is drawn as a line, every point of it on the leg's line,
+// where a curve leaving and arriving level doubled back into an S; a
+// curve without bends keeps its route; in either flow.
+func TestAcrossLegStraight(t *testing.T) {
+	for _, f := range []frame{{}, {down: true}} {
+		p, q := gw.Point{X: 100, Y: 0}, gw.Point{X: 100, Y: 200}
+		lr := legRoute(gw.Curve, true, p, q)
+		if lr != gw.Straight {
+			t.Errorf("down %v: a leg across the flow drawn as route %d", f.down, lr)
+		}
+		for j := 0; j <= 16; j++ {
+			if x := f.at(lr, p, q, float64(j)/16); x.X != 100 {
+				t.Errorf("down %v: the leg strays to %v", f.down, x)
+			}
+		}
+		if lr := legRoute(gw.Curve, false, p, q); lr != gw.Curve {
+			t.Errorf("down %v: an unbent curve drawn as route %d", f.down, lr)
+		}
+	}
+}

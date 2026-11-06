@@ -1,6 +1,7 @@
 package layout_test
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,6 +53,57 @@ func TestExamplesNoEdgeCutsThrough(t *testing.T) {
 						hit = true
 						break
 					}
+				}
+			}
+		}
+	}
+}
+
+// TestExamplesAcrossRunsApart: in every example as laid out, no two
+// edges' legs between bends that run straight across the flow lie on
+// each other: two runs along the same gap before a container's member,
+// one to the layer after the gap and one back to the layer before it,
+// took the gap's middle, and in the state machine example the
+// transitions into Panning and back into Placing ran down it together.
+func TestExamplesAcrossRunsApart(t *testing.T) {
+	files, err := filepath.Glob("../web/examples/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no examples: %v", err)
+	}
+	type run struct {
+		e         gw.ID
+		x, y0, y1 float64
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f) //nolint:gosec // repository file
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+		if err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		var runs []run
+		for i := range d.EdgeSlots() {
+			e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+			if !e.Live() {
+				continue
+			}
+			for k := 1; k < e.Bends().Len(); k++ {
+				p, q := e.Bends().At(k-1), e.Bends().At(k)
+				x, y0, y1 := p.X, p.Y, q.Y // across a left-to-right flow
+				if d.Flow() == gw.TopToBottom {
+					x, y0, y1 = p.Y, p.X, q.X
+				}
+				if p != q && (d.Flow() == gw.TopToBottom && p.Y == q.Y || d.Flow() != gw.TopToBottom && p.X == q.X) {
+					runs = append(runs, run{e.ID(), x, math.Min(y0, y1), math.Max(y0, y1)})
+				}
+			}
+		}
+		for i, a := range runs {
+			for _, b := range runs[i+1:] {
+				if a.e != b.e && a.x == b.x && math.Min(a.y1, b.y1)-math.Max(a.y0, b.y0) > 1 {
+					t.Errorf("%s: edges %q and %q run on each other across the flow at %v", filepath.Base(f), a.e, b.e, a.x)
 				}
 			}
 		}

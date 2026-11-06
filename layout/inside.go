@@ -75,9 +75,13 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 		// can be in the way: come in level at m's height, from just outside.
 		return l.alongPad(d, r, cb, mb, low, g, buf)
 	}
-	in, gx, last := cb.x0+g, (near+col0)/2, float64((near+col0)/4)+float64(mb.x0/2)
+	// The run along the gap keeps five eighths of the way from m's layer
+	// to the members before it, off the middle, so that one along the
+	// same gap from the other side, to the layer beyond, keeps as far off
+	// it the other way rather than lying on it.
+	in, gx, last := cb.x0+g, float64(near*5/8)+float64(col0*3/8), float64((near+col0)/4)+float64(mb.x0/2)
 	if !low {
-		in, gx, last = cb.x1-g, (near+col1)/2, float64((near+col1)/4)+float64(mb.x1/2)
+		in, gx, last = cb.x1-g, float64(near*5/8)+float64(col1*3/8), float64((near+col1)/4)+float64(mb.x1/2)
 	}
 	bands := [2]float64{top - g, bottom + g}
 	if math.Abs(r.fy-bands[1]) < math.Abs(r.fy-bands[0]) {
