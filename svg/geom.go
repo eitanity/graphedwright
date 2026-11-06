@@ -274,6 +274,7 @@ type way struct {
 	k, n    int
 	ownLeg  bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
 	away    float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
+	at      float64 // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -289,6 +290,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	if n < 2 {
 		w.ownLeg = sharesTurn(d, i, w)
 		w.away = endAway(d, i)
+		w.at = e.LabelAt()
 		return w
 	}
 	p, q := w.f.t(w.a), w.f.t(w.b)
@@ -394,7 +396,8 @@ func (w *way) side() float64 {
 	return 1
 }
 
-// middle is where an edge's label goes: the middle of its route, or
+// middle is where an edge's label goes: where a layout placed it along
+// its route (LabelPlacer), or the middle of its route, or
 // with bends the middle of the leg ending at bend len/2 rounded up to
 // odd, which for the pairs a layout gives is the run past the middle
 // layer the edge crosses, level and clear of its vertices. In a lane it
@@ -408,6 +411,9 @@ func (w *way) middle(route gw.Route) gw.Point {
 			p.X += float64((float64(w.k) - float64(float64(w.n-1)/2)) * labelHeight)
 		}
 		return w.f.t(p)
+	}
+	if w.at > 0 {
+		return along(w.f, route, w.a, w.through, w.b, w.at)
 	}
 	if w.ownLeg {
 		p, q := w.f.t(w.a), w.f.t(w.b)

@@ -567,6 +567,7 @@ type edgeFields struct {
 	fromName, toName string
 	kindName         string
 	bends            []gw.Point
+	labelAt          float64 // 0 for none
 	data             span
 	hasData          bool
 }
@@ -613,6 +614,9 @@ func (dec *decoder) edge() error {
 	if len(f.bends) > 0 && !dec.d.SetBends(ch.Edges[0], f.bends) {
 		return s.errorf("bends exceed the room left for them")
 	}
+	if f.labelAt != 0 && !dec.d.SetLabelAt(ch.Edges[0], f.labelAt) {
+		return s.errorf("label_at " + strconv.FormatFloat(f.labelAt, 'g', -1, 64) + " is not strictly between 0 and 1")
+	}
 	if f.hasData {
 		dec.keep(f.data, gw.None, ch.Edges[0])
 	}
@@ -649,6 +653,8 @@ func (dec *decoder) edgeKey(k string, f *edgeFields, attrs []gw.Attr) ([]gw.Attr
 		f.cmd.Weight, err = s.num()
 	case "bends":
 		f.bends, err = dec.bends()
+	case "label_at":
+		f.labelAt, err = s.num()
 	case "attrs":
 		return dec.attrs(attrs)
 	case dataKey:

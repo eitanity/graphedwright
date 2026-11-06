@@ -200,3 +200,13 @@ func (e EdgeView) Bends() PointList {
 	}
 	return PointList{e.x.Bends}
 }
+
+// LabelAt is where along its route the edge's label is drawn, as a
+// fraction from its source to its target, each leg between its bends an
+// equal share; 0 for the middle the renderer finds (Document.SetLabelAt).
+func (e EdgeView) LabelAt() float64 {
+	if e.x == nil {
+		return 0
+	}
+	return e.x.LabelAt
+}

@@ -42,7 +42,7 @@ func libraryAcross(t testing.TB) (*gw.Document, svg.Options) { return library(t,
 func libraryDown(t testing.TB) (*gw.Document, svg.Options)   { return library(t, gw.TopToBottom) }
 
 // stateMachine: the demo's state machine example, as the built-in
-// schema draws it.
+// schema draws it, its labels placed as a host places them.
 func stateMachine(t testing.TB) (*gw.Document, svg.Options) {
 	t.Helper()
 	data, err := os.ReadFile("../web/examples/state-machine.json") //nolint:gosec // the demo's example, by fixed name
@@ -53,6 +53,7 @@ func stateMachine(t testing.TB) (*gw.Document, svg.Options) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	svg.NewLabelPlacer(d.Caps().Edges).Place(d) // as a host does once it has read a document
 	return d, svg.Options{Title: "The editor's gestures"}
 }
 

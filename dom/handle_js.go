@@ -125,6 +125,7 @@ type Handle struct {
 	ed        *edit.Editor
 	r         *svg.Renderer
 	lay       *layout.Layouter
+	labels    *svg.LabelPlacer // the places of the labels a layout would draw across something
 	host      Host
 	notesV    []svg.Annotation
 	notesE    []svg.Annotation
@@ -161,7 +162,7 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	if opts.View {
 		mode = edit.View
 	}
-	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, context: opts.Context, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
+	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), labels: svg.NewLabelPlacer(d.Caps().Edges), host: host, patch: !opts.NoPatch, context: opts.Context, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
 	h.opts.IDPrefix, h.opts.DocIDPrefix, h.opts.NoFullText = opts.IDPrefix, opts.DocIDPrefix, opts.NoFullText
 	h.ed = edit.New(d, mode, h.grid)
 	h.ed.SetExpand(!h.noExpand)
@@ -169,6 +170,7 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	h.notesE = make([]svg.Annotation, d.Caps().Edges)
 	h.selV, h.selE = make([]gw.VertexIndex, 0, d.Caps().Vertices), make([]gw.EdgeIndex, 0, d.Caps().Edges)
 	h.mount()
+	h.labels.Place(d)
 	// An empty document is shown one unit to a pixel, as Load shows it,
 	// so that a vertex added to it is drawn at its size.
 	h.fitView()
@@ -253,13 +255,16 @@ func (h *Handle) Load(d *gw.Document) error {
 	if held {
 		h.ed.Hold()
 	}
-	h.lay = layout.New(d.Caps())
+	h.lay, h.labels = layout.New(d.Caps()), svg.NewLabelPlacer(d.Caps().Edges)
 	if c := d.Caps(); c.Vertices != len(h.notesV) || c.Edges != len(h.notesE) {
 		h.notesV, h.notesE = make([]svg.Annotation, c.Vertices), make([]svg.Annotation, c.Edges)
 		h.selV, h.selE = make([]gw.VertexIndex, 0, c.Vertices), make([]gw.EdgeIndex, 0, c.Edges)
 	}
 	clear(h.notesV)
 	clear(h.notesE)
+	// A document laid out as it was read, or read with labels placed
+	// otherwise, takes the places this layout finds.
+	h.labels.Place(d)
 	h.fitView()
 	h.renderAll()
 	return nil
@@ -328,6 +333,7 @@ func (h *Handle) relayout(o layout.Options, flow string) (layout.Result, error) 
 	if err != nil {
 		return layout.Result{}, err
 	}
+	h.labels.Place(h.d)
 	h.fitView()
 	h.renderAll()
 	return res, nil

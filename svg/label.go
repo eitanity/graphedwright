@@ -71,16 +71,22 @@ func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	kind := d.Kinds().Edge(e.Kind())
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	f := wy.f
-	mid := wy.middle(kind.Route())
 	side := wy.side()
+	return labelBoxAt(d, i, wy.f, wy.middle(kind.Route()), side), side
+}
+
+// labelBoxAt is the box of edge i's label drawn at mid, on side of its
+// lane, in frame f.
+func labelBoxAt(d *gw.Document, i gw.EdgeIndex, f frame, mid gw.Point, side float64) gw.Viewport {
+	e := d.Edge(i)
+	kind := d.Kinds().Edge(e.Kind())
 	// Wide enough for the label as drawn and as typed in.
 	w := math.Max(float64(float64(max(d.EdgeLabelRunes(i), runeCount(e.Label())))*defaultCharWidth)+16, minLabelWidth)
 	if f.down {
 		if side < 0 {
-			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}, side
+			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
 		}
-		return gw.Viewport{X: mid.X + 2, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}, side
+		return gw.Viewport{X: mid.X + 2, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
 	}
 	base, step := mid.Y-defaultStroke/2-4, -float64(defaultFontSize)
 	if side < 0 {
@@ -89,7 +95,7 @@ func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
 	if kind.Stereotype() != "" {
 		base += step
 	}
-	return centred(mid.X, base-defaultFontSize/3, w), side
+	return centred(mid.X, base-defaultFontSize/3, w)
 }
 
 // defaultStroke is the stroke width of an unweighted edge.

@@ -185,3 +185,65 @@ func TestAllocBends(t *testing.T) {
 		t.Errorf("%g allocations per run", n)
 	}
 }
+
+// TestSetLabelAt: a label's place along an edge holds, as its bends do,
+// for the ends where they were when it was set: moving an end puts the
+// label back at its middle and marks the edge changed, and an undo that
+// brings the end back brings the place back, with bends or without; a
+// new route for the edge,
+// and ClearBends, drop it. A place not strictly between 0 and 1, a dead
+// edge, a locked document, and an edge whose route does not hold where
+// its ends are, are refused; an edge without bends takes one.
+func TestSetLabelAt(t *testing.T) {
+	d := containerDoc(t)
+	a := at(t, d, cBox, "a", 0, 0)
+	b := at(t, d, cBox, "b", 400, 0)
+	e := addEdge(t, d, 0, a, b, gw.None, gw.None)
+	for _, bad := range []float64{0, 1, -0.5, 1.5, math.NaN()} {
+		if d.SetLabelAt(e, bad) || d.Edge(e).LabelAt() != 0 {
+			t.Errorf("place %v taken", bad)
+		}
+	}
+	if !d.SetLabelAt(e, 0.25) || d.Edge(e).LabelAt() != 0.25 {
+		t.Fatalf("an edge without bends: place %v", d.Edge(e).LabelAt())
+	}
+	apply(t, d, gw.Command{Op: gw.Move, Vertex: a, Pos: gw.Point{X: -80, Y: 0}})
+	if d.Edge(e).LabelAt() != 0 {
+		t.Errorf("an edge without bends, moved: place %v", d.Edge(e).LabelAt())
+	}
+	if _, ok := d.Undo(); !ok || d.Edge(e).LabelAt() != 0.25 {
+		t.Errorf("an edge without bends, undone: place %v", d.Edge(e).LabelAt())
+	}
+	if !d.SetBends(e, []gw.Point{{X: 100, Y: 80}, {X: 300, Y: 80}}) || d.Edge(e).LabelAt() != 0 {
+		t.Errorf("a new route kept the place %v", d.Edge(e).LabelAt())
+	}
+	if !d.SetLabelAt(e, 0.75) || d.Edge(e).LabelAt() != 0.75 {
+		t.Fatalf("place %v", d.Edge(e).LabelAt())
+	}
+	ch := apply(t, d, gw.Command{Op: gw.Move, Vertex: b, Pos: gw.Point{X: 480, Y: 0}})
+	if d.Edge(e).LabelAt() != 0 || len(ch.Edges) == 0 {
+		t.Errorf("moved: place %v, edges changed %v", d.Edge(e).LabelAt(), ch.Edges)
+	}
+	if d.SetLabelAt(e, 0.5) {
+		t.Error("a place taken for a route that does not hold")
+	}
+	if _, ok := d.Undo(); !ok {
+		t.Fatal("nothing to undo")
+	}
+	if d.Edge(e).LabelAt() != 0.75 || d.Edge(e).Bends().Len() != 2 {
+		t.Errorf("undone: place %v, bends %d", d.Edge(e).LabelAt(), d.Edge(e).Bends().Len())
+	}
+	d.ClearBends()
+	if d.Edge(e).LabelAt() != 0 {
+		t.Errorf("cleared: place %v", d.Edge(e).LabelAt())
+	}
+	d.Lock()
+	if d.SetLabelAt(e, 0.5) {
+		t.Error("taken while locked")
+	}
+	d.Unlock()
+	apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: e})
+	if d.SetLabelAt(e, 0.5) {
+		t.Error("taken for a dead edge")
+	}
+}

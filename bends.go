@@ -77,9 +77,11 @@ func (d *Document) reserve(e EdgeIndex, n int) []Point {
 	return b
 }
 
-// dropRoute leaves an edge without bends, and any writer of its route
-// stale.
-func (d *Document) dropRoute(ed *edge) { ed.route, ed.Bends, ed.routeGen = nil, nil, 0 }
+// dropRoute leaves an edge without bends or a place for its label, and
+// any writer of its route stale.
+func (d *Document) dropRoute(ed *edge) {
+	ed.route, ed.Bends, ed.routeGen, ed.labelT, ed.LabelAt = nil, nil, 0, 0, 0
+}
 
 // BendWriter fills the bends ReserveBends reserved for one edge: a
 // layout engine's way to build a route in place, point by point, before
@@ -163,14 +165,15 @@ func (w BendWriter) Keep(n int) bool {
 	return true
 }
 
-// ClearBends drops every edge's route and empties the slab.
+// ClearBends drops every edge's route and the place of its label, and
+// empties the slab.
 func (d *Document) ClearBends() {
 	if d.locked {
 		return
 	}
 	for i := range d.edges {
 		e := &d.edges[i]
-		if e.Live && len(e.Bends) > 0 {
+		if e.Live && (len(e.Bends) > 0 || e.LabelAt != 0) {
 			d.touchEdge(EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		}
 		d.dropRoute(e)
@@ -219,13 +222,38 @@ func (d *Document) rebend() {
 func (d *Document) rebendEdge(i EdgeIndex) {
 	e := &d.edges[i]
 	var b []Point
-	if len(e.route) > 0 && e.routed == d.endsOf(e) {
-		b = e.route
+	at := 0.0
+	if e.routed == d.endsOf(e) {
+		if len(e.route) > 0 {
+			b = e.route
+		}
+		at = e.labelT
 	}
-	if (b == nil) != (e.Bends == nil) {
-		e.Bends = b
+	if (b == nil) != (e.Bends == nil) || at != e.LabelAt {
+		e.Bends, e.LabelAt = b, at
 		if e.Live {
 			d.touchEdge(i)
 		}
 	}
+}
+
+// SetLabelAt gives an edge the place along its route where its label is
+// drawn, as a fraction from its source to its target, each leg between
+// its bends an equal share: a layout's choice, outside the command log
+// as SetBends is, where the middle would cross another edge or text. It
+// holds, with the edge's bends, for the ends where they are now: moving
+// an end puts the label back at the middle, and putting the end back
+// brings the place back. A layout's next ClearBends or new route for
+// the edge drops it. t is strictly between 0 and 1. It reports whether
+// the edge was live and t a place.
+func (d *Document) SetLabelAt(e EdgeIndex, t float64) bool {
+	if d.locked || !d.edgeLive(e) || !(t > 0 && t < 1) {
+		return false
+	}
+	ed := &d.edges[e]
+	if len(ed.route) > 0 && ed.routed != d.endsOf(ed) {
+		return false // its route does not hold where its ends are
+	}
+	ed.routed, ed.labelT, ed.LabelAt = d.endsOf(ed), t, t
+	return true
 }

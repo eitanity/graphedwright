@@ -323,8 +323,18 @@ its layers where they are. A label goes on the run past an upright,
 toward the middle of the route, rather than on the upright.
 
 Top to bottom, where a label is drawn beside its run, the placeholders
-of a labelled edge take the label's width either side across the flow,
-so that the runs beside them in their layers clear it.
+of a labelled edge take the label's width across the flow, so that the
+runs beside them in their layers clear it.
+
+**Label places.** A label at the middle of its route can still cross
+another edge, another edge's label or a vertex: edges that fan out of
+one vertex run close together near it, and edges that share a short
+gap share its middle. After a layout, such a label is moved along its
+own route to the nearest place where it crosses nothing, toward the
+target first, or where it crosses fewest, and keeps that place
+(`Document.SetLabelAt`, `svg.LabelPlacer`) while its ends stay where
+they are, as its bends do. A lane's label and a right-angled edge's on
+its own last leg are not moved.
 
 A layout makes room for a name drawn under a figure, an actor's, which
 is wider than the figure. A straight edge into a member of a container

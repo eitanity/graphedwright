@@ -90,6 +90,11 @@ document is locked; those that report a result report false then:
 - **`Place(v, p, placed)`** sets a vertex's position.
 - **`Fit()`** fits every container around what it holds.
 - **`SetBends(e, pts)`** gives an edge its route, checked and copied.
+- **`SetLabelAt(e, t)`** gives an edge the place along its route where
+  its label is drawn, a fraction from its source to its target; like
+  its bends, it holds for the ends where they are, and a new route or
+  `ClearBends` drops it. An edge's `LabelAt()` is the place, or 0 for
+  the middle.
   **`ReserveBends(e, n)`** reserves n points and returns a
   `gw.BendWriter` to build the route in place, as a layout does before
   placing the ends: `Set(i, p)`, `At(i)`, `Move(to, from, n)` and
@@ -135,7 +140,20 @@ when the layout should be undoable, and to change the flow.
 | `All` | false | lay out placed vertices too |
 
 `Result` gives the number of layers, the edge crossings left, and the
-edges taken as reversed to break cycles, so a host can mark them. A
+edges taken as reversed to break cycles, so a host can mark them.
+
+A label at the middle of its route can cross another edge, label or
+vertex. After a layout, `svg.LabelPlacer` moves each such label along
+its route to the nearest place where it crosses nothing, or fewest
+(`Document.SetLabelAt`). The browser binding and the command do this
+after a layout and when a document is read; a program that runs the
+layout itself, or reads a document with `doc.Decode`, which lays out
+one without positions, does it too:
+
+```go
+p := svg.NewLabelPlacer(d.Caps().Edges) // allocate its arrays once
+p.Place(d)                              // after each layout, or once a document is read
+``` A
 document that needs more placeholder points than the budget (8 per edge
 capacity) is refused with an error. The same input always gives the
 same layout.

@@ -110,10 +110,12 @@ type edge struct {
 	Weight   float64 // drives stroke width when the kind says so; 0 = none
 	Live     bool
 	Bends    []Point // the points it is drawn through between its ends, or none; see SetBends
+	LabelAt  float64 // where along its route its label is drawn, a fraction, or 0 for its middle; see SetLabelAt
 	diedBy   uint64
 	route    []Point // the bends it was given, in the slab
 	routed   ends    // where its ends were then
 	routeGen uint64  // the reservation route is, which a BendWriter names; 0 for none
+	labelT   float64 // the place LabelAt shows while the ends are where routed says; 0 for none
 }
 
 // Caps are the capacities fixed when a document is made. Everything the

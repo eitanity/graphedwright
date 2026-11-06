@@ -241,6 +241,10 @@ func (e *encoder) edge(d *gw.Document, ed gw.EdgeView) {
 		}
 		e.byte(']')
 	}
+	if ed.LabelAt() > 0 {
+		e.field("label_at")
+		e.num(ed.LabelAt())
+	}
 	e.attrs(ed.Attrs())
 	e.data(d, ed.ID(), "edge "+strconv.Quote(string(ed.ID())))
 	e.byte('}')
