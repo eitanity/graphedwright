@@ -684,7 +684,7 @@ func TestLabelAt(t *testing.T) {
 	}
 	for _, bad := range []string{"1.5", "-0.2", "1"} {
 		_, err := doc.Decode([]byte(strings.Replace(text, `"label_at":0.3`, `"label_at":`+bad, 1)), doc.Options{Schemas: schemas()})
-		if err == nil || !strings.Contains(err.Error(), "label_at "+bad+" is not strictly between 0 and 1") {
+		if err == nil || !strings.Contains(err.Error(), "label_at must be strictly between 0 and 1") {
 			t.Errorf("label_at %s: %v", bad, err)
 		}
 	}

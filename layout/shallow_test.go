@@ -22,8 +22,8 @@ func wideDoc(t *testing.T, f gw.Flow, lanes, pull int, zone bool, caps gw.Caps) 
 
 // wideOpts are wideDoc's further cases: c in a container, after another
 // member m there, m to c, which the lanes' runs inside it go round
-// (first); the lanes from c back to a (back); and b placed where it
-// stands, the layout not run with All (placed).
+// (first); the lanes from c back to a (back); and, once laid out, a
+// placed where it stands and the layout run again without All (placed).
 type wideOpts struct{ zone, first, back, placed bool }
 
 func wideDocWith(t *testing.T, f gw.Flow, lanes, pull int, o wideOpts, caps gw.Caps) (*gw.Document, []gw.EdgeIndex) {
@@ -84,13 +84,16 @@ func wideDocWith(t *testing.T, f gw.Flow, lanes, pull int, o wideOpts, caps gw.C
 			es = append(es, link(a, c))
 		}
 	}
+	if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+		t.Fatal(err)
+	}
 	if o.placed {
-		if _, err := d.Apply(gw.Command{Op: gw.Move, Vertex: b, Pos: gw.Point{X: 400, Y: 360}}); err != nil {
+		if _, err := d.Apply(gw.Command{Op: gw.Move, Vertex: a, Pos: d.Vertex(a).Pos()}); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: !o.placed}); err != nil {
-		t.Fatal(err)
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return d, es
 }
@@ -225,6 +228,30 @@ func TestUprightsNoRoom(t *testing.T) {
 	}
 	if n[0] != 6 || n[1] != 6 || n[2] != 6 || n[3] != 2 {
 		t.Errorf("bends per lane %v, want 6, 6, 6 and 2", n)
+	}
+}
+
+// TestUprightsPlaced: a level with a placed vertex keeps its layers
+// where they are, so its legs are not given uprights, which would deepen
+// a gap: with the source placed, the lanes keep their dummies' two bends
+// and the box after it stands as far on along the flow as when the
+// source was free. In either flow.
+func TestUprightsPlaced(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		along := func(d *gw.Document) float64 { return d.Vertex(1).Pos().X - d.Vertex(0).Pos().X }
+		if f == gw.TopToBottom {
+			along = func(d *gw.Document) float64 { return d.Vertex(1).Pos().Y - d.Vertex(0).Pos().Y }
+		}
+		before, _ := wideDoc(t, f, 4, 1, false, gw.Caps{})
+		d, es := wideDocWith(t, f, 4, 1, wideOpts{placed: true}, gw.Caps{})
+		if along(d) != along(before) {
+			t.Errorf("flow %d: the box after the placed source stands %v on, want %v", f, along(d), along(before))
+		}
+		for _, e := range es {
+			if n := d.Edge(e).Bends().Len(); n != 2 {
+				t.Errorf("flow %d, lane %d: %d bends, want its dummy's 2", f, e, n)
+			}
+		}
 	}
 }
 

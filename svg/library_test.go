@@ -53,7 +53,7 @@ func stateMachine(t testing.TB) (*gw.Document, svg.Options) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svg.NewLabelPlacer(d.Caps().Edges).Place(d) // as a host does once it has read a document
+	svg.PlaceLabels(d) // as a host does once it has read a document
 	return d, svg.Options{Title: "The editor's gestures"}
 }
 

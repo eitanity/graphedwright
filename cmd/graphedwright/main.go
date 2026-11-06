@@ -111,7 +111,7 @@ func render(args []string, stdout, stderr io.Writer) int {
 	}
 	// Laid out afresh or as it was read, its labels go where they
 	// cross nothing.
-	svg.NewLabelPlacer(d.Caps().Edges).Place(d)
+	svg.PlaceLabels(d)
 	opts := svg.Options{NoFullText: *noFull}
 	if *css {
 		opts.Style = svg.Stylesheet

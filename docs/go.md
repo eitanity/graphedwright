@@ -143,7 +143,7 @@ when the layout should be undoable, and to change the flow.
 edges taken as reversed to break cycles, so a host can mark them.
 
 A label at the middle of its route can cross another edge, label or
-vertex. After a layout, `svg.LabelPlacer` moves each such label along
+vertex. After a layout, `svg.PlaceLabels` moves each such label along
 its route to the nearest place where it crosses nothing, or fewest
 (`Document.SetLabelAt`). The browser binding and the command do this
 after a layout and when a document is read; a program that runs the
@@ -151,9 +151,13 @@ layout itself, or reads a document with `doc.Decode`, which lays out
 one without positions, does it too:
 
 ```go
-p := svg.NewLabelPlacer(d.Caps().Edges) // allocate its arrays once
-p.Place(d)                              // after each layout, or once a document is read
-``` A
+svg.PlaceLabels(d) // after each layout, or once a document is read
+```
+
+It keeps nothing and allocates nothing. Each place tried is tested
+against every other edge, so the work grows as the square of the
+edges: a document with more than `svg.PlaceEdges` (128) edges keeps its
+labels where they are. A
 document that needs more placeholder points than the budget (8 per edge
 capacity) is refused with an error. The same input always gives the
 same layout.

@@ -397,7 +397,7 @@ func (w *way) side() float64 {
 }
 
 // middle is where an edge's label goes: where a layout placed it along
-// its route (LabelPlacer), or the middle of its route, or
+// its route (PlaceLabels), or the middle of its route, or
 // with bends the middle of the leg ending at bend len/2 rounded up to
 // odd, which for the pairs a layout gives is the run past the middle
 // layer the edge crosses, level and clear of its vertices. In a lane it

@@ -362,7 +362,7 @@ func readExample(t *testing.T, name string) *gw.Document {
 	if err != nil {
 		t.Fatal(err)
 	}
-	NewLabelPlacer(d.Caps().Edges).Place(d) // as a host does once it has read a document
+	PlaceLabels(d) // as a host does once it has read a document
 	return d
 }
 
@@ -396,7 +396,7 @@ func TestLaidOutExamplesClear(t *testing.T) {
 			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
 				t.Fatal(err)
 			}
-			NewLabelPlacer(d.Caps().Edges).Place(d)
+			PlaceLabels(d)
 			label := name + " " + strconv.Itoa(int(flow))
 			footLabelsClear(t, label, d)
 			edgeTextsClear(t, label, d)

@@ -332,9 +332,10 @@ one vertex run close together near it, and edges that share a short
 gap share its middle. After a layout, such a label is moved along its
 own route to the nearest place where it crosses nothing, toward the
 target first, or where it crosses fewest, and keeps that place
-(`Document.SetLabelAt`, `svg.LabelPlacer`) while its ends stay where
+(`Document.SetLabelAt`, `svg.PlaceLabels`) while its ends stay where
 they are, as its bends do. A lane's label and a right-angled edge's on
-its own last leg are not moved.
+its own last leg are not moved, and nor is any label of a document with
+more than 128 edges, where the search would take too long.
 
 A layout makes room for a name drawn under a figure, an actor's, which
 is wider than the figure. A straight edge into a member of a container

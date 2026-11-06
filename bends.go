@@ -251,9 +251,10 @@ func (d *Document) SetLabelAt(e EdgeIndex, t float64) bool {
 		return false
 	}
 	ed := &d.edges[e]
-	if len(ed.route) > 0 && ed.routed != d.endsOf(ed) {
+	now := d.endsOf(ed)
+	if len(ed.route) > 0 && ed.routed != now {
 		return false // its route does not hold where its ends are
 	}
-	ed.routed, ed.labelT, ed.LabelAt = d.endsOf(ed), t, t
+	ed.routed, ed.labelT, ed.LabelAt = now, t, t
 	return true
 }
