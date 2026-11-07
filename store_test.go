@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -598,6 +599,12 @@ func TestStoreReentry(t *testing.T) {
 // a Compact that releases a tombstone, allocate nothing on the
 // document's side.
 func TestAllocHostChange(t *testing.T) {
+	// The counts below are of the whole process: with the collector
+	// running, the runtime's own allocations as a collection starts
+	// were counted too, in about a third of the runs of a new process.
+	// It is stopped while they are taken, and any collection under way
+	// finished; allocations are counted all the same.
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	d := newDoc(t, gw.Caps{})
 	_, a, _, _ := chain(t, d)
 	d.ClearUndo()
