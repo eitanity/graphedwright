@@ -133,18 +133,17 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	}
 }
 
-// labelCarriers gives the dummies of each labelled edge, top to bottom,
-// the room its text needs across the flow, so that the dummies beside
-// them in their layers stand clear of it: the renderer draws the label
-// beside the run through one of them, which depends on the bends the
-// edge's ends are given, as wide as the text. Each is as wide as the
-// text, centred on its run, so that a label beside it, on either side,
-// reaches no nearer the next run than the gap. Left to right the label
-// is a line above its run, which the gap between dummies holds.
+// labelCarriers gives the dummies of each labelled edge the room its
+// text needs: the renderer draws the label beside the run through one of
+// them, which depends on the bends the edge's ends are given, as wide as
+// the text. Top to bottom each is as wide as the text, centred on its
+// run, so that a label beside it, on either side, reaches no nearer the
+// next run than the gap. Left to right the label is a line above its
+// run, which the gap between dummies holds across the flow, and each is
+// as long as the text along it, so that the label stays within its
+// dummy's layer and off the gap beyond, where the next layer's labels
+// are.
 func (l *Layouter) labelCarriers(d *gw.Document) {
-	if !l.down {
-		return
-	}
 	for i := range l.edges {
 		if !l.eOn[i] || l.dN[i] == 0 {
 			continue
@@ -158,7 +157,11 @@ func (l *Layouter) labelCarriers(d *gw.Document) {
 		room := float64(float64(chars)*labelChar) + 2*labelPad
 		// bound: the edge's dummies
 		for k := range l.dN[i] {
-			l.h[l.dFirst[i]+k] = room
+			if l.down {
+				l.h[l.dFirst[i]+k] = room
+			} else {
+				l.w[l.dFirst[i]+k] = room
+			}
 		}
 	}
 }

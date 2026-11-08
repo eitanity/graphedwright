@@ -197,8 +197,10 @@ The layout (`layout.Layouter`) is layered:
    (twice as wide for a right-angled edge, whose text is on the half
    past its turn), or where edges have far to go across the flow in the
    room between them (uprights, below). Within a layer, vertices are
-   centred on their neighbours and kept a gap (24) apart. Everything
-   lands on a grid (8).
+   centred on their neighbours and kept a gap (24) apart; then each long
+   edge's placeholders are brought into one row where they fit, so that
+   it runs straight past the layers between its ends. Everything lands
+   on a grid (8).
 5. **Routes:** each long edge is routed through its placeholders as
    bends, and an edge that would cross a vertex beside one of its ends
    is routed around it (below).
@@ -329,9 +331,11 @@ A straight edge keeps its legs, and a level with a placed vertex keeps
 its layers where they are. A label goes on the run past an upright,
 toward the middle of the route, rather than on the upright.
 
-Top to bottom, where a label is drawn beside its run, the placeholders
-of a labelled edge take the label's width across the flow, so that the
-runs beside them in their layers clear it.
+The placeholders of a labelled edge take the label's width: top to
+bottom, where a label is drawn beside its run, across the flow, so that
+the runs beside them in their layers clear it; left to right, where it
+is drawn above its run, along the flow, so that it stays within its
+layer, off the gaps either side where the next layers' labels are.
 
 **Label places.** A label at the middle of its route can still cross
 another edge, another edge's label or a vertex: edges that fan out of

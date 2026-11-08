@@ -8,7 +8,8 @@ import (
 // place in the order: a first stacking, then two passes centring each
 // node on the median of its neighbours in the layer before (down) and
 // after (up), overlaps pushed apart by the gap, placed vertices never
-// moved; then everything snapped to the grid. Layers are the pitch
+// moved; then each long edge's dummies brought into one row where they
+// fit; then everything snapped to the grid. Layers are the pitch
 // apart, or further where their widest nodes, or the labels between
 // them, need the room, out to the grid so that snapping keeps it.
 func (l *Layouter) coordinates(opts Options) {
@@ -55,6 +56,7 @@ func (l *Layouter) coordinates(opts Options) {
 	for k := l.layers - 2; k >= 0; k-- {
 		l.centreLayer(k, opts)
 	}
+	l.straighten(opts.Gap)
 	for i := range l.realN {
 		if !l.pin[i] {
 			l.x[i] = math.Round(l.x[i]/opts.Grid) * opts.Grid
@@ -118,3 +120,89 @@ func (l *Layouter) medianY(v int32) (float64, bool) {
 	}
 	return (l.bary[n/2-1] + l.bary[n/2]) / 2, true
 }
+
+// straighten puts the dummies of each long edge in one row across the
+// flow, where they fit between their neighbours in their layers, so that
+// the edge runs on through the layers it passes instead of stepping
+// between them. A dummy that does not fit may once another edge's have
+// moved, so it passes over the edges again until one moves nothing.
+func (l *Layouter) straighten(gap float64) {
+	// bound: the layers
+	for k := 0; k < l.layers; k++ {
+		// bound: the nodes of one layer
+		for p := l.keys[k]; p < l.keys[k+1]; p++ {
+			l.pos[l.order[p]] = p - l.keys[k]
+		}
+	}
+	// bound: a pass for each edge, though one that moves nothing ends them
+	for range l.edges {
+		moved := false
+		// bound: the document's edge slots
+		for i := range l.edges {
+			if l.dN[i] > 1 && l.straightenEdge(l.dFirst[i], l.dN[i], gap) {
+				moved = true
+			}
+		}
+		if !moved {
+			return
+		}
+	}
+}
+
+// straightenEdge moves the n dummies from first to the row of the one
+// that the most of them fit at, the first such from first, those of them
+// that fit, and is whether any moved.
+func (l *Layouter) straightenEdge(first, n int32, gap float64) bool {
+	at, most := 0.0, 0
+	// bound: the edge's dummies
+	for a := range n {
+		if c := l.fitting(first, n, l.y[first+a], gap); c > most {
+			at, most = l.y[first+a], c
+		}
+	}
+	moved := false
+	// bound: the edge's dummies
+	for v := first; v < first+n; v++ {
+		if l.y[v] != at && l.fitsAt(v, at, gap) {
+			l.y[v], moved = at, true
+		}
+	}
+	return moved
+}
+
+// fitting is how many of the n dummies from first fit at y.
+func (l *Layouter) fitting(first, n int32, y, gap float64) int {
+	c := 0
+	// bound: the edge's dummies
+	for v := first; v < first+n; v++ {
+		if l.fitsAt(v, y, gap) {
+			c++
+		}
+	}
+	return c
+}
+
+// fitsAt is whether node v, moved to y, stays the gap clear of the nodes
+// before and after it in its layer.
+func (l *Layouter) fitsAt(v int32, y, gap float64) bool {
+	k := l.layer[v]
+	p := l.keys[k] + l.pos[v]
+	half := float64(l.h[v] / 2)
+	if p > l.keys[k] {
+		u := l.order[p-1]
+		if l.y[u]+float64(l.h[u]/2)+gap > y-half+straightTol {
+			return false
+		}
+	}
+	if p+1 < l.keys[k+1] {
+		u := l.order[p+1]
+		if l.y[u]-float64(l.h[u]/2)-gap < y+half-straightTol {
+			return false
+		}
+	}
+	return true
+}
+
+// straightTol is how far within the gap a node moved into a row is
+// taken to fit: the rows are sums of the same sizes in another order.
+const straightTol = 1e-6

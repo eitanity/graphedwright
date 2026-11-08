@@ -165,6 +165,41 @@ func TestExamplesEndsMeetTheirBends(t *testing.T) {
 	}
 }
 
+// TestStateMachineColumns: in the state machine example laid out top to
+// bottom, the long transitions between Idle and EditingText, which pass
+// the layers between them beside the rest, each run down one column,
+// their bends at three places across the flow: level with the upright
+// at either end and that column. Their dummies were centred on their
+// neighbours, which stepped each across between its first two layers.
+func TestStateMachineColumns(t *testing.T) {
+	data, err := os.ReadFile("../web/examples/state-machine.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := doc.Decode(data, doc.Options{Schemas: doc.Builtin()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.SetFlow(gw.TopToBottom)
+	if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []gw.ID{"t12", "t13", "t14"} {
+		i := d.EdgeByID(id)
+		if i == gw.None {
+			t.Fatalf("no edge %s", id)
+		}
+		b := d.Edge(i).Bends()
+		xs := map[float64]bool{}
+		for k := range b.Len() {
+			xs[b.At(k).X] = true
+		}
+		if len(xs) > 3 {
+			t.Errorf("edge %s: bends at %d places across, want 3: %v", id, len(xs), b)
+		}
+	}
+}
+
 // turned is the document data with every edge reversed but those from
 // a vertex of kind keep.
 func turned(t *testing.T, data []byte, keep string) []byte {
