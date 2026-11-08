@@ -422,6 +422,57 @@ func (w *way) middle(route gw.Route) gw.Point {
 	return middle(w.f, route, w.a, w.through, w.b)
 }
 
+// turnedAt is where along a top-to-bottom flow a label of length need
+// at mid is centred when it is turned to read along its run: mid moved
+// along the run as little as keeps the label within it. The run is the
+// stretch of the route through its bends, straight along the flow, that
+// mid is on; ok is false where the flow is left to right, the edge is
+// in a lane or has no bends, mid is on no such stretch, or the stretch
+// is shorter than need.
+func (w *way) turnedAt(mid gw.Point, need float64) (c float64, ok bool) {
+	n := w.through.Len()
+	if !w.f.down || w.n > 1 || n == 0 {
+		return 0, false
+	}
+	// bound: the legs, at most the bends per edge and one
+	for k := range n + 1 {
+		p, q := leg(w.a, w.through, w.b, k)
+		if p.X != q.X || math.Abs(mid.X-p.X) > 0.5 || mid.Y < min(p.Y, q.Y) || mid.Y > max(p.Y, q.Y) {
+			continue
+		}
+		lo, hi := w.runAlong(k, p.X)
+		if hi-lo < need {
+			return 0, false
+		}
+		return min(max(mid.Y, lo+float64(need/2)), hi-float64(need/2)), true
+	}
+	return 0, false
+}
+
+// runAlong is the stretch along a top-to-bottom flow, top and bottom,
+// of the legs next to leg k, it included, that run straight down at x.
+func (w *way) runAlong(k int, x float64) (lo, hi float64) {
+	p, q := leg(w.a, w.through, w.b, k)
+	lo, hi = min(p.Y, q.Y), max(p.Y, q.Y)
+	// bound: the legs before k
+	for j := k - 1; j >= 0; j-- {
+		p, q := leg(w.a, w.through, w.b, j)
+		if p.X != x || q.X != x {
+			break
+		}
+		lo, hi = min(lo, p.Y, q.Y), max(hi, p.Y, q.Y)
+	}
+	// bound: the legs after k
+	for j := k + 1; j <= w.through.Len(); j++ {
+		p, q := leg(w.a, w.through, w.b, j)
+		if p.X != x || q.X != x {
+			break
+		}
+		lo, hi = min(lo, p.Y, q.Y), max(hi, p.Y, q.Y)
+	}
+	return lo, hi
+}
+
 // turnAt is where an orthogonal edge from p to q, in the frame, turns:
 // halfway along.
 func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }

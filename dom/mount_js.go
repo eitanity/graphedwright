@@ -370,7 +370,7 @@ func (h *Handle) showInput() {
 	case v != gw.None:
 		box = svg.VertexLabelBox(h.d, v)
 	case e != gw.None:
-		box = svg.EdgeLabelBox(h.d, e)
+		box = svg.EdgeLabelInputBox(h.d, e)
 	default:
 		return
 	}

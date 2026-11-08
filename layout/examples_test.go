@@ -120,7 +120,9 @@ func TestExamplesAcrossRunsApart(t *testing.T) {
 // end spread along its side, where it stands within the spread of the
 // side's ends, is level with the end, so that the route arrives level;
 // or it stands at the side's middle, where the edge's dummies run
-// straight on from the vertex. The order of the ends at a side follows
+// straight on from the vertex; or it is where the route goes into a
+// container that holds its other end, which the ends there are ordered
+// by. The order of the ends at a side follows
 // where their routes head, which is known only once every route is
 // found and changes with a detour: the bends set level with an end
 // before were left where it fell then.
@@ -228,6 +230,21 @@ func turned(t *testing.T, data []byte, keep string) []byte {
 	return out
 }
 
+// entering is whether p is within a container holding far but not v.
+func entering(d *gw.Document, v, far gw.VertexIndex, p gw.Point) bool {
+	// bound: the parent chain
+	for c := d.Vertex(far).Parent(); c != gw.None; c = d.Vertex(c).Parent() {
+		if d.Within(v, c) {
+			return false
+		}
+		box := d.Vertex(c)
+		if math.Abs(p.X-box.Pos().X) < box.Size().W/2 && math.Abs(p.Y-box.Pos().Y) < box.Size().H/2 {
+			return true
+		}
+	}
+	return false
+}
+
 // endMeetsBend checks edge e's end at its target, or with target false
 // at its source, against the bend next to it, and says how it fails.
 func endMeetsBend(d *gw.Document, e gw.EdgeIndex, target bool) string {
@@ -237,9 +254,9 @@ func endMeetsBend(d *gw.Document, e gw.EdgeIndex, target bool) string {
 		return ""
 	}
 	k, n := d.EndSlot(e, target)
-	v, p := ed.From(), b.At(0)
+	v, far, p := ed.From(), ed.To(), b.At(0)
 	if target {
-		v, p = ed.To(), b.At(b.Len()-1)
+		v, far, p = ed.To(), ed.From(), b.At(b.Len()-1)
 	}
 	vx := d.Vertex(v)
 	if n < 2 || d.Kinds().Vertex(vx.Kind()).Container() {
@@ -251,7 +268,7 @@ func endMeetsBend(d *gw.Document, e gw.EdgeIndex, target bool) string {
 	}
 	step := math.Min(gw.EndGap, side/float64(n+1))
 	end := mid + d.EndOffset(e, target)
-	if math.Abs(at-mid) > float64(float64(n-1)/2)*step || at == end || at == mid {
+	if math.Abs(at-mid) > float64(float64(n-1)/2)*step || at == end || at == mid || entering(d, v, far, p) {
 		return ""
 	}
 	return fmt.Sprintf("its end, slot %d of %d, is drawn at %v across, its bend next to it at %v", k, n, end, at)

@@ -59,29 +59,67 @@ func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 // EdgeLabelBox is the box of an edge's label, where it is drawn or
 // would be when it has none: above the middle of its route, or to the
 // right of it in a top-to-bottom flow, as wide as its text; below or to
-// the left for a lane on that side of the others.
+// the left for a lane on that side of the others. Top to bottom, a label
+// on a run through the layers, straight along the flow and long enough
+// for it, is turned to read along the run, and its box stands beside
+// the run as tall as the text is wide.
 func EdgeLabelBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
-	b, _ := edgeLabelBox(d, i)
+	b, _, _ := edgeLabelBox(d, i)
 	return b
 }
 
-// edgeLabelBox is EdgeLabelBox and the side of its lane it is on.
-func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64) {
+// EdgeLabelInputBox is where to put an input to edit an edge's label:
+// its box (EdgeLabelBox), or, where the label is turned to read along
+// its run, that box level about the same centre, as text is typed level.
+func EdgeLabelInputBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
+	b, _, turned := edgeLabelBox(d, i)
+	if !turned {
+		return b
+	}
+	return gw.Viewport{X: b.X + float64(b.W/2) - float64(b.H/2), Y: b.Y + float64(b.H/2) - float64(b.W/2), W: b.H, H: b.W}
+}
+
+// edgeLabelBox is EdgeLabelBox, the side of its lane it is on, and
+// whether it is turned.
+func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64, bool) {
 	e := d.Edge(i)
 	kind := d.Kinds().Edge(e.Kind())
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	side := wy.side()
-	return labelBoxAt(d, i, wy.f, wy.middle(kind.Route()), side), side
+	b, turned := labelBoxAt(d, i, &wy, wy.middle(kind.Route()))
+	return b, wy.side(), turned
 }
 
-// labelBoxAt is the box of edge i's label drawn at mid, on side of its
-// lane, in frame f.
-func labelBoxAt(d *gw.Document, i gw.EdgeIndex, f frame, mid gw.Point, side float64) gw.Viewport {
-	e := d.Edge(i)
-	kind := d.Kinds().Edge(e.Kind())
-	// Wide enough for the label as drawn and as typed in.
-	w := math.Max(float64(float64(max(d.EdgeLabelRunes(i), runeCount(e.Label())))*defaultCharWidth)+16, minLabelWidth)
+// labelWidth is the length of the box of edge i's label: wide enough for
+// the label as drawn and as typed in.
+func labelWidth(d *gw.Document, i gw.EdgeIndex) float64 {
+	return math.Max(float64(float64(max(d.EdgeLabelRunes(i), runeCount(d.Edge(i).Label())))*defaultCharWidth)+16, minLabelWidth)
+}
+
+// turnedLength is the run a label turned to read along it needs: its
+// text and room either side, as a layout makes the run through a dummy.
+func turnedLength(d *gw.Document, i gw.EdgeIndex) float64 {
+	return float64(float64(d.EdgeLabelRunes(i))*defaultCharWidth) + 16
+}
+
+// labelBoxAt is the box of edge i's label drawn at mid on its way w, and
+// whether it is turned.
+func labelBoxAt(d *gw.Document, i gw.EdgeIndex, w *way, mid gw.Point) (gw.Viewport, bool) {
+	kind := d.Kinds().Edge(d.Edge(i).Kind())
+	lw, side := labelWidth(d, i), w.side()
+	if c, ok := w.turnedAt(mid, turnedLength(d, i)); ok {
+		x := mid.X + 2
+		if side < 0 {
+			x = mid.X - 2 - labelHeight
+		}
+		return gw.Viewport{X: x, Y: c - float64(lw/2), W: labelHeight, H: lw}, true
+	}
+	return levelBoxAt(kind, w.f, mid, side, lw), false
+}
+
+// levelBoxAt is the box of a label of width w drawn level at mid, on
+// side of its lane, in frame f.
+func levelBoxAt(kind gw.EdgeKindView, f frame, mid gw.Point, side, w float64) gw.Viewport {
 	if f.down {
 		if side < 0 {
 			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
@@ -113,11 +151,13 @@ func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	if drawn == 0 {
 		return false
 	}
-	b, side := edgeLabelBox(d, i)
+	b, side, turned := edgeLabelBox(d, i)
 	// The box for typing in is wider than the text; the text's own
 	// width is what is drawn and hit.
 	w := float64(float64(drawn)*defaultCharWidth) + 8
 	switch {
+	case turned:
+		b.Y, b.H = b.Y+float64(b.H/2)-float64(w/2), w
 	case d.Flow() != gw.TopToBottom:
 		b.X, b.W = b.X+float64(b.W/2)-float64(w/2), w
 	case side < 0:

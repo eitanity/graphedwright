@@ -18,7 +18,7 @@ import (
 // drawn: its class, position, anchor and text.
 var (
 	edgeRE = regexp.MustCompile(`<g class="edge [^"]*" id="([^"]+)"[^>]*>(.*?)</g>`)
-	textRE = regexp.MustCompile(`<text class="(label|stereotype)" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle|end)">([^<]*)</text>`)
+	textRE = regexp.MustCompile(`<text class="(label|stereotype)" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle|end)"( transform="rotate\(-90 [-0-9. ]+\)")?>([^<]*)</text>`)
 )
 
 // textBox is the box a drawn text takes at the default metrics: as wide
@@ -33,6 +33,11 @@ func textBox(x, y float64, anchor, text string) gw.Viewport {
 		x -= w
 	}
 	return gw.Viewport{X: x, Y: y - 9, W: w, H: 12}
+}
+
+// turnBox is box turned a quarter, to read up, about (x, y).
+func turnBox(b gw.Viewport, x, y float64) gw.Viewport {
+	return gw.Viewport{X: x + b.Y - y, Y: y - (b.X + b.W - x), W: b.H, H: b.W}
 }
 
 func inBox2(b gw.Viewport, p gw.Point) bool {
@@ -85,8 +90,12 @@ func TestParallelLabelsClear(t *testing.T) {
 					for _, m := range textRE.FindAllStringSubmatch(g[2], -1) {
 						x, _ := strconv.ParseFloat(m[2], 64)
 						y, _ := strconv.ParseFloat(m[3], 64)
-						boxes = append(boxes, textBox(x, y, m[4], m[5]))
-						owner = append(owner, g[1]+" "+m[1]+" "+m[5])
+						box := textBox(x, y, m[4], m[6])
+						if m[5] != "" {
+							box = turnBox(box, x, y)
+						}
+						boxes = append(boxes, box)
+						owner = append(owner, g[1]+" "+m[1]+" "+m[6])
 					}
 				}
 				if len(boxes) != 4 {
@@ -171,12 +180,15 @@ func TestOrthogonalLabelOwnLeg(t *testing.T) {
 			t.Fatal(err)
 		}
 		m := textRE.FindStringSubmatch(buf.String())
-		if m == nil || m[5] != "multiplicity 0..4" {
+		if m == nil || m[6] != "multiplicity 0..4" {
 			t.Fatalf("flow %d: no label in\n%s", flow, buf.String())
 		}
 		x, _ := strconv.ParseFloat(m[2], 64)
 		y, _ := strconv.ParseFloat(m[3], 64)
-		box := textBox(x, y, m[4], m[5])
+		box := textBox(x, y, m[4], m[6])
+		if m[5] != "" {
+			box = turnBox(box, x, y)
+		}
 		for i := range d.EdgeSlots() {
 			var lane [1]gw.Point
 			w := wayOf(d, gw.EdgeIndex(i), &lane)
@@ -437,6 +449,39 @@ func footLabelsClear(t *testing.T, name string, d *gw.Document) {
 	}
 }
 
+// TestUprightsUntangled: in the state machine laid out top to bottom,
+// the leg from "under it?" to Resizing leaves level from where the one
+// from the composite state back to Idle arrives, its upright in the
+// same gap; with their uprights the other way round, the two ran on
+// each other there.
+func TestUprightsUntangled(t *testing.T) {
+	d := readExample(t, "state-machine")
+	d.SetFlow(gw.TopToBottom)
+	if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+		t.Fatal(err)
+	}
+	a, b := d.EdgeByID("t4"), d.EdgeByID("t11")
+	if a == gw.None || b == gw.None {
+		t.Fatal("no edges t4 and t11")
+	}
+	pa, pb := drawnPoints(d, a), drawnPoints(d, b)
+	if run := max(sharedRun(d, pa, pb), sharedRun(d, pb, pa)); run > 8 {
+		t.Errorf("t4 and t11 run on each other for %v", run)
+	}
+}
+
+// drawnPoints is edge e's line as drawn, at apartSamples steps.
+func drawnPoints(d *gw.Document, e gw.EdgeIndex) []gw.Point {
+	var lane [1]gw.Point
+	w := wayOf(d, e, &lane)
+	route := d.Kinds().Edge(d.Edge(e).Kind()).Route()
+	pts := make([]gw.Point, 0, apartSamples+1)
+	for k := 0; k <= apartSamples; k++ {
+		pts = append(pts, along(w.f, route, w.a, w.through, w.b, float64(k)/apartSamples))
+	}
+	return pts
+}
+
 // apartSamples is how finely edgesApart samples an edge.
 const apartSamples = 400
 
@@ -450,13 +495,7 @@ func edgesApart(t *testing.T, name string, d *gw.Document) {
 		if !d.Edge(gw.EdgeIndex(i)).Live() { //nolint:gosec // bounded by the capacity
 			continue
 		}
-		var lane [1]gw.Point
-		w := wayOf(d, gw.EdgeIndex(i), &lane)                           //nolint:gosec // bounded by the capacity
-		route := d.Kinds().Edge(d.Edge(gw.EdgeIndex(i)).Kind()).Route() //nolint:gosec // bounded by the capacity
-		pts[i] = make([]gw.Point, 0, apartSamples+1)
-		for k := 0; k <= apartSamples; k++ {
-			pts[i] = append(pts[i], along(w.f, route, w.a, w.through, w.b, float64(k)/apartSamples))
-		}
+		pts[i] = drawnPoints(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 	}
 	for i, a := range pts {
 		for j, b := range pts {
@@ -521,10 +560,13 @@ func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
 			for _, m := range textRE.FindAllStringSubmatch(g[2], -1) {
 				x, _ := strconv.ParseFloat(m[2], 64)
 				y, _ := strconv.ParseFloat(m[3], 64)
-				box := textBox(x, y, m[4], m[5])
+				box := textBox(x, y, m[4], m[6])
+				if m[5] != "" {
+					box = turnBox(box, x, y)
+				}
 				for j, b := range boxes {
 					if owners[j] != g[1] && box.X < b.X+b.W && b.X < box.X+box.W && box.Y < b.Y+b.H && b.Y < box.Y+box.H {
-						t.Errorf("%s: the %s %q of edge %s overlaps a text of edge %s", name, m[1], m[5], g[1], owners[j])
+						t.Errorf("%s: the %s %q of edge %s overlaps a text of edge %s", name, m[1], m[6], g[1], owners[j])
 					}
 				}
 				boxes = append(boxes, box)
@@ -538,7 +580,7 @@ func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
 					route := d.Kinds().Edge(d.Edge(gw.EdgeIndex(i)).Kind()).Route() //nolint:gosec // bounded by the capacity
 					for k := 0; k <= 400; k++ {
 						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
-							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[5], g[1], d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
+							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[6], g[1], d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
 							break
 						}
 					}

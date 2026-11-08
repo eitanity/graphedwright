@@ -133,16 +133,14 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	}
 }
 
-// labelCarriers gives the dummies of each labelled edge the room its
-// text needs: the renderer draws the label beside the run through one of
-// them, which depends on the bends the edge's ends are given, as wide as
-// the text. Top to bottom each is as wide as the text, centred on its
-// run, so that a label beside it, on either side, reaches no nearer the
-// next run than the gap. Left to right the label is a line above its
-// run, which the gap between dummies holds across the flow, and each is
-// as long as the text along it, so that the label stays within its
-// dummy's layer and off the gap beyond, where the next layer's labels
-// are.
+// labelCarriers makes the dummies of each labelled edge as long along
+// the flow as its text: the renderer draws the label along the run
+// through one of them, which depends on the bends the edge's ends are
+// given, above it left to right and turned to read along it beside it
+// top to bottom, a line that the gap between dummies holds across the
+// flow. So the run through the dummy's layer is long enough for the
+// label, which stays off the gaps either side, where the next layers'
+// labels are.
 func (l *Layouter) labelCarriers(d *gw.Document) {
 	for i := range l.edges {
 		if !l.eOn[i] || l.dN[i] == 0 {
@@ -157,11 +155,7 @@ func (l *Layouter) labelCarriers(d *gw.Document) {
 		room := float64(float64(chars)*labelChar) + 2*labelPad
 		// bound: the edge's dummies
 		for k := range l.dN[i] {
-			if l.down {
-				l.h[l.dFirst[i]+k] = room
-			} else {
-				l.w[l.dFirst[i]+k] = room
-			}
+			l.w[l.dFirst[i]+k] = room
 		}
 	}
 }
@@ -218,10 +212,12 @@ type Layouter struct {
 	zAt      []float64 // the x of the upright of an edge's end leg (shallow.go), by 2*edge+end; NaN for none
 	zIdx     []int32   // the legs given uprights, as 2*edge+end, sorted by gap and order
 	zGap     []int32   // and the layer after each one's gap
-	zKey     []float64 // and its order in the gap
-	zKey2    []float64 // and where two tie
+	zY0      []float64 // and the y across the flow it leaves the earlier layer at
+	zY1      []float64 // and the y it reaches the later one at
 	zHi      []bool    // and whether it stacks back from the later layer
 	zRt      []int32   // where in its route an edge's end leg's upright starts, by 2*edge+end; -1 for none
+	sideN    []int32   // the level's ends spread along each side of a vertex, by 2*vertex, plus 1 for the side facing on (endroom.go)
+	spread   []float64 // how far off the middle of its side the ends at an edge's end spread, by 2*edge+end; 0 for none
 	lvl      []int32   // the bends of an edge's route level with an end, by 2*edge+end: 4 times where they start, plus how many; 0 for none (levelEnds)
 	dt       *detour   // the working arrays of the detours round what a route would cross
 	n        int       // nodes in the layered graph
@@ -256,9 +252,9 @@ func New(caps gw.Caps) *Layouter {
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
 		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
-		zAt: make([]float64, 2*caps.Edges), zIdx: make([]int32, 2*caps.Edges), zGap: make([]int32, 2*caps.Edges), zKey: make([]float64, 2*caps.Edges), zKey2: make([]float64, 2*caps.Edges), zRt: make([]int32, 2*caps.Edges), zHi: make([]bool, 2*caps.Edges),
-		lvl: make([]int32, 2*caps.Edges),
-		dt:  newDetour(caps.Vertices),
+		zAt: make([]float64, 2*caps.Edges), zIdx: make([]int32, 2*caps.Edges), zGap: make([]int32, 2*caps.Edges), zY0: make([]float64, 2*caps.Edges), zY1: make([]float64, 2*caps.Edges), zRt: make([]int32, 2*caps.Edges), zHi: make([]bool, 2*caps.Edges),
+		lvl: make([]int32, 2*caps.Edges), sideN: make([]int32, 2*caps.Vertices), spread: make([]float64, 2*caps.Edges),
+		dt: newDetour(caps.Vertices),
 	}
 }
 
@@ -788,6 +784,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 	}
 	l.labelRoom(d)
 	l.labelCarriers(d)
+	l.endSpreads(d)
 	l.initialOrder()
 	cr := l.reduceCrossings(opts.Sweeps)
 	l.coordinates(opts)

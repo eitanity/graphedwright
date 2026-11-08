@@ -245,3 +245,84 @@ func TestEndSlotHeading(t *testing.T) {
 		}
 	}
 }
+
+// TestEndSlotEntering: a bend within the spread at an end, where a route
+// goes into a container that holds its other end but not this one, is
+// where the route heads, as no layout brings it level with the end: the
+// edge from m, in y in z, heads to its bend inside z. One outside the
+// container is passed by, so the edge from m2 heads to m2. At k, in z
+// with m, a bend inside z is passed by, z holding k too.
+func TestEndSlotEntering(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		pt := func(along, across float64) gw.Point {
+			if f == gw.TopToBottom {
+				return gw.Point{X: across, Y: along}
+			}
+			return gw.Point{X: along, Y: across}
+		}
+		d, err := makeDoc(gw.Schema{
+			VertexKinds: []gw.VertexKind{
+				{Name: "box", Shape: gw.Rect, Size: gw.Size{W: 100, H: 100}},
+				{Name: "small", Shape: gw.Rect, Size: gw.Size{W: 20, H: 20}},
+				{Name: "zone", Shape: gw.Rect, Size: gw.Size{W: 20, H: 20}, Container: true},
+			},
+			EdgeKinds: []gw.EdgeKind{{Name: "curve", Route: gw.Curve}},
+		}, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.SetFlow(f)
+		add := func(kind gw.KindIndex, p gw.Point) gw.VertexIndex {
+			v := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: kind}).Vertices[0]
+			mustApply(t, d, gw.Command{Op: gw.Move, Vertex: v, Pos: p})
+			return v
+		}
+		in := func(v, c gw.VertexIndex) {
+			mustApply(t, d, gw.Command{Op: gw.SetParent, Vertex: v, To: c})
+		}
+		tv := add(0, pt(0, 0))
+		m, m2, k := add(1, pt(-300, -80)), add(1, pt(-300, 60)), add(1, pt(-140, 10))
+		s, u, s2 := add(1, pt(-400, 0)), add(1, pt(-400, 40)), add(1, pt(-400, 5))
+		y, z := add(2, pt(-300, -80)), add(2, pt(-300, 0))
+		in(m, y)
+		in(y, z)
+		in(m2, z)
+		in(k, z)
+		edge := func(from, to gw.VertexIndex, bends ...gw.Point) gw.EdgeIndex {
+			e := mustApply(t, d, gw.Command{Op: gw.AddEdge, Kind: 0, From: from, To: to, FromPort: gw.None, ToPort: gw.None}).Edges[0]
+			if len(bends) > 0 && !d.SetBends(e, bends) {
+				t.Fatalf("flow %d: edge %d not given bends", f, e)
+			}
+			return e
+		}
+		// z reaches along to k's far side and its padding; y only round m.
+		zb := d.Vertex(z)
+		zAlong := zb.Pos().X + zb.Size().W/2
+		if f == gw.TopToBottom {
+			zAlong = zb.Pos().Y + zb.Size().H/2
+		}
+		inZ, pastZ := pt(zAlong-2, 15), pt(zAlong+2, -15)
+		if zAlong+2 >= -50 {
+			t.Fatalf("flow %d: z reaches %v along, into t", f, zAlong)
+		}
+		// Four ends at t's side: a step of 20, spread 30 either side.
+		entering := edge(m, tv, inZ)
+		passed := edge(m2, tv, pastZ)
+		plain, wide := edge(s, tv), edge(u, tv)
+		for i, e := range []gw.EdgeIndex{plain, entering, wide, passed} {
+			if got, n := d.EndSlot(e, true); got != i || n != 4 {
+				t.Errorf("flow %d: edge %d: slot %d of %d at t, want %d of 4", f, e, got, n, i)
+			}
+		}
+		// Two ends at k's side, 20/3 apart: the bend 3 off its middle,
+		// inside z, is passed by, so the edge heads to m, before s2.
+		kAcross := 10.0
+		held := edge(m, k, pt(-160, kAcross+3))
+		other := edge(s2, k)
+		for i, e := range []gw.EdgeIndex{held, other} {
+			if got, n := d.EndSlot(e, true); got != i || n != 2 {
+				t.Errorf("flow %d: edge %d: slot %d of %d at k, want %d of 2", f, e, got, n, i)
+			}
+		}
+	}
+}

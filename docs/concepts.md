@@ -199,8 +199,9 @@ The layout (`layout.Layouter`) is layered:
    room between them (uprights, below). Within a layer, vertices are
    centred on their neighbours and kept a gap (24) apart; then each long
    edge's placeholders are brought into one row where they fit, so that
-   it runs straight past the layers between its ends. Everything lands
-   on a grid (8).
+   it runs straight past the layers between its ends, and a placeholder
+   next to an end is kept out of the spread of the ends there (below).
+   Everything lands on a grid (8).
 5. **Routes:** each long edge is routed through its placeholders as
    bends, and an edge that would cross a vertex beside one of its ends
    is routed around it (below).
@@ -220,7 +221,10 @@ drawn. It changes the layout and how curved and right-angled edges
 leave and enter their vertices: right and left sides for left to right,
 bottom and top for top to bottom. Edge labels sit above the line left
 to right and beside it top to bottom, at the middle of the edge, or of
-a right-angled edge's last leg, past its turn.
+a right-angled edge's last leg, past its turn. Top to bottom, a label
+on a run through the layers, straight along the flow and long enough
+for it, is turned to read up along the run, so that it takes a line's
+width across the flow rather than its length.
 
 The flow changes only through a `Layout` command whose `Value` names
 it, `"left-to-right"` or `"top-to-bottom"`, so undoing the layout puts
@@ -306,10 +310,12 @@ there. Their ends are spread along the side instead, ordered across the
 flow by where their routes head from it, up to 20 apart (`EndGap`) and
 closer where the side is short, each on the shape's outline
 (`Document.EndSlot`, `Document.EndOffset`). Where a route heads is its
-first bend beyond the spread, or its other end for a route without one,
-so the edges leaving a side do not cross each other on the way out. The
-layout brings the bends next to each end level with it once every route
-is found. A straight edge, drawn
+first bend beyond the spread, or where it goes into a container holding
+its other end, or its other end for a route without one, so the edges
+leaving a side do not cross each other on the way out. The layout
+brings the bends next to each end level with it once every route is
+found, and keeps the placeholder next to an end out of the spread there
+unless it stands at the middle, where the route runs straight on. A straight edge, drawn
 toward the centre, and an edge with a port keep their ends, and past 16
 on a side (`MaxEndSlots`) every end stays at the middle. A lone edge
 with a spread end puts its texts on the side away from the others.
@@ -327,15 +333,18 @@ straight across the flow, and a level run on, ending level with its end
 where it is drawn, or with the first point of its run into a
 container. The uprights in one gap stand 8 apart, nested so that they
 do not cross, and the gap is deepened to hold them and an arrowhead.
+Where one leg leaves a layer level with where another reaches the next,
+the one leaving has the upright nearer the layer it leaves, so that the
+two do not run along each other there.
 A straight edge keeps its legs, and a level with a placed vertex keeps
 its layers where they are. A label goes on the run past an upright,
 toward the middle of the route, rather than on the upright.
 
-The placeholders of a labelled edge take the label's width: top to
-bottom, where a label is drawn beside its run, across the flow, so that
-the runs beside them in their layers clear it; left to right, where it
-is drawn above its run, along the flow, so that it stays within its
-layer, off the gaps either side where the next layers' labels are.
+The placeholders of a labelled edge are as long along the flow as its
+label, so that the run through one holds it, off the gaps either side
+where the next layers' labels are: left to right, the label is drawn
+above the run; top to bottom, it is turned to read along it, a line
+beside it that the gap between placeholders holds.
 
 **Label places.** A label at the middle of its route can still cross
 another edge, another edge's label or a vertex: edges that fan out of

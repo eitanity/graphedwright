@@ -137,7 +137,9 @@ const levelTol = 1e-6
 // heading is where edge e heads across the flow from its end at its
 // target, or with target false at its source: the first of its bends,
 // walked from that end, beyond the spread of the end's side, where a
-// layout brings the bends next to the ends level with them; or, where
+// layout brings the bends next to the ends level with them, or within a
+// container that holds the other end but not this one, where the route
+// goes into it; or, where
 // the walk comes first to the spread at the other end, which stands
 // where the ends there fall, where the other end stands. A bend within
 // both spreads is passed by: one levelled with this end is within its
@@ -163,7 +165,7 @@ func (d *Document) heading(e EdgeIndex, target bool) float64 {
 		if d.flow == TopToBottom {
 			at = p.X
 		}
-		if math.Abs(at-d.across(v)) <= near+levelTol {
+		if math.Abs(at-d.across(v)) <= near+levelTol && !d.entering(v, far, p) {
 			continue
 		}
 		if math.Abs(at-d.across(far)) <= farOff+levelTol {
@@ -172,6 +174,25 @@ func (d *Document) heading(e EdgeIndex, target bool) float64 {
 		return at
 	}
 	return d.across(far)
+}
+
+// entering is whether point p is within a container that holds vertex
+// far but not v: where a route from v goes into the container on its way
+// to far, which a layout does not bring level with the end at v.
+func (d *Document) entering(v, far VertexIndex, p Point) bool {
+	c := d.vertices[far].Parent
+	// bound: the parent chain is acyclic, so at most the vertex count
+	for n := 0; c != None && n <= len(d.vertices); n++ {
+		if d.Within(v, c) {
+			return false
+		}
+		box := &d.vertices[c]
+		if math.Abs(p.X-box.Pos.X) < box.Size.W/2 && math.Abs(p.Y-box.Pos.Y) < box.Size.H/2 {
+			return true
+		}
+		c = box.Parent
+	}
+	return false
 }
 
 // spread is how far off the middle of its side the ends spread along

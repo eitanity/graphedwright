@@ -20,8 +20,10 @@ import (
 // other edges fan out there: from the earlier layer's band edge, or
 // back from the later one's when the dummy is there. In each stack they
 // are ordered so that runs nested one inside the other do not cross:
-// by the y each leaves and then the y it reaches, those going to a
-// lower y first, then those going higher, highest first. A gap too
+// those going to a lower y first, by the y each leaves and then the y
+// it reaches, then those going higher, by the y each reaches, highest
+// first; and one that leaves where another reaches goes before it, so
+// that the two do not run level along each other (untangle). A gap too
 // shallow for its uprights and an arrowhead after them is deepened, the
 // layers after it moved on together. A straight edge is
 // drawn as lines, which do not lie on each other, and keeps its legs.
@@ -97,6 +99,7 @@ func (l *Layouter) shallowEnds(d *gw.Document, opts Options) {
 			l.deepen(k, float64(math.Ceil((need-(hi-lo))/g)*g))
 			lo, hi = l.gapEdges(k, g)
 		}
+		l.untangle(a, b)
 		rlo, rhi := 0, 0
 		// bound: the legs of the gap
 		for s := a; s < b; s++ {
@@ -112,7 +115,44 @@ func (l *Layouter) shallowEnds(d *gw.Document, opts Options) {
 	}
 }
 
-// shallowLegs gathers into zIdx, zGap, zKey, zKey2 and zHi the legs that go
+// untangle moves each of the legs a to b of one gap that leaves the
+// earlier layer where one before it in its stack reaches the later layer
+// to just before that one. Their uprights the other way round, the leg
+// reaching that y would run level along it from its upright on to the
+// later layer while the other runs along it from the earlier layer on
+// to its upright, the two on each other between; this way round they
+// meet at that y only where one upright crosses the other's run.
+func (l *Layouter) untangle(a, b int) {
+	// bound: the legs of the gap
+	for t := a + 1; t < b; t++ {
+		s := l.reached(a, t)
+		idx, gap, y0, y1, hi := l.zIdx[t], l.zGap[t], l.zY0[t], l.zY1[t], l.zHi[t]
+		// bound: the legs from s to t
+		for r := t; r > s; r-- {
+			l.zIdx[r], l.zGap[r], l.zY0[r], l.zY1[r], l.zHi[r] = l.zIdx[r-1], l.zGap[r-1], l.zY0[r-1], l.zY1[r-1], l.zHi[r-1]
+		}
+		l.zIdx[s], l.zGap[s], l.zY0[s], l.zY1[s], l.zHi[s] = idx, gap, y0, y1, hi
+	}
+}
+
+// reached is the first of the legs a to t in leg t's stack that reaches
+// the later layer where t leaves the earlier one, or t for none, where
+// it stays.
+func (l *Layouter) reached(a, t int) int {
+	// bound: the legs before t
+	for s := a; s < t; s++ {
+		if l.zHi[s] == l.zHi[t] && math.Abs(l.zY1[s]-l.zY0[t]) < sameRow {
+			return s
+		}
+	}
+	return t
+}
+
+// sameRow is how near across the flow two level runs are taken to lie
+// on each other.
+const sameRow = 1
+
+// shallowLegs gathers into zIdx, zGap, zY0, zY1 and zHi the legs that go
 // shallowRatio times their gap's depth across the flow, and returns how
 // many there are.
 func (l *Layouter) shallowLegs(d *gw.Document, g float64) int {
@@ -136,12 +176,8 @@ func (l *Layouter) shallowLegs(d *gw.Document, g float64) int {
 			if math.Abs(y1-y0) <= float64(shallowRatio*(hi-lo)) {
 				continue
 			}
-			key, key2 := y0, y1 // going lower, by the y it leaves and then the y it reaches
-			if y1 > y0 {
-				key, key2 = math.MaxFloat64/2-y0, -y1 // then going higher, highest first
-			}
-			l.zIdx[m], l.zGap[m], l.zKey[m], l.zKey2[m] = int32(2*i+end), k, key, key2 //nolint:gosec // bounded by the capacity
-			l.zHi[m] = int(late) >= l.realN                                            // the dummy is in the later layer
+			l.zIdx[m], l.zGap[m], l.zY0[m], l.zY1[m] = int32(2*i+end), k, y0, y1 //nolint:gosec // bounded by the capacity
+			l.zHi[m] = int(late) >= l.realN                                      // the dummy is in the later layer
 			m++
 		}
 	}
@@ -223,29 +259,36 @@ func (l *Layouter) legY(v int32, g float64) float64 {
 	return l.y[v]
 }
 
-// sortLegs sorts the first m legs by gap and then key, by insertion:
-// the legs that need an upright are few.
+// sortLegs sorts the first m legs by gap and then by where they go
+// (legAfter), by insertion: the legs that need an upright are few.
 func (l *Layouter) sortLegs(m int) {
 	// bound: the legs found
 	for a := 1; a < m; a++ {
-		idx, gap, key, key2, hi := l.zIdx[a], l.zGap[a], l.zKey[a], l.zKey2[a], l.zHi[a]
+		idx, gap, y0, y1, hi := l.zIdx[a], l.zGap[a], l.zY0[a], l.zY1[a], l.zHi[a]
 		b := a
 		// bound: the legs before a
-		for b > 0 && l.legAfter(b-1, gap, key, key2) {
-			l.zIdx[b], l.zGap[b], l.zKey[b], l.zKey2[b], l.zHi[b] = l.zIdx[b-1], l.zGap[b-1], l.zKey[b-1], l.zKey2[b-1], l.zHi[b-1]
+		for b > 0 && l.legAfter(b-1, gap, y0, y1) {
+			l.zIdx[b], l.zGap[b], l.zY0[b], l.zY1[b], l.zHi[b] = l.zIdx[b-1], l.zGap[b-1], l.zY0[b-1], l.zY1[b-1], l.zHi[b-1]
 			b--
 		}
-		l.zIdx[b], l.zGap[b], l.zKey[b], l.zKey2[b], l.zHi[b] = idx, gap, key, key2, hi
+		l.zIdx[b], l.zGap[b], l.zY0[b], l.zY1[b], l.zHi[b] = idx, gap, y0, y1, hi
 	}
 }
 
-// legAfter reports whether leg b sorts after one of the gap and keys
-// given.
-func (l *Layouter) legAfter(b int, gap int32, key, key2 float64) bool {
+// legAfter reports whether leg b sorts after a leg in the gap given from
+// y0 to y1: those going lower first, by the y they leave and then the
+// y they reach, then those going higher, the highest first.
+func (l *Layouter) legAfter(b int, gap int32, y0, y1 float64) bool {
 	if l.zGap[b] != gap {
 		return l.zGap[b] > gap
 	}
-	return l.zKey[b] > key || l.zKey[b] == key && l.zKey2[b] > key2
+	if lower := y1 <= y0; lower != (l.zY1[b] <= l.zY0[b]) {
+		return lower
+	}
+	if y1 > y0 {
+		return l.zY1[b] < y1
+	}
+	return l.zY0[b] > y0 || l.zY0[b] == y0 && l.zY1[b] > y1
 }
 
 // deepen moves layer k and every layer after it, with their nodes, on

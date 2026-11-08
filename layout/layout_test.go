@@ -539,3 +539,26 @@ func TestFormattedLabelRoom(t *testing.T) {
 		}
 	}
 }
+
+// TestColumnClearOfSpread: a long edge whose dummy next to its source
+// is moved out of the spread of the ends there runs on down one column,
+// its other dummies brought to the moved one's row: in this random
+// graph, laid out top to bottom, edge 18 would step across between its
+// first two layers.
+func TestColumnClearOfSpread(t *testing.T) {
+	d := randomDAG(t, 7, 15, 22, gw.Caps{})
+	d.SetFlow(gw.TopToBottom)
+	if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+		t.Fatal(err)
+	}
+	b := d.Edge(18).Bends()
+	if b.Len() < 4 {
+		t.Fatalf("edge 18 has %d bends", b.Len())
+	}
+	for k := range b.Len() {
+		if b.At(k).X != b.At(0).X {
+			t.Errorf("edge 18's bends at %v, not one column", b)
+			break
+		}
+	}
+}

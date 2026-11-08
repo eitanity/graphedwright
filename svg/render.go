@@ -127,6 +127,9 @@ type Renderer struct {
 	// vertex draws them, and only those cut are written.
 	expand bool
 	centre gw.Point
+	// turn is set while an edge's texts are written turned to read up
+	// along its run (turnedLabels).
+	turn bool
 }
 
 // Render writes the whole document.
@@ -398,6 +401,11 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	}
 	o.str(`/>`)
 	mid := w.middle(kind.Route())
+	if c, ok := w.turnedAt(mid, turnedLength(d, i)); ok {
+		r.turnedLabels(kind, e, note, gw.Point{X: mid.X, Y: c}, width, w.side(), opts)
+		o.str(`</g>`)
+		return
+	}
 	if f.down {
 		r.besideLabels(kind, e, note, mid, width, w.side(), opts)
 		o.str(`</g>`)
@@ -450,6 +458,33 @@ func (r *Renderer) besideLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annota
 	if note.Text != "" {
 		r.labelAt("annotation", note.Text, other, y, 0, otherAnchor, opts)
 	}
+}
+
+// turnedLabels writes an edge's texts for a top-to-bottom flow turned
+// to read up along its run, centred on at: the label beside the stroke
+// on the right, the stereotype beyond it, the annotation on the left;
+// on side -1 the other way about.
+func (r *Renderer) turnedLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annotation, at gw.Point, width, side float64, opts Options) {
+	// A turned text's glyphs stand left of its baseline by the font's
+	// ascent, some three quarters of its size, and its descent right.
+	right := at.X + float64(width/2) + 4 + float64(opts.FontSize*3/4)
+	left := at.X - float64(width/2) - 4 - float64(opts.FontSize/4)
+	near, step, far := right, opts.FontSize, left
+	if side < 0 {
+		near, step, far = left, -opts.FontSize, right
+	}
+	r.turn = true
+	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
+		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), near, at.Y, 0, "middle", opts)
+		near += step
+	}
+	if kind.Stereotype() != "" {
+		r.label("stereotype", kind.Stereotype(), near, at.Y, 0, opts)
+	}
+	if note.Text != "" {
+		r.label("annotation", note.Text, far, at.Y, 0, opts)
+	}
+	r.turn = false
 }
 
 // path writes the opening of an edge's path element with its route
@@ -859,7 +894,13 @@ func (r *Renderer) textOpen(class, mark string, x, y float64, anchor string) {
 	o.numAttr("y", y)
 	o.str(` text-anchor="`)
 	o.str(anchor)
-	o.str(`">`)
+	o.byte('"')
+	if r.turn {
+		o.str(` transform="rotate(-90 `)
+		o.point(x, y)
+		o.str(`)"`)
+	}
+	o.byte('>')
 }
 
 // expanded writes a cut text in full for the overlay, at its place in

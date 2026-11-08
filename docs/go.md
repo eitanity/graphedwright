@@ -215,7 +215,9 @@ The geometry the renderer draws from is also exported:
 - **`HandleBox(d, v)`** is the square of a vertex's resize handle, on
   its bottom right corner.
 - **`VertexLabelBox` and `EdgeLabelBox`** are where a label is drawn,
-  for placing an input to edit it.
+  for placing an input to edit it; **`EdgeLabelInputBox`** is the
+  edge's box level about the same centre, where its label is turned to
+  read along its run, since text is typed level.
 - **`PortOn(d, v, p)`** is where a port is drawn, on the outline of a
   provided shape; `PortAt` is its place on the box's side, where a
   built-in shape draws it. **`Bounds`** is the box around the drawing.

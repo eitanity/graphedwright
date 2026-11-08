@@ -56,12 +56,23 @@ func (l *Layouter) coordinates(opts Options) {
 	for k := l.layers - 2; k >= 0; k-- {
 		l.centreLayer(k, opts)
 	}
-	l.straighten(opts.Gap)
+	l.columns(opts.Gap, opts.Grid)
 	for i := range l.realN {
 		if !l.pin[i] {
 			l.x[i] = math.Round(l.x[i]/opts.Grid) * opts.Grid
 			l.y[i] = math.Round(l.y[i]/opts.Grid) * opts.Grid
 		}
+	}
+}
+
+// columns brings each long edge's dummies into one row where they fit,
+// out of the spread of the ends next to them, and again once the dummies
+// still within one are moved out (clearSpreads), so that the others
+// follow.
+func (l *Layouter) columns(gap, g float64) {
+	l.straighten(gap, g)
+	if l.clearSpreads(gap, g) {
+		l.straighten(gap, g)
 	}
 }
 
@@ -126,7 +137,7 @@ func (l *Layouter) medianY(v int32) (float64, bool) {
 // the edge runs on through the layers it passes instead of stepping
 // between them. A dummy that does not fit may once another edge's have
 // moved, so it passes over the edges again until one moves nothing.
-func (l *Layouter) straighten(gap float64) {
+func (l *Layouter) straighten(gap, g float64) {
 	// bound: the layers
 	for k := 0; k < l.layers; k++ {
 		// bound: the nodes of one layer
@@ -139,7 +150,7 @@ func (l *Layouter) straighten(gap float64) {
 		moved := false
 		// bound: the document's edge slots
 		for i := range l.edges {
-			if l.dN[i] > 1 && l.straightenEdge(l.dFirst[i], l.dN[i], gap) {
+			if l.dN[i] > 1 && l.straightenEdge(i, gap, g) {
 				moved = true
 			}
 		}
@@ -152,10 +163,14 @@ func (l *Layouter) straighten(gap float64) {
 // straightenEdge moves the n dummies from first to the row of the one
 // that the most of them fit at, the first such from first, those of them
 // that fit, and is whether any moved.
-func (l *Layouter) straightenEdge(first, n int32, gap float64) bool {
+func (l *Layouter) straightenEdge(i int, gap, g float64) bool {
+	first, n := l.dFirst[i], l.dN[i]
 	at, most := 0.0, 0
 	// bound: the edge's dummies
 	for a := range n {
+		if !l.clearsSpreads(i, l.y[first+a], g) {
+			continue
+		}
 		if c := l.fitting(first, n, l.y[first+a], gap); c > most {
 			at, most = l.y[first+a], c
 		}

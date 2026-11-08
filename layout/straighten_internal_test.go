@@ -60,7 +60,7 @@ func TestStraighten(t *testing.T) {
 		copy(l.y, tc.y)
 		copy(l.dFirst, []int32{a0, b0})
 		copy(l.dN, []int32{2, 2})
-		l.straighten(24)
+		l.straighten(24, 8)
 		for v, want := range tc.want {
 			if l.y[v] != want {
 				t.Errorf("%s: node %d at %v, want %v", tc.name, v, l.y[v], want)

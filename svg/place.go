@@ -85,7 +85,8 @@ func move(d *gw.Document, e gw.EdgeIndex, c int) {
 				continue
 			}
 			mid := along(w.f, route, w.a, w.through, w.b, t)
-			if n := crossings(d, e, labelBoxAt(d, e, w.f, mid, w.side())); n < best {
+			box, _ := labelBoxAt(d, e, &w, mid)
+			if n := crossings(d, e, box); n < best {
 				best, bestT = n, t
 			}
 		}
@@ -130,8 +131,10 @@ func crossings(d *gw.Document, e gw.EdgeIndex, box gw.Viewport) int {
 		var lane [1]gw.Point
 		w := wayOf(d, o, &lane)
 		route := d.Kinds().Edge(d.Edge(o).Kind()).Route()
-		if d.EdgeLabelRunes(o) > 0 && boxesMeet(box, labelBoxAt(d, o, w.f, w.middle(route), w.side())) {
-			n++
+		if d.EdgeLabelRunes(o) > 0 {
+			if b, _ := labelBoxAt(d, o, &w, w.middle(route)); boxesMeet(box, b) {
+				n++
+			}
 		}
 		if w.crosses(route, box) {
 			n++
