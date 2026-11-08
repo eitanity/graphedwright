@@ -14,7 +14,8 @@ import (
 // So a curved or orthogonal leg that goes more than shallowRatio times
 // as far across as its gap is deep is drawn as a level run, a run
 // straight across the flow at an upright of its own in the gap, and a
-// level run on: two more bends. The uprights stand zStep apart along
+// level run on: two more bends. A leg into a container goes as far
+// across as where it goes on to inside it (reachY). The uprights stand zStep apart along
 // the gap, stacked from a dummy's side, away from the vertex whose
 // other edges fan out there: from the earlier layer's band edge, or
 // back from the later one's when the dummy is there. In each stack they
@@ -131,7 +132,7 @@ func (l *Layouter) shallowLegs(d *gw.Document, g float64) int {
 				continue
 			}
 			lo, hi := l.gapEdges(k, g)
-			y0, y1 := l.legY(early, g), l.legY(late, g)
+			y0, y1 := l.reachY(d, i, early, late, g), l.reachY(d, i, late, early, g)
 			if math.Abs(y1-y0) <= float64(shallowRatio*(hi-lo)) {
 				continue
 			}
@@ -145,6 +146,72 @@ func (l *Layouter) shallowLegs(d *gw.Document, g float64) int {
 		}
 	}
 	return m
+}
+
+// reachY is where edge i's leg from node from goes to at node v across
+// the flow (legY), or, where v is a container holding the edge's end at
+// this level, where the leg goes on to inside it: to the end, where it
+// stands, or, where another member stands between the side the leg
+// comes in at and the one on the way to the end, to the band past them
+// all that the run inside takes round them (alongGap), the one nearer
+// from.
+func (l *Layouter) reachY(d *gw.Document, i int, v, from int32, g float64) float64 {
+	y := l.legY(v, g)
+	if int(v) >= l.realN {
+		return y // a dummy
+	}
+	e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+	end := e.From()
+	if v == l.eTo[i] {
+		end = e.To()
+	}
+	if end == gw.VertexIndex(v) {
+		return y
+	}
+	at, m := y, end
+	// bound: the parent chain is acyclic, so at most the vertex count
+	for u, k := end, 0; u != gw.VertexIndex(v) && u != gw.None && k <= d.VertexSlots(); u, k = d.Vertex(u).Parent(), k+1 {
+		_, across := l.swap(l.rx[u], l.ry[u]) // from its container's centre (box)
+		at += across
+		m = u
+	}
+	if band, ok := l.band(d, gw.VertexIndex(v), m, l.legY(from, g)-y, l.layer[from] < l.layer[v]); ok {
+		return y + band
+	}
+	return at
+}
+
+// band is the band, across the flow from container c's centre, that a
+// run in to its member m from far across, from the low side or the
+// high, goes along round the other members (alongGap): none when no
+// member stands between that side and m, where the run comes straight
+// in.
+func (l *Layouter) band(d *gw.Document, c, m gw.VertexIndex, far float64, low bool) (float64, bool) {
+	ma, mc := l.swap(l.rx[m], l.ry[m])
+	top, bottom, between := mc-float64(l.h[m]/2), mc+float64(l.h[m]/2), false
+	toward := 1.0 // from m toward the side the run comes in at, along the flow
+	if low {
+		toward = -1
+	}
+	// m is among the members, but neither widens the span nor stands
+	// between.
+	for i := range d.VertexSlots() {
+		u := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+		if o := d.Vertex(u); !o.Live() || o.Parent() != c {
+			continue
+		}
+		a, across := l.swap(l.rx[u], l.ry[u])
+		top, bottom = math.Min(top, across-float64(l.h[u]/2)), math.Max(bottom, across+float64(l.h[u]/2))
+		between = between || float64(toward*(a-ma)) >= float64((l.w[u]+l.w[m])/2)
+	}
+	if !between {
+		return 0, false
+	}
+	gap := float64(gw.ContainerPad) / 2
+	if math.Abs(far-(bottom+gap)) < math.Abs(far-(top-gap)) {
+		return bottom + gap, true
+	}
+	return top - gap, true
 }
 
 // legY is where a leg meets node v across the flow: a dummy's y on the
@@ -275,6 +342,9 @@ func (l *Layouter) uprightEnds(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter, 
 			p.Y = across
 		}
 		w.Set(k, p)
+		if !runs {
+			l.setLevel(e, end, k, 1)
+		}
 	}
 }
 

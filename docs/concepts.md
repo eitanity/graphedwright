@@ -301,9 +301,13 @@ neither's label crosses the other.
 **Spread ends.** A curved or right-angled edge arrives level, so two
 drawn to one side of a vertex at its middle would lie on each other
 there. Their ends are spread along the side instead, ordered across the
-flow by where their other ends stand, up to 20 apart (`EndGap`) and
+flow by where their routes head from it, up to 20 apart (`EndGap`) and
 closer where the side is short, each on the shape's outline
-(`Document.EndSlot`, `Document.EndOffset`). A straight edge, drawn
+(`Document.EndSlot`, `Document.EndOffset`). Where a route heads is its
+first bend beyond the spread, or its other end for a route without one,
+so the edges leaving a side do not cross each other on the way out. The
+layout brings the bends next to each end level with it once every route
+is found. A straight edge, drawn
 toward the centre, and an edge with a port keep their ends, and past 16
 on a side (`MaxEndSlots`) every end stays at the middle. A lone edge
 with a spread end puts its texts on the side away from the others.
@@ -313,7 +317,10 @@ placeholder next to it, or an edge between adjacent layers, may have
 far to go across the flow in the room between two layers. Drawn as it
 arrives, level, such a leg is all but flat, and edges in lanes beside
 it lie on it. A leg that goes more than four times as far across as
-the room is deep is given an **upright** instead: a level run, a run
+the room is deep is given an **upright** instead. A leg into a container
+is measured to where it goes on to inside it: the end it is for, or,
+where other members stand in the way, the side of the container its run
+inside goes round them by. The upright is a level run, a run
 straight across the flow, and a level run on, ending level with its end
 where it is drawn, or with the first point of its run into a
 container. The uprights in one gap stand 8 apart, nested so that they

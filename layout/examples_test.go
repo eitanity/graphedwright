@@ -1,6 +1,8 @@
 package layout_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -8,6 +10,7 @@ import (
 
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/doc"
+	"code.eitanity.com/graphedwright/layout"
 )
 
 // TestExamplesNoEdgeCutsThrough: in every example as laid out, no edge,
@@ -108,4 +111,113 @@ func TestExamplesAcrossRunsApart(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestExamplesEndsMeetTheirBends: in every example laid out afresh in
+// either flow, and in the state machine with its transitions reversed
+// but the one from its initial state, which none may enter, so that
+// edges leave the members of its composite state, the bend next to an
+// end spread along its side, where it stands within the spread of the
+// side's ends, is level with the end, so that the route arrives level;
+// or it stands at the side's middle, where the edge's dummies run
+// straight on from the vertex. The order of the ends at a side follows
+// where their routes head, which is known only once every route is
+// found and changes with a detour: the bends set level with an end
+// before were left where it fell then.
+func TestExamplesEndsMeetTheirBends(t *testing.T) {
+	files, err := filepath.Glob("../web/examples/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no examples: %v", err)
+	}
+	type example struct {
+		name string
+		data []byte
+	}
+	examples := make([]example, 0, len(files)+1)
+	for _, f := range files {
+		data, err := os.ReadFile(f) //nolint:gosec // repository file
+		if err != nil {
+			t.Fatal(err)
+		}
+		examples = append(examples, example{filepath.Base(f), data})
+		if filepath.Base(f) == "state-machine.json" {
+			examples = append(examples, example{"state-machine.json reversed", turned(t, data, "initial")})
+		}
+	}
+	for _, ex := range examples {
+		for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+			d, err := doc.Decode(ex.data, doc.Options{Schemas: doc.Builtin()})
+			if err != nil {
+				t.Fatalf("%s: %v", ex.name, err)
+			}
+			d.SetFlow(flow)
+			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+				t.Fatal(err)
+			}
+			for i := range d.EdgeSlots() {
+				for _, target := range []bool{false, true} {
+					if msg := endMeetsBend(d, gw.EdgeIndex(i), target); msg != "" { //nolint:gosec // bounded by the capacity
+						t.Errorf("%s %d: edge %s: %s", ex.name, flow, d.Edge(gw.EdgeIndex(i)).ID(), msg) //nolint:gosec // bounded by the capacity
+					}
+				}
+			}
+		}
+	}
+}
+
+// turned is the document data with every edge reversed but those from
+// a vertex of kind keep.
+func turned(t *testing.T, data []byte, keep string) []byte {
+	t.Helper()
+	var raw struct {
+		Schema   string           `json:"schema"`
+		Vertices []map[string]any `json:"vertices"`
+		Edges    []map[string]any `json:"edges"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	kept := map[any]bool{}
+	for _, v := range raw.Vertices {
+		kept[v["id"]] = v["kind"] == keep
+	}
+	for _, e := range raw.Edges {
+		if !kept[e["from"]] {
+			e["from"], e["to"] = e["to"], e["from"]
+		}
+	}
+	out, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// endMeetsBend checks edge e's end at its target, or with target false
+// at its source, against the bend next to it, and says how it fails.
+func endMeetsBend(d *gw.Document, e gw.EdgeIndex, target bool) string {
+	ed := d.Edge(e)
+	b := ed.Bends()
+	if !ed.Live() || b.Len() == 0 {
+		return ""
+	}
+	k, n := d.EndSlot(e, target)
+	v, p := ed.From(), b.At(0)
+	if target {
+		v, p = ed.To(), b.At(b.Len()-1)
+	}
+	vx := d.Vertex(v)
+	if n < 2 || d.Kinds().Vertex(vx.Kind()).Container() {
+		return ""
+	}
+	mid, at, side := vx.Pos().Y, p.Y, vx.Size().H
+	if d.Flow() == gw.TopToBottom {
+		mid, at, side = vx.Pos().X, p.X, vx.Size().W
+	}
+	step := math.Min(gw.EndGap, side/float64(n+1))
+	end := mid + d.EndOffset(e, target)
+	if math.Abs(at-mid) > float64(float64(n-1)/2)*step || at == end || at == mid {
+		return ""
+	}
+	return fmt.Sprintf("its end, slot %d of %d, is drawn at %v across, its bend next to it at %v", k, n, end, at)
 }

@@ -208,7 +208,7 @@ type Layouter struct {
 	dFirst   []int32          // an edge's first dummy node in the level it is laid out in
 	dN       []int32          // and how many it has
 	eLevel   []gw.VertexIndex // the container whose level gave an edge its bends, or None
-	route    []gw.BendWriter  // the bends each edge was given this run, in the document's slab, until placed
+	route    []gw.BendWriter  // the bends each edge was given this run, in the document's slab, until its ends are levelled (levelEnds)
 	rOff     []int32          // where in its route an edge's dummies' bends start, after room for its inside runs
 	rLen     []int32          // and how many there are
 	runs     [insidePts]gw.Point
@@ -219,6 +219,7 @@ type Layouter struct {
 	zKey2    []float64 // and where two tie
 	zHi      []bool    // and whether it stacks back from the later layer
 	zRt      []int32   // where in its route an edge's end leg's upright starts, by 2*edge+end; -1 for none
+	lvl      []int32   // the bends of an edge's route level with an end, by 2*edge+end: 4 times where they start, plus how many; 0 for none (levelEnds)
 	dt       *detour   // the working arrays of the detours round what a route would cross
 	n        int       // nodes in the layered graph
 	s        int       // segments
@@ -253,7 +254,8 @@ func New(caps gw.Caps) *Layouter {
 		dFirst: make([]int32, caps.Edges), dN: make([]int32, caps.Edges), eLevel: make([]gw.VertexIndex, caps.Edges),
 		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
 		zAt: make([]float64, 2*caps.Edges), zIdx: make([]int32, 2*caps.Edges), zGap: make([]int32, 2*caps.Edges), zKey: make([]float64, 2*caps.Edges), zKey2: make([]float64, 2*caps.Edges), zRt: make([]int32, 2*caps.Edges), zHi: make([]bool, 2*caps.Edges),
-		dt: newDetour(caps.Vertices),
+		lvl: make([]int32, 2*caps.Edges),
+		dt:  newDetour(caps.Vertices),
 	}
 }
 
@@ -292,6 +294,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 	}
 	l.rev = l.rev[:0]
 	clear(l.route)
+	clear(l.lvl)
 	for i := range l.zRt {
 		l.zRt[i] = -1
 	}
@@ -313,6 +316,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 	d.Fit()
 	l.placeBends(d)
 	l.detours(d)
+	l.levelEnds(d)
 	return Result{Layers: l.layers, Crossings: crossings, Reversed: l.rev}, nil
 }
 
@@ -390,8 +394,61 @@ func (l *Layouter) placeBends(d *gw.Document) {
 		all, src, n := l.withRuns(d, gw.EdgeIndex(i), w)  //nolint:gosec // bounded by the capacity
 		l.uprightEnds(d, gw.EdgeIndex(i), w, src, n, all) //nolint:gosec // bounded by the capacity
 		w.Keep(all)
-		l.route[i] = gw.BendWriter{}
 	}
+}
+
+// levelBends is the most bends next to an end that are level with it:
+// the last two of a run in to a member, or a detour's first corner and
+// the next where its first leg runs level.
+const levelBends = 2
+
+// setLevel records that the n bends of edge e's route from at, at its
+// target for end 1 and its source for end 0, are level with that end.
+func (l *Layouter) setLevel(e gw.EdgeIndex, end, at, n int) {
+	if n < 1 || n > levelBends {
+		return
+	}
+	l.lvl[2*int(e)+end] = int32(4*at + n) //nolint:gosec // bounded by the bends per edge
+}
+
+// levelEnds brings the bends next to each end of every route that were
+// set level with it (setLevel) level with where it is drawn
+// (gw.Document.EndOffset), once every route is found: where an end falls
+// among the others at its side depends on where their routes head,
+// which is known only now, and which a detour changes. The bends set
+// level stand within the spread of the side's ends, so that moving them
+// leaves where the routes head, and so the order, as it was. A straight
+// edge, whose ends are not spread and which a run in from the side keeps
+// off the middle (beside), is left as it is; so is a route whose
+// writer is no longer its own, which writes nothing. It lets the writers
+// go.
+func (l *Layouter) levelEnds(d *gw.Document) {
+	for i := range d.EdgeSlots() {
+		w := l.route[i]
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if d.Kinds().Edge(e.Kind()).Route() == gw.Straight {
+			continue
+		}
+		for end, v := range [2]gw.VertexIndex{e.From(), e.To()} {
+			lv := int(l.lvl[2*i+end])
+			if lv == 0 {
+				continue // none, and no EndOffset to find: work saved only
+			}
+			at, n := lv/4, lv%4
+			across := l.acrossOf(d.Vertex(v).Pos()) + d.EndOffset(gw.EdgeIndex(i), end == 1) //nolint:gosec // bounded by the capacity
+			// bound: at most levelBends
+			for j := at; j < at+n; j++ {
+				p := w.At(j)
+				if l.down {
+					p.X = across
+				} else {
+					p.Y = across
+				}
+				w.Set(j, p)
+			}
+		}
+	}
+	clear(l.route)
 }
 
 // withRuns puts edge e's inside runs round the bends its dummies gave it,
@@ -411,8 +468,8 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) (al
 	// walked from outside in, to lower; against it, the other way.
 	back := l.reversed(e)
 	half := len(l.runs) / 2
-	src := l.insideRuns(d, e, ed.From(), farFrom, !back, l.runs[:half])
-	dst := l.insideRuns(d, e, ed.To(), farTo, back, l.runs[half:])
+	src, srcLevel := l.insideRuns(d, e, ed.From(), farFrom, !back, l.runs[:half])
+	dst, dstLevel := l.insideRuns(d, e, ed.To(), farTo, back, l.runs[half:])
 	if src+n+dst > w.Len() {
 		w.Move(0, off, n) // no room: the bends alone
 		return n, 0, n
@@ -424,6 +481,12 @@ func (l *Layouter) withRuns(d *gw.Document, e gw.EdgeIndex, w gw.BendWriter) (al
 	}
 	for k := range dst {
 		w.Set(src+n+k, l.runs[half+k])
+	}
+	if srcLevel {
+		l.setLevel(e, 0, 0, runLevel)
+	}
+	if dstLevel {
+		l.setLevel(e, 1, src+n+dst-runLevel, runLevel)
 	}
 	return src + n + dst, src, n
 }

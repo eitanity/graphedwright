@@ -1,14 +1,20 @@
 package graphedwright
 
+import "math"
+
 // The ends of the curved and orthogonal edges drawn to one side of a
 // vertex are spread along it, so that no two arrive at one point: each
 // edge's last leg comes in level, and two at one point would lie on each
 // other there. A straight edge is drawn toward the vertex's centre and
 // an edge with a port at the vertex ends at the port, so neither shares
-// a side. The edges at a side are ordered across the flow by where their
-// other ends stand, which keeps their last legs from crossing, and by
-// index where two stand level, as the lanes between the same two
-// vertices are (Parallel).
+// a side. The edges at a side are ordered across the flow by where they
+// head from it (heading), which keeps their last legs from crossing:
+// the first bend of the route that a layout places without regard to
+// where the ends fall, or, for a route without one, where its other end
+// stands; and by index where two head level, as the lanes between the
+// same two vertices are (Parallel). So a layout can bring the bends next
+// to an end level with it, once the routes are found, and leave the
+// order as it was.
 
 // EndGap is the most room across the flow between the ends of two edges
 // drawn to one side of a vertex.
@@ -67,45 +73,130 @@ func (d *Document) EndSlot(e EdgeIndex, target bool) (k, n int) {
 	if e < 0 || int(e) >= len(d.edges) {
 		return 0, 1
 	}
-	ed := &d.edges[e]
-	v, far := ed.From, ed.To
+	v := d.edges[e].From
 	if target {
-		v, far = ed.To, ed.From
+		v = d.edges[e].To
 	}
 	side := d.endSide(e, v)
 	if side == 0 {
 		return 0, 1
 	}
-	key := d.across(far)
-	// bound: the out list visits each edge of v once
-	for o := d.outHead[v]; o != None; o = d.nextOut[o] {
-		if d.endSide(EdgeIndex(o), v) == side {
-			n++
-			if d.before(EdgeIndex(o), d.edges[o].To, e, key) {
-				k++
-			}
-		}
-	}
-	// bound: the in list visits each edge of v once
-	for o := d.inHead[v]; o != None; o = d.nextIn[o] {
-		if d.endSide(EdgeIndex(o), v) == side { // a loop, in both lists, has none
-			n++
-			if d.before(EdgeIndex(o), d.edges[o].From, e, key) {
-				k++
-			}
-		}
-	}
+	n = d.sideEnds(v, side)
 	if n > MaxEndSlots {
 		return 0, 1
+	}
+	key := d.heading(e, target)
+	o, in := d.outHead[v], false
+	if o == None {
+		o, in = d.inHead[v], true
+	}
+	// bound: the out list and then the in list each visit each edge of v once
+	for o != None {
+		// Those heading lower come before e, and those heading level of a
+		// lower index; a loop, in both lists, has no side.
+		if i := EdgeIndex(o); d.endSide(i, v) == side {
+			if at := d.heading(i, in); at < key || at == key && i < e {
+				k++
+			}
+		}
+		if in {
+			o = d.nextIn[o]
+		} else if o = d.nextOut[o]; o == None {
+			o, in = d.inHead[v], true
+		}
 	}
 	return k, n
 }
 
-// before reports whether edge o, whose other end is far, comes before
-// edge e, whose other end stands at key across the flow.
-func (d *Document) before(o EdgeIndex, far VertexIndex, e EdgeIndex, key float64) bool {
-	at := d.across(far)
-	return at < key || at == key && o < e
+// sideEnds is how many ends are spread along the side of vertex v,
+// facing on along the flow for side 1 and back for -1.
+func (d *Document) sideEnds(v VertexIndex, side int) int {
+	n := 0
+	o, in := d.outHead[v], false
+	if o == None {
+		o, in = d.inHead[v], true
+	}
+	// bound: the out list and then the in list each visit each edge of v once
+	for o != None {
+		if d.endSide(EdgeIndex(o), v) == side {
+			n++
+		}
+		if in {
+			o = d.nextIn[o]
+		} else if o = d.nextOut[o]; o == None {
+			o, in = d.inHead[v], true
+		}
+	}
+	return n
+}
+
+// levelTol is how near a bend is taken to be to the spread of a side's
+// ends: a layout puts the bends it levels with an end exactly there.
+const levelTol = 1e-6
+
+// heading is where edge e heads across the flow from its end at its
+// target, or with target false at its source: the first of its bends,
+// walked from that end, beyond the spread of the end's side, where a
+// layout brings the bends next to the ends level with them; or, where
+// the walk comes first to the spread at the other end, which stands
+// where the ends there fall, where the other end stands. A bend within
+// both spreads is passed by: one levelled with this end is within its
+// spread wherever it is levelled, and one levelled with the other end
+// is among the last, so that passing it ends the walk there as
+// stopping at it would.
+func (d *Document) heading(e EdgeIndex, target bool) float64 {
+	ed := &d.edges[e]
+	v, far := ed.From, ed.To
+	if target {
+		v, far = ed.To, ed.From
+	}
+	near, farOff := d.spread(e, v), d.spread(e, far)
+	b := ed.Bends
+	n := len(b)
+	// bound: the edge's bends, at most the slab
+	for k := range n {
+		p := b[k]
+		if target {
+			p = b[n-1-k]
+		}
+		at := p.Y
+		if d.flow == TopToBottom {
+			at = p.X
+		}
+		if math.Abs(at-d.across(v)) <= near+levelTol {
+			continue
+		}
+		if math.Abs(at-d.across(far)) <= farOff+levelTol {
+			break
+		}
+		return at
+	}
+	return d.across(far)
+}
+
+// spread is how far off the middle of its side the ends spread along
+// the side of vertex v that edge e is drawn to may fall: none where e's
+// end there is not spread, or all are at the middle.
+func (d *Document) spread(e EdgeIndex, v VertexIndex) float64 {
+	side := d.endSide(e, v)
+	if side == 0 {
+		return 0
+	}
+	n := d.sideEnds(v, side)
+	if n > MaxEndSlots {
+		return 0
+	}
+	return float64(float64(n-1)/2) * d.endStep(v, n)
+}
+
+// endStep is how far apart n ends spread along a side of vertex v fall:
+// EndGap or, where the side is too short for that, a share of it.
+func (d *Document) endStep(v VertexIndex, n int) float64 {
+	side := d.vertices[v].Size.H
+	if d.flow == TopToBottom {
+		side = d.vertices[v].Size.W
+	}
+	return min(EndGap, side/float64(n+1))
 }
 
 // EndOffset is how far across the flow edge e's end at its target, or
@@ -122,10 +213,5 @@ func (d *Document) EndOffset(e EdgeIndex, target bool) float64 {
 	if target {
 		v = d.edges[e].To
 	}
-	side := d.vertices[v].Size.H
-	if d.flow == TopToBottom {
-		side = d.vertices[v].Size.W
-	}
-	step := min(EndGap, side/float64(n+1))
-	return float64(float64(k)-float64(float64(n-1)/2)) * step
+	return float64(float64(k)-float64(float64(n-1)/2)) * d.endStep(v, n)
 }

@@ -59,7 +59,7 @@ type run struct {
 // the side of c the run's direction enters from, when no member stands
 // between that side and m, or when no band, gap and entry leg are clear.
 func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.Point) int {
-	if len(buf) < 4 {
+	if len(buf) < gapPts {
 		return 0
 	}
 	mb, cb := l.frame(d.Vertex(m)), l.frame(d.Vertex(c))
@@ -106,18 +106,18 @@ type gapRun struct {
 }
 
 // alongGap writes the run g to member m of container c along the first
-// band whose way is clear, and returns 4, or 0 when neither is. It runs
-// along the gap to the level of m's end, which is off the side's middle
-// where other edges are drawn to that side too (gw.Document.EndOffset),
-// the band on that side tried first, so that the run crosses no end
-// beside it. A straight edge, drawn toward m's centre, keeps off the
-// middle, on its band's side, where the edge from the layer before would
-// run on it.
+// band whose way is clear, and returns gapPts, or 0 when neither is. It
+// runs along the gap to the level of m's end, which is off the side's
+// middle where other edges are drawn to that side too
+// (gw.Document.EndOffset). The band is not chosen by that level: the
+// ends at a side are ordered by where their routes head, which for this
+// one is the band, so that its end falls on the band's side and the run
+// crosses no end beside it, and the level is brought to where the end
+// falls once every route is found (levelEnds). A straight edge, drawn
+// toward m's centre, keeps off the middle, on its band's side, where the
+// edge from the layer before would run on it.
 func (l *Layouter) alongGap(d *gw.Document, c, m gw.VertexIndex, r run, g gapRun, mb frameBox, buf []gw.Point) int {
 	off := l.endOffset(d, r.e, m)
-	if off != 0 && (g.bands[0]-mb.cy)*off < 0 {
-		g.bands[0], g.bands[1] = g.bands[1], g.bands[0]
-	}
 	for _, by := range g.bands {
 		if !l.clearRun(d, c, m, g.gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, g.in, by) {
 			continue
@@ -126,15 +126,24 @@ func (l *Layouter) alongGap(d *gw.Document, c, m gw.VertexIndex, r run, g gapRun
 		if g.straight {
 			y += math.Copysign(math.Min(gw.EndGap, (mb.y1-mb.y0)/4), by-mb.cy)
 		}
-		pts := [4][2]float64{{g.in, by}, {g.gx, by}, {g.gx, y}, {g.last, y}}
+		pts := [gapPts][2]float64{{g.in, by}, {g.gx, by}, {g.gx, y}, {g.last, y}}
 		for k, p := range pts {
 			x, y := l.swap(p[0], p[1])
 			buf[k] = gw.Point{X: x, Y: y}
 		}
-		return 4
+		return gapPts
 	}
 	return 0
 }
+
+// gapPts is how many points a run along a gap has (alongGap).
+const gapPts = 4
+
+// runLevel is how many of the last points of a run in to a member are
+// level with its end: two along a gap or the padding (alongPad), and
+// both of a straight edge's from the side (beside), whose end is not
+// spread.
+const runLevel = 2
 
 // endOffset is how far edge e's end at m is drawn off the middle of its
 // side (gw.Document.EndOffset); none when m is not an end of e, but a
@@ -289,8 +298,11 @@ func meets(x0, y0, x1, y1 float64, b frameBox) bool {
 
 // insideRuns writes the inside runs of edge e to its end v, coming from
 // far outside, into buf from the outermost container in, and returns the
-// count. up says the runs go to lower x.
-func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, far gw.Point, up bool, buf []gw.Point) int {
+// count, and whether the last runLevel points come in to v level with
+// its end, as the run to v itself does, along the gap before its layer
+// (alongGap) or along the padding (alongPad). up says the runs go to
+// lower x.
+func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, far gw.Point, up bool, buf []gw.Point) (int, bool) {
 	level := eLevelOf(d, e)
 	var chain [maxCross]gw.VertexIndex // the members on the way in, innermost first
 	var box [maxCross]gw.VertexIndex   // the containers holding them
@@ -304,14 +316,14 @@ func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, 
 	}
 	r := run{e: e, up: up}
 	r.fx, r.fy = l.swap(far.X, far.Y)
-	w := 0
+	w, got := 0, 0
 	for k := n - 1; k >= 0; k-- {
-		if got := l.inside(d, box[k], chain[k], r, buf[w:]); got > 0 {
+		if got = l.inside(d, box[k], chain[k], r, buf[w:]); got > 0 {
 			w += got
 			r.fx, r.fy = l.swap(buf[w-1].X, buf[w-1].Y) // the next container in is entered from here
 		}
 	}
-	return w
+	return w, got > 0 // the last found is the run to v itself
 }
 
 // eLevelOf is the container whose level an edge is laid out at: the

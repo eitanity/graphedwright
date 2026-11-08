@@ -490,6 +490,21 @@ func (l *Layouter) setDetour(d *gw.Document, e gw.EdgeIndex, w drawn, m int) {
 		bs.Set(k, gw.Point{X: x, Y: y})
 	}
 	bs.Keep(m)
+	l.route[e] = bs
+	// The first and last corners are level with the ends, and so is the
+	// next where the leg from one runs level; a detour of fewer than four
+	// keeps the corners between to neither.
+	n0, n1 := 1, 1
+	if m >= 2*levelBends {
+		if dt.path[1].Y == dt.path[0].Y {
+			n0 = levelBends
+		}
+		if dt.path[m-2].Y == dt.path[m-1].Y {
+			n1 = levelBends
+		}
+	}
+	l.setLevel(e, 0, 0, n0)
+	l.setLevel(e, 1, m-n1, n1)
 }
 
 // obstacles finds what a detour from s to t, for edge e, goes round: the

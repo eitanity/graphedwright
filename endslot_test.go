@@ -170,3 +170,78 @@ func TestEndSlotsNine(t *testing.T) {
 		}
 	}
 }
+
+// TestEndSlotHeading: the edges at a side are ordered by where their
+// routes head from it: the first bend beyond the spread of the side's
+// ends, where a layout brings the bends next to the ends level with
+// them, or, for a route without one, where the other end stands. A bend
+// within the spread is passed by, even one within the spread at the
+// other end too. The walk stops at a bend within the spread at the other
+// end only, and the route is taken to head for that end's vertex,
+// whatever lies beyond. The ends at a port do not spread, nor do more
+// than MaxEndSlots at one side.
+func TestEndSlotHeading(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		pt := func(along, across float64) gw.Point {
+			if f == gw.TopToBottom {
+				return gw.Point{X: across, Y: along}
+			}
+			return gw.Point{X: along, Y: across}
+		}
+		// Eight ends at t's side spread 3.5 steps of 100/9 either side of
+		// its middle, about 38.9; the two at s4's and s7's sides, 10.
+		d, tv, s := endDoc(t, f, 100, pt(-200, 50), pt(-200, -50), pt(-200, 0), pt(-200, -60), pt(-200, -55), pt(-200, 25), pt(200, -60), pt(-200, -40))
+		pv := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: esPorted}).Vertices[0]
+		mustApply(t, d, gw.Command{Op: gw.Move, Vertex: pv, Pos: pt(-200, 46)})
+		fromPort := func(to gw.VertexIndex) gw.EdgeIndex {
+			return mustApply(t, d, gw.Command{Op: gw.AddEdge, Kind: esCurve, From: pv, To: to, FromPort: 0, ToPort: gw.None}).Edges[0]
+		}
+		beyond := edgeTo(t, d, esCurve, s[0], tv, gw.None)
+		plain := edgeTo(t, d, esCurve, s[1], tv, gw.None)
+		passes := edgeTo(t, d, esWire, s[2], tv, gw.None)
+		stops := edgeTo(t, d, esCurve, s[3], tv, gw.None)
+		near := edgeTo(t, d, esCurve, s[4], tv, gw.None)
+		low := edgeTo(t, d, esCurve, s[5], tv, gw.None)
+		both := edgeTo(t, d, esCurve, s[7], tv, gw.None)
+		ported := fromPort(tv)
+		edgeTo(t, d, esCurve, s[3], s[6], gw.None)
+		edgeTo(t, d, esCurve, s[7], s[6], gw.None)
+		fromPort(s[6])
+		for _, b := range []struct {
+			e   gw.EdgeIndex
+			pts []gw.Point
+		}{
+			{beyond, []gw.Point{pt(-100, -80)}},             // heads to -80
+			{passes, []gw.Point{pt(-100, 40), pt(-50, 10)}}, // 10 is within t's spread: heads to 40
+			{stops, []gw.Point{pt(-150, -52), pt(-50, 20)}}, // -52 is within s4's: heads to s4, at -60
+			{both, []gw.Point{pt(-150, 70), pt(-50, -32)}},  // -32 is within both: passed by, heads to 70
+			{ported, []gw.Point{pt(-50, 39.5)}},             // its source's end, at a port, does not spread: heads to 39.5
+		} {
+			if !d.SetBends(b.e, b.pts) {
+				t.Fatalf("flow %d: edge %d not given bends", f, b.e)
+			}
+		}
+		for i, e := range []gw.EdgeIndex{beyond, stops, near, plain, low, ported, passes, both} {
+			if k, n := d.EndSlot(e, true); k != i || n != 8 {
+				t.Errorf("flow %d: edge %d: slot %d of %d, want %d of 8", f, e, k, n, i)
+			}
+		}
+		// s, with more than MaxEndSlots ends at its side, does not spread
+		// them, so that its edge to u heads to its bend at 40, after the
+		// edge from q, at 30, not to s.
+		d, u, s := endDoc(t, f, 100, pt(-200, 0), pt(-200, 30))
+		crowd := edgeTo(t, d, esCurve, s[0], u, gw.None)
+		after := edgeTo(t, d, esCurve, s[1], u, gw.None)
+		for i := range gw.MaxEndSlots {
+			v := mustApply(t, d, gw.Command{Op: gw.AddVertex, Kind: esBox}).Vertices[0]
+			mustApply(t, d, gw.Command{Op: gw.Move, Vertex: v, Pos: pt(400, float64(10*i))})
+			edgeTo(t, d, esCurve, s[0], v, gw.None)
+		}
+		if !d.SetBends(crowd, []gw.Point{pt(-100, 40)}) {
+			t.Fatalf("flow %d: edge %d not given bends", f, crowd)
+		}
+		if k, _ := d.EndSlot(crowd, true); k != 1 {
+			t.Errorf("flow %d: the edge from the crowded side: slot %d, want 1, after edge %d", f, k, after)
+		}
+	}
+}
