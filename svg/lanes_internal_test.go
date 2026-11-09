@@ -362,7 +362,7 @@ func TestRoutesClearOfContainers(t *testing.T) {
 }
 
 // exampleNames are the demo's examples.
-var exampleNames = [...]string{"shapes", "diamond", "dependencies", "use-case", "threat-model"}
+var exampleNames = [...]string{"shapes", "diamond", "dependencies", "use-case", "threat-model", "state-machine"}
 
 func readExample(t *testing.T, name string) *gw.Document {
 	t.Helper()
@@ -510,8 +510,10 @@ func edgesApart(t *testing.T, name string, d *gw.Document) {
 // containers, that lies within a unit of b.
 func sharedRun(d *gw.Document, a, b []gw.Point) float64 {
 	run, longest := 0.0, 0.0
+	// A leg counts where both its ends do: one that only ends within a
+	// unit of b crosses it there.
 	for k := 1; k < len(a); k++ {
-		if !near(a[k], b) || nearVertex(d, a[k]) {
+		if !near(a[k], b) || nearVertex(d, a[k]) || !near(a[k-1], b) {
 			run = 0
 			continue
 		}

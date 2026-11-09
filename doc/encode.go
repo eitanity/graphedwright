@@ -241,7 +241,7 @@ func (e *encoder) edge(d *gw.Document, ed gw.EdgeView) {
 		}
 		e.byte(']')
 	}
-	if ed.LabelAt() > 0 {
+	if ed.LabelAt() != 0 {
 		e.field("label_at")
 		e.num(ed.LabelAt())
 	}

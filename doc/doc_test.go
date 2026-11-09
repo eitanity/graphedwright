@@ -659,8 +659,9 @@ func TestPortsRoundTrip(t *testing.T) {
 }
 
 // TestLabelAt: an edge's label place is written as label_at and read
-// back, with its bends, for its ends where they were read; one not
-// strictly between 0 and 1 is refused, naming it, and 0 is the middle.
+// back, with its bends, for its ends where they were read, a negative
+// one, on the other side of its line, too; one not strictly between -1
+// and 1 is refused, naming it, and 0 is the middle.
 func TestLabelAt(t *testing.T) {
 	const text = `{"schema":"basic","vertices":[{"id":"a","kind":"box","x":0,"y":0,"placed":true},{"id":"b","kind":"box","x":400,"y":0,"placed":true}],"edges":[{"id":"e","kind":"arrow","from":"a","to":"b","bends":[[100,80],[300,80]],"label_at":0.3}]}`
 	d, err := doc.Decode([]byte(text), doc.Options{Schemas: schemas()})
@@ -682,11 +683,19 @@ func TestLabelAt(t *testing.T) {
 	if err != nil || again.Edge(again.EdgeByID("e")).LabelAt() != 0.3 {
 		t.Errorf("read back: %v", err)
 	}
-	for _, bad := range []string{"1.5", "-0.2", "1"} {
+	for _, bad := range []string{"1.5", "-1", "1"} {
 		_, err := doc.Decode([]byte(strings.Replace(text, `"label_at":0.3`, `"label_at":`+bad, 1)), doc.Options{Schemas: schemas()})
-		if err == nil || !strings.Contains(err.Error(), "label_at must be strictly between 0 and 1") {
+		if err == nil || !strings.Contains(err.Error(), "label_at must be strictly between -1 and 1") {
 			t.Errorf("label_at %s: %v", bad, err)
 		}
+	}
+	d, err = doc.Decode([]byte(strings.Replace(text, `"label_at":0.3`, `"label_at":-0.2`, 1)), doc.Options{Schemas: schemas()})
+	if err != nil || d.Edge(d.EdgeByID("e")).LabelAt() != -0.2 {
+		t.Errorf("label_at -0.2: %v", err)
+	}
+	buf.Reset()
+	if err := doc.Encode(d, "basic", &buf); err != nil || !strings.Contains(buf.String(), `"label_at":-0.2`) {
+		t.Errorf("label_at -0.2 not written: %v\n%s", err, buf.String())
 	}
 	d, err = doc.Decode([]byte(strings.Replace(text, `"label_at":0.3`, `"label_at":0`, 1)), doc.Options{Schemas: schemas()})
 	if err != nil || d.Edge(d.EdgeByID("e")).LabelAt() != 0 {

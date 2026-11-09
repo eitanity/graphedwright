@@ -110,7 +110,7 @@ type edge struct {
 	Weight   float64 // drives stroke width when the kind says so; 0 = none
 	Live     bool
 	Bends    []Point // the points it is drawn through between its ends, or none; see SetBends
-	LabelAt  float64 // where along its route its label is drawn, a fraction, or 0 for its middle; see SetLabelAt
+	LabelAt  float64 // where along its route its label is drawn, a fraction, negative on its line's other side, or 0 for its middle; see SetLabelAt
 	diedBy   uint64
 	route    []Point // the bends it was given, in the slab
 	routed   ends    // where its ends were then

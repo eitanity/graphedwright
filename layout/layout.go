@@ -98,6 +98,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 	for k := 0; k <= l.layers; k++ {
 		l.lg[k] = 0
 	}
+	l.runWidths(d)
 	if l.down {
 		return
 	}
@@ -197,6 +198,11 @@ type Layouter struct {
 	w        []float64 // node widths, as h is heights
 	lw, lx   []float64 // each layer's widest node and its x
 	lg       []float64 // the room the labels in the gap before each layer need
+	rg       []float64 // and the room the runs along it in a container need on both sides (gaproom.go)
+	roomB    []bool    // whether the gap before a member's layer has room for runs
+	roomA    []bool    // and the gap after it
+	runW     []float64 // the length of an edge's label run, its label's room; 0 for none (labelrun.go)
+	lRun     []int8    // the end an edge's label run is at, or -1 for none
 	fx, fy   []float64 // a placed vertex's position in its level
 	bw, bh   []float64 // a container's size once what it holds is laid out; 0 before
 	cx, cy   []float64 // where that box's centre fell from the container's centre
@@ -244,9 +250,9 @@ func New(caps gw.Caps) *Layouter {
 		topo: make([]int32, caps.Vertices), indeg: make([]int32, caps.Vertices), stack: make([]int32, caps.Vertices), mark: make([]uint8, caps.Vertices),
 		segF: make([]int32, maxS), segT: make([]int32, maxS), segE: make([]int32, maxS), off: make([]int32, maxN+1), adj: make([]int32, maxS),
 		keys: make([]int32, maxN+1), fen: make([]int32, maxN+1), byTo: make([]int32, maxS), rev: make([]gw.EdgeIndex, 0, caps.Edges),
-		liveReal: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices),
+		liveReal: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges),
 		eOn: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
-		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1),
+		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1), rg: make([]float64, maxN+1),
 		fx: make([]float64, caps.Vertices), fy: make([]float64, caps.Vertices), bw: make([]float64, caps.Vertices), bh: make([]float64, caps.Vertices),
 		rx: make([]float64, caps.Vertices), ry: make([]float64, caps.Vertices), depth: make([]int32, caps.Vertices),
 		cx: make([]float64, caps.Vertices), cy: make([]float64, caps.Vertices),
@@ -390,7 +396,13 @@ func (l *Layouter) placeBends(d *gw.Document) {
 				w.Set(j, gw.Point{X: p.X + l.rx[c], Y: p.Y + l.ry[c]})
 			}
 		}
-		all, src, n := l.withRuns(d, gw.EdgeIndex(i), w)  //nolint:gosec // bounded by the capacity
+		all, src, n := l.withRuns(d, gw.EdgeIndex(i), w) //nolint:gosec // bounded by the capacity
+		switch l.lRun[i] {
+		case 0:
+			l.setLevel(gw.EdgeIndex(i), 0, src, 2)
+		case 1:
+			l.setLevel(gw.EdgeIndex(i), 1, src+n-2, 2)
+		}
 		l.uprightEnds(d, gw.EdgeIndex(i), w, src, n, all) //nolint:gosec // bounded by the capacity
 		w.Keep(all)
 	}
@@ -511,7 +523,7 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 		}
 		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		src, dst := 4*crossed(d, e.From(), c), 4*crossed(d, e.To(), c)
-		sIn, sOut, sOK, tIn, tOut, tOK := l.endPairs(i, g, d.Kinds().Edge(e.Kind()).Route())
+		sIn, sOut, sOK, tIn, tOut, tOK := l.runPairs(d, i, g, d.Kinds().Edge(e.Kind()).Route())
 		ns, nt := 0, 0
 		if sOK {
 			ns = 2
@@ -783,11 +795,13 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 		return 0, 0, err
 	}
 	l.labelRoom(d)
+	l.gapRoom(d, c)
 	l.labelCarriers(d)
 	l.endSpreads(d)
 	l.initialOrder()
 	cr := l.reduceCrossings(opts.Sweeps)
 	l.coordinates(opts)
+	l.markGapRoom()
 	l.shallowEnds(d, opts)
 	return n, cr, nil
 }

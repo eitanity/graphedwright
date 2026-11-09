@@ -147,14 +147,20 @@ func centred(x, y, w float64) gw.Viewport {
 // inLabel reports whether p is in the box of an edge's label, when it
 // has one.
 func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
-	drawn := d.EdgeLabelRunes(i)
-	if drawn == 0 {
+	if d.EdgeLabelRunes(i) == 0 {
 		return false
 	}
 	b, side, turned := edgeLabelBox(d, i)
-	// The box for typing in is wider than the text; the text's own
-	// width is what is drawn and hit.
-	w := float64(float64(drawn)*defaultCharWidth) + 8
+	b = drawnBox(d, i, b, side, turned)
+	return p.X >= b.X && p.X <= b.X+b.W && p.Y >= b.Y && p.Y <= b.Y+b.H
+}
+
+// drawnBox is the part of edge i's label box b, on side of its lane and
+// turned or not, that its text takes as drawn: the box for typing in is
+// wider than the text, and the text's own length is what is drawn, hit
+// and kept clear of other edges.
+func drawnBox(d *gw.Document, i gw.EdgeIndex, b gw.Viewport, side float64, turned bool) gw.Viewport {
+	w := float64(float64(d.EdgeLabelRunes(i))*defaultCharWidth) + 8
 	switch {
 	case turned:
 		b.Y, b.H = b.Y+float64(b.H/2)-float64(w/2), w
@@ -165,7 +171,7 @@ func inLabel(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	default:
 		b.W = w
 	}
-	return p.X >= b.X && p.X <= b.X+b.W && p.Y >= b.Y && p.Y <= b.Y+b.H
+	return b
 }
 
 // anchorEnd anchors a text at its end.

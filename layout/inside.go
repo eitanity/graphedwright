@@ -83,27 +83,40 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	if !low {
 		in, gx, last = cb.x1-g, float64(near*5/8)+float64(col1*3/8), float64((near+col1)/4)+float64(mb.x1/2)
 	}
+	col := col0
+	if !low {
+		col = col1
+	}
+	gr := gapRun{in: in, ways: [2]bandWay{
+		l.gapSide(m, low, col, cb, bandWay{by: top - g, gx: gx, last: last}, -1),
+		l.gapSide(m, low, col, cb, bandWay{by: bottom + g, gx: gx, last: last}, 1),
+	}}
 	bands := [2]float64{top - g, bottom + g}
 	if math.Abs(r.fy-bands[1]) < math.Abs(r.fy-bands[0]) {
 		bands[0], bands[1] = bands[1], bands[0] // the band on the far point's side first
+		gr.ways[0], gr.ways[1] = gr.ways[1], gr.ways[0]
 	}
-	straight := l.straightTo(d, r.e, m)
-	if straight {
+	gr.straight = l.straightTo(d, r.e, m)
+	if gr.straight {
 		if n := l.beside(d, c, m, r, in, bands, mb, buf); n > 0 {
 			return n
 		}
 	}
-	return l.alongGap(d, c, m, r, gapRun{in: in, gx: gx, last: last, bands: bands, straight: straight}, mb, buf)
+	return l.alongGap(d, c, m, r, gr, mb, buf)
 }
 
 // gapRun is the run along the gap before a member's layer: in at in,
-// along a band to the gap at gx, along it, and in to the member from
-// last; bands are the two to try, the better first.
+// along a band to the gap, along it, and in to the member; ways are
+// the two to try, the better first.
 type gapRun struct {
-	in, gx, last float64
-	bands        [2]float64
-	straight     bool // the edge is straight and ends at the member
+	in       float64
+	ways     [2]bandWay
+	straight bool // the edge is straight and ends at the member
 }
+
+// bandWay is the way along one band, at by, to the gap at gx, and in to
+// the member from last.
+type bandWay struct{ by, gx, last float64 }
 
 // alongGap writes the run g to member m of container c along the first
 // band whose way is clear, and returns gapPts, or 0 when neither is. It
@@ -118,15 +131,16 @@ type gapRun struct {
 // edge from the layer before would run on it.
 func (l *Layouter) alongGap(d *gw.Document, c, m gw.VertexIndex, r run, g gapRun, mb frameBox, buf []gw.Point) int {
 	off := l.endOffset(d, r.e, m)
-	for _, by := range g.bands {
-		if !l.clearRun(d, c, m, g.gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, g.in, by) {
+	for _, w := range g.ways {
+		by := w.by
+		if !l.clearRun(d, c, m, w.gx, by, mb.cy) || !l.clearLeg(d, r.e, r.fx, r.fy, g.in, by) {
 			continue
 		}
 		y := mb.cy + off
 		if g.straight {
 			y += math.Copysign(math.Min(gw.EndGap, (mb.y1-mb.y0)/4), by-mb.cy)
 		}
-		pts := [gapPts][2]float64{{g.in, by}, {g.gx, by}, {g.gx, y}, {g.last, y}}
+		pts := [gapPts][2]float64{{g.in, by}, {w.gx, by}, {w.gx, y}, {w.last, y}}
 		for k, p := range pts {
 			x, y := l.swap(p[0], p[1])
 			buf[k] = gw.Point{X: x, Y: y}

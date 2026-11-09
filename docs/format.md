@@ -56,7 +56,7 @@ return the same shape as a string or an object.
 | `label` | the label text. |
 | `weight` | a number that drives the stroke width when the kind is weighted: not negative, at most 10⁹. |
 | `bends` | the points a layout routed it through, `[[x, y], …]`. They hold for the positions of its ends as read. |
-| `label_at` | where along its route a layout placed its label, clear of the other edges and texts, as a fraction from its source to its target, each leg between its bends an equal share; strictly between 0 and 1, or 0 for the middle. It holds, as the bends do, for the positions of its ends as read. |
+| `label_at` | where along its route a layout placed its label, clear of the other edges and texts, as a fraction from its source to its target, each leg between its bends an equal share; strictly between 0 and 1, or between -1 and 0 for the label on the other side of its line at the place without the sign, or 0 for the middle. It holds, as the bends do, for the positions of its ends as read. |
 | `attrs` | its attributes, as for a vertex. |
 | `data` | the host's data on the edge: one JSON value. |
 

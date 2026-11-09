@@ -91,10 +91,10 @@ document is locked; those that report a result report false then:
 - **`Fit()`** fits every container around what it holds.
 - **`SetBends(e, pts)`** gives an edge its route, checked and copied.
 - **`SetLabelAt(e, t)`** gives an edge the place along its route where
-  its label is drawn, a fraction from its source to its target; like
-  its bends, it holds for the ends where they are, and a new route or
-  `ClearBends` drops it. An edge's `LabelAt()` is the place, or 0 for
-  the middle.
+  its label is drawn, a fraction from its source to its target, negative
+  for the label on the other side of its line; like its bends, it holds
+  for the ends where they are, and a new route or `ClearBends` drops
+  it. An edge's `LabelAt()` is the place, or 0 for the middle.
   **`ReserveBends(e, n)`** reserves n points and returns a
   `gw.BendWriter` to build the route in place, as a layout does before
   placing the ends: `Set(i, p)`, `At(i)`, `Move(to, from, n)` and

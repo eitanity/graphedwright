@@ -244,10 +244,12 @@ func (d *Document) rebendEdge(i EdgeIndex) {
 // holds, with the edge's bends, for the ends where they are now: moving
 // an end puts the label back at the middle, and putting the end back
 // brings the place back. A layout's next ClearBends or new route for
-// the edge drops it. t is strictly between 0 and 1. It reports whether
-// the edge was live and t a place.
+// the edge drops it. t is strictly between 0 and 1, or between -1 and 0
+// for the place -t with the label on the other side of its line from
+// the one the renderer would choose. It reports whether the edge was
+// live and t a place.
 func (d *Document) SetLabelAt(e EdgeIndex, t float64) bool {
-	if d.locked || !d.edgeLive(e) || !(t > 0 && t < 1) {
+	if d.locked || !d.edgeLive(e) || !(t > -1 && t < 1) || t == 0 {
 		return false
 	}
 	ed := &d.edges[e]

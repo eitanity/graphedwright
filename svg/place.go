@@ -28,9 +28,9 @@ const placeSamples = 32
 // tried at, each placeStep of its route further, and placeEnds how near
 // either end of its route it may go, as a fraction of the route.
 const (
-	placeSteps = 16
-	placeStep  = 0.05
-	placeEnds  = 0.1
+	placeSteps = 38
+	placeStep  = 0.025
+	placeEnds  = 0.02
 )
 
 // placeVertex is what a vertex under a label counts for, in lines
@@ -59,14 +59,18 @@ func PlaceLabels(d *gw.Document) {
 		if d.EdgeLabelRunes(e) == 0 {
 			continue // a deleted edge's label is refused its place by SetLabelAt
 		}
-		move(d, e, crossings(d, e, EdgeLabelBox(d, e)))
+		var lane [1]gw.Point
+		w := wayOf(d, e, &lane)
+		move(d, e, crossings(d, e, drawnLabel(d, e, &w, w.middle(d.Kinds().Edge(d.Edge(e).Kind()).Route()))))
 	}
 }
 
 // move tries edge e's label, which crosses c things where it is, at
-// places either side of the middle, nearer first and toward the target
-// first, and keeps the first that crosses nothing, or failing that the
-// first that crosses fewest, if fewer than c; where c is 0 it stays.
+// its middle on the other side of its line, then at places either side
+// of the middle, nearer first and toward the target first, each on its
+// own side and then the other, and keeps the first that crosses
+// nothing, or failing that the first that crosses fewest, if fewer than
+// c; where c is 0 it stays.
 func move(d *gw.Document, e gw.EdgeIndex, c int) {
 	var lane [1]gw.Point
 	w := wayOf(d, e, &lane)
@@ -76,22 +80,45 @@ func move(d *gw.Document, e gw.EdgeIndex, c int) {
 	route := d.Kinds().Edge(d.Edge(e).Kind()).Route()
 	t0 := middleT(w.f, w.through)
 	best, bestT := c, 0.0
-	// bound: placeSteps places either side; stopping at the first clear
-	// one saves work only, as a later one is never fewer
-	for k := 1; k <= placeSteps && best > 0; k++ {
+	// bound: placeSteps places either side and the middle, which the
+	// two signs try alike and its own side crosses c, never fewer;
+	// stopping at the first clear one saves work only, as a later one is
+	// never fewer
+	for k := 0; k <= placeSteps && best > 0; k++ {
 		for _, sign := range [2]float64{1, -1} {
 			t := t0 + float64(sign*float64(k)*placeStep)
 			if t < placeEnds || t > 1-placeEnds {
 				continue
 			}
-			mid := along(w.f, route, w.a, w.through, w.b, t)
-			box, _ := labelBoxAt(d, e, &w, mid)
-			if n := crossings(d, e, box); n < best {
+			if n, flip := bothSides(d, e, &w, along(w.f, route, w.a, w.through, w.b, t)); n < best {
 				best, bestT = n, t
+				if flip {
+					bestT = -t
+				}
 			}
 		}
 	}
 	d.SetLabelAt(e, bestT) // refused where none was better: bestT is 0
+}
+
+// bothSides is how many things edge e's label at mid on its way w
+// crosses on its own side of its line, or on the other, flip, where that
+// crosses fewer.
+func bothSides(d *gw.Document, e gw.EdgeIndex, w *way, mid gw.Point) (n int, flip bool) {
+	w.flip = false
+	n = crossings(d, e, drawnLabel(d, e, w, mid))
+	w.flip = true
+	if o := crossings(d, e, drawnLabel(d, e, w, mid)); o < n {
+		return o, true
+	}
+	return n, false
+}
+
+// drawnLabel is the box edge e's label takes, as drawn, at mid on its
+// way w.
+func drawnLabel(d *gw.Document, e gw.EdgeIndex, w *way, mid gw.Point) gw.Viewport {
+	b, turned := labelBoxAt(d, e, w, mid)
+	return drawnBox(d, e, b, w.side(), turned)
 }
 
 // middleT is where along a route, as a fraction, middle puts its label.
@@ -132,7 +159,7 @@ func crossings(d *gw.Document, e gw.EdgeIndex, box gw.Viewport) int {
 		w := wayOf(d, o, &lane)
 		route := d.Kinds().Edge(d.Edge(o).Kind()).Route()
 		if d.EdgeLabelRunes(o) > 0 {
-			if b, _ := labelBoxAt(d, o, &w, w.middle(route)); boxesMeet(box, b) {
+			if boxesMeet(box, drawnLabel(d, o, &w, w.middle(route))) {
 				n++
 			}
 		}

@@ -196,7 +196,9 @@ The layout (`layout.Layouter`) is layered:
    the label or stereotype of an edge drawn in the gap between them
    (twice as wide for a right-angled edge, whose text is on the half
    past its turn), or where edges have far to go across the flow in the
-   room between them (uprights, below). Within a layer, vertices are
+   room between them (uprights, below), or, in either flow, for a label
+   run (below), or, in a container, for the runs that come along a gap
+   a label is drawn in (below). Within a layer, vertices are
    centred on their neighbours and kept a gap (24) apart; then each long
    edge's placeholders are brought into one row where they fit, so that
    it runs straight past the layers between its ends, and a placeholder
@@ -346,12 +348,24 @@ where the next layers' labels are: left to right, the label is drawn
 above the run; top to bottom, it is turned to read along it, a line
 beside it that the gap between placeholders holds.
 
+A labelled edge between adjacent layers whose ends are further apart
+across the flow than a line of text would climb across its label. It
+is given a **label run** instead: it runs level out of the end at the
+side with fewer ends (the source where they have as many), at the
+height that end is drawn at, for at least as long as its label, and
+climbs to the other end in the last 64 of the gap, which is made as wide
+as that. The label lies on the run. Every such run out of one side climbs
+in the same stretch, beside the far layer, so the runs and the edges
+from that side keep their order. An edge with an end placed, or at a
+port, or a straight edge, has no run.
+
 **Label places.** A label at the middle of its route can still cross
 another edge, another edge's label or a vertex: edges that fan out of
 one vertex run close together near it, and edges that share a short
 gap share its middle. After a layout, such a label is moved along its
-own route to the nearest place where it crosses nothing, toward the
-target first, or where it crosses fewest, and keeps that place
+own route to the nearest place where its text crosses nothing, toward
+the target first, on its own side of the line and then the other, or
+where it crosses fewest, and keeps that place
 (`Document.SetLabelAt`, `svg.PlaceLabels`) while its ends stay where
 they are, as its bends do. A lane's label and a right-angled edge's on
 its own last leg are not moved, and nor is any label of a document with
@@ -362,7 +376,14 @@ is wider than the figure. A straight edge into a member of a container
 comes in from the side, along the free band and across the flow at
 the member's middle, where the members of its layer leave that clear;
 otherwise it comes along the gap before the member's layer, level with
-its end.
+its end. A gap in a container that a labelled edge crosses, its label
+at the middle, is 16 wider on each side, and a run along it keeps to
+that room beside the layer of the member it goes to, off the label.
+Runs from either side of the container then pass each other along the
+band above or below what it holds, so one from the far side keeps 8
+further out, where the padding has room, as under a container's title;
+where it has not, the runs from both sides keep five eighths of the way
+across the gap from their members' layers instead, off each other.
 
 ## Containers
 

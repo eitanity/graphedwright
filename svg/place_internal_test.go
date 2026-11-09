@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -76,9 +77,19 @@ func placeEdge(t *testing.T, d *gw.Document, p, q gw.Point, kind gw.KindIndex, t
 	return ch.Edges[0]
 }
 
-// crossed counts the edges e's label box, as drawn, crosses.
+// parsed is the number a test read from a drawing, NaN for none.
+func parsed(s string) float64 {
+	x, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return math.NaN()
+	}
+	return x
+}
+
+// crossed counts the edges e's label, as drawn, crosses.
 func crossed(d *gw.Document, e gw.EdgeIndex) int {
-	box := EdgeLabelBox(d, e)
+	b, side, turned := edgeLabelBox(d, e)
+	box := drawnBox(d, e, b, side, turned)
 	n := 0
 	for i := range d.EdgeSlots() {
 		o := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
@@ -93,7 +104,9 @@ func crossed(d *gw.Document, e gw.EdgeIndex) int {
 
 // TestPlaceLabels: a label crossed by an edge at its middle is moved
 // along its own edge to the nearest place clear of it, toward the target
-// first, and drawn there; one clear at its middle stays there; where no
+// first, on its own side of its line and then the other, and drawn
+// there, as drawn the length of its text; one clear at its middle
+// stays there; where no
 // place is clear it goes to the first that crosses fewest, crossing
 // lines rather than covering a vertex, and never nearer an end than
 // placeEnds. A deleted vertex, a container, the box an unlabelled edge
@@ -108,10 +121,11 @@ func TestPlaceLabels(t *testing.T) {
 		t.Fatalf("at its middle the label crosses %d edges, want 1", crossed(d, e))
 	}
 	PlaceLabels(d)
-	// From x 20 to 280, the label 80 wide: at 0.65 it still meets the
-	// line at 150, at 0.7 it is clear, as it is at 0.3 toward the source.
-	if at := d.Edge(e).LabelAt(); math.Abs(at-0.7) > 1e-9 || crossed(d, e) != 0 {
-		t.Errorf("placed at %v, crossing %d edges; want 0.7, crossing none", at, crossed(d, e))
+	// From x 20 to 280, the label 43 wide as drawn: below its line at
+	// the middle and at 0.575 it still meets the line at 150, at 0.6 it
+	// is clear, as it is at 0.4 toward the source.
+	if at := d.Edge(e).LabelAt(); math.Abs(at-0.6) > 1e-9 || crossed(d, e) != 0 {
+		t.Errorf("placed at %v, crossing %d edges; want 0.6, crossing none", at, crossed(d, e))
 	}
 	var buf bytes.Buffer
 	if err := Render(d, Options{}, &buf); err != nil {
@@ -120,6 +134,31 @@ func TestPlaceLabels(t *testing.T) {
 	box := EdgeLabelBox(d, e)
 	if want := `x="` + n(box.X+box.W/2) + `"`; !strings.Contains(buf.String(), `<text class="label" `+want) {
 		t.Errorf("the label is not drawn at its place, %s:\n%s", want, buf.String())
+	}
+
+	// A line along the label's side, level just above its line: the
+	// middle on the other side is clear, and the label is drawn there.
+	d, e = placeDoc(t, false, gw.Caps{})
+	placeEdge(t, d, gw.Point{X: 60, Y: -9}, gw.Point{X: 240, Y: -9}, 0, "")
+	PlaceLabels(d)
+	if at := d.Edge(e).LabelAt(); at != -0.5 || crossed(d, e) != 0 {
+		t.Errorf("a line along its side: placed at %v, crossing %d; want -0.5, the other side", at, crossed(d, e))
+	}
+	buf.Reset()
+	if err := Render(d, Options{}, &buf); err != nil {
+		t.Fatal(err)
+	}
+	if m := textRE.FindStringSubmatch(buf.String()); m == nil || !(parsed(m[3]) > 0) {
+		t.Errorf("the label not drawn below its line:\n%s", buf.String())
+	}
+
+	// Another edge's short label, its text clear of this one's though
+	// the wider box an input takes would meet it: it stays.
+	d, e = placeDoc(t, false, gw.Caps{})
+	placeEdge(t, d, gw.Point{X: 155, Y: 14}, gw.Point{X: 235, Y: 14}, 0, "x")
+	PlaceLabels(d)
+	if at := d.Edge(e).LabelAt(); at != 0 {
+		t.Errorf("a short label beside it: moved to %v", at)
 	}
 
 	d, e = placeDoc(t, false, gw.Caps{}, 20)
@@ -141,7 +180,7 @@ func TestPlaceLabels(t *testing.T) {
 		}},
 		{"a label", func(d *gw.Document) {
 			var vs [2]gw.VertexIndex
-			for k, x := range [2]float64{160, 240} {
+			for k, x := range [2]float64{130, 210} {
 				ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Pos: gw.Point{X: x, Y: 14}})
 				if err != nil {
 					t.Fatal(err)
@@ -181,10 +220,11 @@ func TestPlaceLabels(t *testing.T) {
 	d, e = placeDoc(t, false, gw.Caps{}, xs...)
 	before := crossed(d, e)
 	PlaceLabels(d)
-	// The first of the places that cross fewest: at 0.7 the box meets
-	// the lines at 190 and 210, and so do others further on.
-	if after := crossed(d, e); math.Abs(d.Edge(e).LabelAt()-0.7) > 1e-9 || after == 0 || after >= before {
-		t.Errorf("nowhere clear: placed at %v crossing %d, at the middle %d; want 0.7", d.Edge(e).LabelAt(), after, before)
+	// The first of the places that cross fewest: at 0.625 the label, 43
+	// wide, meets the lines at 170 and 190, as it meets two anywhere on
+	// the lines 20 apart and only covers a vertex past them.
+	if after := crossed(d, e); math.Abs(d.Edge(e).LabelAt()-0.625) > 1e-9 || after == 0 || after >= before {
+		t.Errorf("nowhere clear: placed at %v crossing %d, at the middle %d; want 0.625", d.Edge(e).LabelAt(), after, before)
 	}
 
 	d, e = placeDoc(t, true, gw.Caps{}, 150)

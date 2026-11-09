@@ -203,7 +203,8 @@ func (e EdgeView) Bends() PointList {
 
 // LabelAt is where along its route the edge's label is drawn, as a
 // fraction from its source to its target, each leg between its bends an
-// equal share; 0 for the middle the renderer finds (Document.SetLabelAt).
+// equal share, negative where the label is on the other side of its
+// line; 0 for the middle the renderer finds (Document.SetLabelAt).
 func (e EdgeView) LabelAt() float64 {
 	if e.x == nil {
 		return 0

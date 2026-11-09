@@ -191,18 +191,22 @@ func TestAllocBends(t *testing.T) {
 // label back at its middle and marks the edge changed, and an undo that
 // brings the end back brings the place back, with bends or without; a
 // new route for the edge,
-// and ClearBends, drop it. A place not strictly between 0 and 1, a dead
-// edge, a locked document, and an edge whose route does not hold where
-// its ends are, are refused; an edge without bends takes one.
+// and ClearBends, drop it. A place not strictly between -1 and 1, or 0,
+// a dead edge, a locked document, and an edge whose route does not hold
+// where its ends are, are refused; an edge without bends takes one, and
+// a negative place, for the other side of its line.
 func TestSetLabelAt(t *testing.T) {
 	d := containerDoc(t)
 	a := at(t, d, cBox, "a", 0, 0)
 	b := at(t, d, cBox, "b", 400, 0)
 	e := addEdge(t, d, 0, a, b, gw.None, gw.None)
-	for _, bad := range []float64{0, 1, -0.5, 1.5, math.NaN()} {
+	for _, bad := range []float64{0, 1, -1, 1.5, math.NaN()} {
 		if d.SetLabelAt(e, bad) || d.Edge(e).LabelAt() != 0 {
 			t.Errorf("place %v taken", bad)
 		}
+	}
+	if !d.SetLabelAt(e, -0.5) || d.Edge(e).LabelAt() != -0.5 {
+		t.Errorf("the other side: place %v", d.Edge(e).LabelAt())
 	}
 	if !d.SetLabelAt(e, 0.25) || d.Edge(e).LabelAt() != 0.25 {
 		t.Fatalf("an edge without bends: place %v", d.Edge(e).LabelAt())

@@ -275,6 +275,7 @@ type way struct {
 	ownLeg  bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
 	away    float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
 	at      float64 // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
+	flip    bool    // its texts go on the other side of its line, a layout's choice
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -290,7 +291,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	if n < 2 {
 		w.ownLeg = sharesTurn(d, i, w)
 		w.away = endAway(d, i)
-		w.at = e.LabelAt()
+		w.at, w.flip = math.Abs(e.LabelAt()), e.LabelAt() < 0
 		return w
 	}
 	p, q := w.f.t(w.a), w.f.t(w.b)
@@ -375,8 +376,18 @@ func endAway(d *gw.Document, i gw.EdgeIndex) float64 {
 // may turn across the flow just past its texts. 1 is the usual side,
 // above the stroke left to right and to its right top to bottom; -1 is
 // the other. A lone edge alone at its sides, and the middle one of an
-// odd number, keep the usual side.
+// odd number, keep the usual side; and a lone edge whose label a layout
+// put on the other side, clear of what this one crosses, has it there.
 func (w *way) side() float64 {
+	if w.flip {
+		return -w.ownSide()
+	}
+	return w.ownSide()
+}
+
+// ownSide is the side of its line an edge's texts go on (side), as the
+// renderer chooses it.
+func (w *way) ownSide() float64 {
 	if w.away != 0 { // set only for an edge not in a lane
 		if w.f.down {
 			return w.away

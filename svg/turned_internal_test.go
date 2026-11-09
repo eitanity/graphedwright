@@ -155,3 +155,32 @@ func TestTurnedTexts(t *testing.T) {
 		t.Errorf("turned %v in\n%s", got, buf.String())
 	}
 }
+
+// TestDrawnBox: the text of a label takes the length of its runes and
+// some room within its box: from the line's side beside a run top to
+// bottom, on either side; about its middle above a run left to right;
+// and about its middle along a turned one.
+func TestDrawnBox(t *testing.T) {
+	d, e := turnedDoc(t)
+	b := gw.Viewport{X: 100, Y: 200, W: 80, H: 20}
+	turned := gw.Viewport{X: 100, Y: 200, W: 20, H: 80}
+	for _, c := range []struct {
+		name   string
+		b      gw.Viewport
+		side   float64
+		turned bool
+		want   gw.Viewport
+	}{
+		{"right", b, 1, false, gw.Viewport{X: 100, Y: 200, W: 22, H: 20}},
+		{"left", b, -1, false, gw.Viewport{X: 158, Y: 200, W: 22, H: 20}},
+		{"turned", turned, -1, true, gw.Viewport{X: 100, Y: 229, W: 20, H: 22}},
+	} {
+		if got := drawnBox(d, e, c.b, c.side, c.turned); got != c.want {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+	d.SetFlow(gw.LeftToRight)
+	if got, want := drawnBox(d, e, b, 1, false), (gw.Viewport{X: 129, Y: 200, W: 22, H: 20}); got != want {
+		t.Errorf("left to right: %v, want %v", got, want)
+	}
+}
