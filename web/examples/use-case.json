@@ -6,10 +6,10 @@
   {"id": "shop", "kind": "system", "label": "Online shop", "x": 0, "y": 0},
   {"id": "browse", "kind": "use case", "label": "Browse catalogue", "x": 320, "y": 64, "placed": true, "parent": "shop"},
   {"id": "order", "kind": "use case", "label": "Place order", "x": 320, "y": 160, "placed": true, "parent": "shop"},
-  {"id": "pay", "kind": "use case", "label": "Pay", "x": 528, "y": 160, "placed": true, "parent": "shop"},
+  {"id": "pay", "kind": "use case", "label": "Pay", "x": 552, "y": 160, "placed": true, "parent": "shop"},
   {"id": "voucher", "kind": "use case", "label": "Apply voucher", "x": 320, "y": 256, "placed": true, "parent": "shop"},
   {"id": "track", "kind": "use case", "label": "Track delivery", "x": 320, "y": 344, "placed": true, "parent": "shop"},
-  {"id": "bank", "kind": "actor", "label": "Payment provider", "x": 760, "y": 160, "placed": true}
+  {"id": "bank", "kind": "actor", "label": "Payment provider", "x": 784, "y": 160, "placed": true}
  ],
  "edges": [
   {"id": "e1", "kind": "association", "from": "customer", "to": "browse"},

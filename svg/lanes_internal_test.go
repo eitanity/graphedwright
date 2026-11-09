@@ -2,11 +2,13 @@ package svg
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	gw "code.eitanity.com/graphedwright"
@@ -548,8 +550,9 @@ func nearVertex(d *gw.Document, p gw.Point) bool {
 }
 
 // edgeTextsClear checks that no edge's label or stereotype, as drawn,
-// crosses another edge or another edge's texts.
-func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
+// crosses another edge or another edge's texts, or meets the box of a
+// vertex other than a container, reporting through t.
+func edgeTextsClear(t reporter, name string, d *gw.Document) {
 	t.Helper()
 	{
 		var buf bytes.Buffer
@@ -573,6 +576,12 @@ func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
 				}
 				boxes = append(boxes, box)
 				owners = append(owners, g[1])
+				for i := range d.VertexSlots() {
+					v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+					if v.Live() && !d.Kinds().Vertex(v.Kind()).Container() && boxesMeet(box, vertexBox(v)) {
+						t.Errorf("%s: the %s %q of edge %s overlaps vertex %s %+v %+v", name, m[1], m[6], g[1], v.ID(), box, vertexBox(v))
+					}
+				}
 				for i := range d.EdgeSlots() {
 					if !d.Edge(gw.EdgeIndex(i)).Live() || string(d.Edge(gw.EdgeIndex(i)).ID()) == g[1] { //nolint:gosec // bounded by the capacity
 						continue
@@ -588,6 +597,61 @@ func edgeTextsClear(t *testing.T, name string, d *gw.Document) {
 					}
 				}
 			}
+		}
+	}
+}
+
+// reporter is what the checks report through: a test, or a record of
+// what they report (reports).
+type reporter interface {
+	Helper()
+	Errorf(format string, args ...any)
+	Fatal(args ...any)
+}
+
+// reports records what a check reports, and fails the test it is given
+// on a fatal one.
+type reports struct {
+	t    *testing.T
+	errs []string
+}
+
+func (r *reports) Helper() {}
+
+func (r *reports) Errorf(format string, args ...any) {
+	r.errs = append(r.errs, fmt.Sprintf(format, args...))
+}
+
+func (r *reports) Fatal(args ...any) { r.t.Fatal(args...) }
+
+// TestEdgeTextsMeetVertices: edgeTextsClear reports an edge text drawn
+// over a vertex's box: with the use case Pay put back where the example
+// once had it, 58 from Place order, the «include» between them, 63 wide,
+// goes into both boxes; where the example has it, 82 apart, it clears
+// them.
+func TestEdgeTextsMeetVertices(t *testing.T) {
+	for _, c := range []struct {
+		x    float64
+		want []string
+	}{{528, []string{"overlaps vertex order", "overlaps vertex pay"}}, {552, nil}} {
+		d := readExample(t, "use-case")
+		pay := d.VertexByID("pay")
+		if pay == gw.None {
+			t.Fatal("no vertex pay")
+		}
+		if _, err := d.Apply(gw.Command{Op: gw.Move, Vertex: pay, Pos: gw.Point{X: c.x, Y: d.Vertex(pay).Pos().Y}}); err != nil {
+			t.Fatal(err)
+		}
+		r := &reports{t: t}
+		edgeTextsClear(r, "use-case", d)
+		got := strings.Join(r.errs, "\n")
+		for _, w := range c.want {
+			if !strings.Contains(got, w) {
+				t.Errorf("pay at %g: no report that the stereotype %s, in %q", c.x, w, got)
+			}
+		}
+		if c.want == nil && got != "" {
+			t.Errorf("pay at %g: reports %q, want none", c.x, got)
 		}
 	}
 }
