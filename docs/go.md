@@ -218,9 +218,9 @@ The geometry the renderer draws from is also exported:
   for placing an input to edit it; **`EdgeLabelInputBox`** is the
   edge's box level about the same centre, where its label is turned to
   read along its run, since text is typed level.
-- **`PortOn(d, v, p)`** is where a port is drawn, on the outline of a
-  provided shape; `PortAt` is its place on the box's side, where a
-  built-in shape draws it. **`Bounds`** is the box around the drawing.
+- **`PortOn(d, v, p)`** is where a port is drawn: on its box's side,
+  or on the outline of a provided shape. **`Bounds`** is the box around
+  the drawing.
 
 ## doc
 

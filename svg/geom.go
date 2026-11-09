@@ -24,11 +24,6 @@ const outlineBand = 6
 // for the hit test.
 const edgeSamples = 16
 
-// PortAt is the absolute position of port p of vertex v on its box's
-// side, where a built-in shape draws it; PortOn is where it is drawn on
-// any shape.
-func PortAt(v gw.VertexView, p gw.PortIndex) gw.Point { return portAt(v, p, false) }
-
 // portAt is the absolute position of port p of vertex v: ports on a side
 // are spaced evenly along it, the side turned with a turned vertex.
 func portAt(v gw.VertexView, p gw.PortIndex, turned bool) gw.Point {
