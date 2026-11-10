@@ -195,7 +195,7 @@ async function main() {
     vertexKinds: [{ name: "end", shape: "bullseye", w: 28, h: 28 }, { name: "send", shape: "flag", w: 60, h: 40 }],
     edgeKinds: [{ name: "flow", arrow: true }],
   });
-  provided.badPath = graphedwright.registerSchema("provided-bad", { shapes: [{ name: "evil", w: 10, h: 10, paths: [{ d: '"/><script>' }] }], vertexKinds: [{ name: "k", shape: "evil" }], edgeKinds: [] });
+  provided.badPath = graphedwright.registerSchema("provided-bad", { shapes: [{ name: "evil", w: 10, h: 10, paths: [{ d: '"/><script>' }] }], vertexKinds: [{ name: "k", shape: "evil", w: 20, h: 20 }], edgeKinds: [] });
   provided.badName = graphedwright.registerSchema("provided-unknown", { vertexKinds: [{ name: "k", shape: "blob" }], edgeKinds: [] });
   const hq = graphedwright.create(clash, { schema: "provided" }).ok;
   provided.load = graphedwright.load(hq, { schema: "provided", vertices: [{ id: "s", kind: "send", label: "send" }, { id: "f", kind: "end" }], edges: [{ kind: "flow", from: "s", to: "f" }] });

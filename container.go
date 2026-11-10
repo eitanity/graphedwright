@@ -18,8 +18,12 @@ const ContainerPad = 16
 // label.
 const ContainerTitle = 20
 
-// Depth is the number of containers a vertex is in.
+// Depth is the number of containers a vertex is in; 0 for an index out
+// of range.
 func (d *Document) Depth(v VertexIndex) int {
+	if v < 0 || int(v) >= len(d.vertices) {
+		return 0
+	}
 	n := 0
 	// bound: the parent chain is acyclic, so at most the vertex count
 	for p := d.vertices[v].Parent; p != None && n < len(d.vertices); p = d.vertices[p].Parent {
@@ -29,8 +33,11 @@ func (d *Document) Depth(v VertexIndex) int {
 }
 
 // Within reports whether v is c or is in c, directly or through the
-// containers between.
+// containers between; false for a v out of range.
 func (d *Document) Within(v, c VertexIndex) bool {
+	if v < 0 || int(v) >= len(d.vertices) {
+		return false
+	}
 	// bound: the parent chain is acyclic, so at most the vertex count
 	for n := 0; v != None && n <= len(d.vertices); n++ {
 		if v == c {

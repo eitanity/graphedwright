@@ -44,7 +44,7 @@ func TestNamed(t *testing.T) {
 			t.Errorf("%q: got %q, %v", name, def.Name, ok)
 			continue
 		}
-		if _, err := gw.Compile(gw.Schema{Shapes: []gw.ShapeDef{def}, VertexKinds: []gw.VertexKind{{Name: "k", Shape: gw.Provided}}}); err != nil {
+		if _, err := gw.Compile(gw.Schema{Shapes: []gw.ShapeDef{def}, VertexKinds: []gw.VertexKind{{Name: "k", Shape: gw.Provided, Size: gw.Size{W: 40, H: 40}}}}); err != nil {
 			t.Errorf("%q alone: %v", name, err)
 		}
 	}

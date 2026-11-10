@@ -75,6 +75,16 @@ func TestContainerFit(t *testing.T) {
 	if ov.Size().W != zv.Size().W+2*gw.ContainerPad || ov.Size().H != zv.Size().H+2*gw.ContainerPad+gw.ContainerTitle || d.Depth(a) != 2 || !d.Within(a, o) || d.Within(o, a) {
 		t.Errorf("outer %v %v around %v %v, depth %d", ov.Pos(), ov.Size(), zv.Pos(), zv.Size(), d.Depth(a))
 	}
+	// Out of range, as every read of the document: nothing, and no panic.
+	past := gw.VertexIndex(d.VertexSlots()) //nolint:gosec // bounded by the capacity
+	for _, v := range []gw.VertexIndex{gw.None, -5, past} {
+		if d.Depth(v) != 0 || d.Within(v, o) || d.Within(v, v) {
+			t.Errorf("vertex %d out of range: depth %d, within %v %v", v, d.Depth(v), d.Within(v, o), d.Within(v, v))
+		}
+	}
+	if d.Within(a, past) || d.Within(a, gw.None) {
+		t.Error("a vertex within a container out of range")
+	}
 }
 
 // TestSetParentRefusals: only into a live container that may hold the
@@ -160,6 +170,12 @@ func TestContainerMoveDeleteUndo(t *testing.T) {
 	z2 := d.VertexByID("z")
 	if a2, b2 := d.VertexByID("a"), d.VertexByID("b"); z2 != 2 || d.Vertex(a2).Parent() != z2 || d.Vertex(b2).Parent() != z2 {
 		t.Errorf("after compact: z %d, parents %d %d", z2, d.Vertex(a2).Parent(), d.Vertex(b2).Parent())
+	}
+	// The Compact method too lists the containers by their new indices.
+	apply(t, d, gw.Command{Op: gw.DeleteVertex, Vertex: d.VertexByID("a")})
+	d.Compact()
+	if z3 := d.VertexByID("z"); d.Containers().Len() != 1 || d.Containers().At(0) != z3 || z3 == z2 {
+		t.Errorf("after the Compact method: containers %v, z %d, was %d", d.Containers(), z3, z2)
 	}
 }
 

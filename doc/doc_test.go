@@ -379,14 +379,14 @@ func TestBendsRoundTrip(t *testing.T) {
 // writes what reads back the same; an escape for a control character
 // XML cannot carry is refused.
 func TestEscapes(t *testing.T) {
-	for _, esc := range []string{`\b`, `\f`, `\u0001`, `\u001f`} {
+	for _, esc := range []string{`\b`, `\f`, `\u0001`, `\u001f`, `\u007f`, `\u0085`, "\x7f", "\xc2\x9f"} {
 		_, err := doc.Decode([]byte(`{"schema":"basic","vertices":[{"kind":"box","label":"a`+esc+`"}]}`), doc.Options{Schemas: doc.Builtin()})
 		if err == nil || !strings.Contains(err.Error(), "control character") {
 			t.Errorf("%s: got %v", esc, err)
 		}
 	}
-	d := decode(t, `{"schema":"basic","vertices":[{"kind":"box","label":"a\"b\\c\/d\n\r\t\u00e9\u007f"}]}`)
-	want := "a\"b\\c/d\n\r\té\x7f"
+	d := decode(t, `{"schema":"basic","vertices":[{"kind":"box","label":"a\"b\\c\/d\n\r\t\u00e9"}]}`)
+	want := "a\"b\\c/d\n\r\té"
 	if got := d.Vertex(0).Label(); got != want {
 		t.Errorf("label %q, want %q", got, want)
 	}

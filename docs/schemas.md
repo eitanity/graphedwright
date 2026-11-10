@@ -148,7 +148,7 @@ commands.
 |---|---|
 | `Name` | the palette entry, the name in documents, and the SVG class after `kind-`, with spaces as `_` (`kind-use_case`) |
 | `Shape` | `Rect`, `RoundRect`, `Pill`, `Diamond`, `Circle` (an ellipse filling the size), `Actor` (a stick figure, label below) or `DataStore` (a line above and a line below); or `gw.Provided + i`, the schema's `i`th shape |
-| `Size` | a new vertex's width and height; a vertex can be resized |
+| `Size` | a new vertex's width and height, each positive and at most `gw.MaxCoord` (10⁹); a vertex can be resized |
 | `Ports` | named places on the sides where edges attach: `{Name, Side, Max}`, with `Side` one of `Left`, `Right`, `Top`, `Bottom`, and `Max` the edges it takes, 0 for any. A side's ports are spaced evenly along it |
 | `Attrs` | the attributes the kind takes (below) |
 | `Root`, `Leaf` | a root kind takes no incoming edge; a leaf kind no outgoing one |

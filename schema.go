@@ -206,8 +206,11 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 			return schemaError(where, "contains vertex kind "+itoa(int(kind))+" out of range")
 		}
 	}
-	if k.Max < 0 || !(k.Size.W >= 0) || !(k.Size.H >= 0) || math.IsInf(k.Size.W, 1) || math.IsInf(k.Size.H, 1) {
-		return schemaError(where, "max, shape and size must be in range")
+	if k.Max < 0 {
+		return schemaError(where, "max must not be negative")
+	}
+	if !extent(k.Size.W) || !extent(k.Size.H) {
+		return schemaError(where, sizeRule)
 	}
 	return checkAttrSpecs(where, k.Attrs)
 }

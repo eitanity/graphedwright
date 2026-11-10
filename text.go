@@ -6,17 +6,18 @@ import (
 )
 
 // checkText refuses text a document cannot hold: invalid UTF-8, a
-// control character other than tab, newline and carriage return, or
-// U+FFFE or U+FFFF, none of which XML can carry. It applies to labels, attribute values and the
-// schema's free text.
+// control character other than tab, newline and carriage return (C0,
+// DEL and C1 alike), or U+FFFE or U+FFFF. XML cannot carry most of them,
+// and the rest draw nothing. It applies to labels, attribute values and
+// the schema's free text.
 func checkText(what, s string) error {
 	if !utf8.ValidString(s) {
 		return refusal(what + " is not valid UTF-8")
 	}
 	// bound: the string
 	for i := 0; i < len(s); i++ {
-		if c := s[i]; c < 0x20 && c != '\t' && c != '\n' && c != '\r' {
-			return controlError(what, c, i)
+		if c := s[i]; c < 0x20 && c != '\t' && c != '\n' && c != '\r' || c == 0x7f || c1(s, i) {
+			return controlError(what, s, i)
 		}
 		if nonchar(s, i) {
 			return noncharError(what, s, i)
@@ -26,7 +27,7 @@ func checkText(what, s string) error {
 }
 
 // checkName refuses a name with any control character, tab and newline
-// included, or U+FFFE or U+FFFF: IDs and the schema's kind and port
+// included, DEL and C1 too, or U+FFFE or U+FFFF: IDs and the schema's kind and port
 // names, which end up in markup and selectors. The refusal quotes the
 // name after what it is.
 func checkName(what, s string) error {
@@ -35,8 +36,8 @@ func checkName(what, s string) error {
 	}
 	// bound: the string
 	for i := 0; i < len(s); i++ {
-		if c := s[i]; c < 0x20 || c == 0x7f {
-			return controlError(what+" "+strconv.Quote(s), c, i)
+		if c := s[i]; c < 0x20 || c == 0x7f || c1(s, i) {
+			return controlError(what+" "+strconv.Quote(s), s, i)
 		}
 		if nonchar(s, i) {
 			return noncharError(what+" "+strconv.Quote(s), s, i)
@@ -83,12 +84,23 @@ func noncharError(what, s string, at int) error {
 	return refusal(what + " holds the noncharacter U+FFF" + last + " at byte " + itoa(at))
 }
 
-func controlError(what string, c byte, at int) error {
+func controlError(what, s string, at int) error {
+	c := s[at] // C0 and DEL are one byte, and a C1 character is its second
+	if c1(s, at) {
+		c = s[at+1]
+	}
 	hex := strconv.FormatUint(uint64(c), 16)
 	if len(hex) < 2 {
 		hex = "0" + hex
 	}
 	return refusal(what + " holds the control character U+00" + hex + " at byte " + itoa(at))
+}
+
+// c1 reports whether s holds a C1 control character, U+0080 to U+009F,
+// at byte i: in UTF-8, 0xC2 and then 0x80 to 0x9F. s is valid UTF-8, so
+// a 0xC2 has a byte after it.
+func c1(s string, i int) bool {
+	return s[i] == 0xc2 && s[i+1] >= 0x80 && s[i+1] <= 0x9f
 }
 
 // checkID refuses an ID past the label limit or holding a control

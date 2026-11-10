@@ -13,6 +13,7 @@ func (d *Document) Compact() (vmap VertexList, emap EdgeList) {
 	}
 	d.resetChange()
 	d.compact()
+	d.reorder()
 	return VertexList{d.vmap[:d.vmapN]}, EdgeList{d.emap[:d.emapN]}
 }
 

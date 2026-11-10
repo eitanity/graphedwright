@@ -58,6 +58,11 @@ func TestRefusals(t *testing.T) {
 		{"ports of dead", gw.Command{Op: gw.SetPorts, Vertex: 9}, "vertex 9 is not live"},
 		{"id control", gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "a\nb"}, `id "a\nb" holds the control character U+000a at byte 1`},
 		{"id del", gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "a\x7f"}, "control character U+007f"},
+		{"id c1", gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "a\xc2\x85"}, `id "a\u0085" holds the control character U+0085 at byte 1`},
+		{"label del", gw.Command{Op: gw.AddVertex, Kind: kNode, Text: "x\x7f"}, "label holds the control character U+007f at byte 1"},
+		{"label c1 first", gw.Command{Op: gw.AddVertex, Kind: kNode, Text: "x\xc2\x80"}, "label holds the control character U+0080 at byte 1"},
+		{"label c1 last", gw.Command{Op: gw.AddVertex, Kind: kNode, Text: "x\xc2\x9f"}, "label holds the control character U+009f at byte 1"},
+		{"attr value c1", gw.Command{Op: gw.SetAttr, Vertex: a, Key: "note", Value: "\xc2\x85"}, "attribute value holds the control character U+0085 at byte 0"},
 		{"id utf8", gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "a\xff"}, "is not valid UTF-8"},
 		{"id too long", gw.Command{Op: gw.AddVertex, Kind: kNode, ID: gw.ID(long)}, "id of 9 bytes exceeds the limit of 8"},
 		{"edge id control", gw.Command{Op: gw.AddEdge, Kind: eAny, From: a, To: b, FromPort: 1, ToPort: 0, ID: "\r"}, "control character U+000d"},
@@ -111,12 +116,12 @@ func TestNumbersAllowed(t *testing.T) {
 }
 
 // TestTextAllowed: a label and a value may hold a tab, a newline, a
-// carriage return and any valid UTF-8; the refusals above are of
-// control characters only.
+// carriage return and any valid UTF-8 but other control characters; the
+// refusals above are of those only.
 func TestTextAllowed(t *testing.T) {
 	d := newDoc(t, gw.Caps{})
 	v := addVertex(t, d, kNode, "a")
-	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: v, Text: "one\ttwo\nthree\r é ✓ \x7f \ufffd \U0010fffd"})
+	apply(t, d, gw.Command{Op: gw.Relabel, Vertex: v, Text: "one\ttwo\nthree\r é ✓ \xc2\xa0 \ufffd \U0010fffd"})
 	apply(t, d, gw.Command{Op: gw.SetAttr, Vertex: v, Key: "note", Value: "a\nb\tc"})
 	apply(t, d, gw.Command{Op: gw.AddVertex, Kind: kNode, ID: "é-1 x"})
 }
