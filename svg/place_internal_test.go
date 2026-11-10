@@ -355,3 +355,87 @@ func TestAllocPlaceLabels(t *testing.T) {
 		t.Errorf("%g allocations per run", a)
 	}
 }
+
+// zoneDoc is placeDoc's kinds with a zone titled "Zone" holding a box m
+// at (300, 0), and an edge labelled "label" from a box at from to m; it
+// returns the document, the zone and the edge.
+func zoneDoc(t *testing.T, from gw.Point) (*gw.Document, gw.VertexIndex, gw.EdgeIndex) {
+	t.Helper()
+	return keywordZoneDoc(t, from, "", "Zone")
+}
+
+// keywordZoneDoc is zoneDoc with the zone's kind given a keyword, and
+// the zone the title.
+func keywordZoneDoc(t *testing.T, from gw.Point, keyword, title string) (*gw.Document, gw.VertexIndex, gw.EdgeIndex) {
+	t.Helper()
+	d, err := makeDoc(gw.Schema{
+		VertexKinds: []gw.VertexKind{{Name: "box", Size: gw.Size{W: 40, H: 20}}, {Name: "zone", Size: gw.Size{W: 80, H: 60}, Container: true, Keyword: keyword}},
+		EdgeKinds:   []gw.EdgeKind{{Name: "line"}},
+	}, gw.Caps{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: placeZone, Text: title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	z := ch.Vertices[0]
+	m := placeVertexAt(t, d, gw.Point{X: 300, Y: 0})
+	if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: m, To: z}); err != nil {
+		t.Fatal(err)
+	}
+	ch, err = d.Apply(gw.Command{Op: gw.AddEdge, From: placeVertexAt(t, d, from), To: m, FromPort: gw.None, ToPort: gw.None, Text: "label"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d, z, ch.Edges[0]
+}
+
+// TestPlaceLabelsContainers: the placer counts a label that lies across
+// a container's side as crossing a line, one over its title as covering
+// a vertex, and one inside clear of the title as nothing; and moves a
+// label off a container's side.
+func TestPlaceLabelsContainers(t *testing.T) {
+	// From a box at 200 into the zone's at 300, the label at the middle,
+	// 43 wide, lies across the zone's left side at 264, crossing nothing
+	// else.
+	d, z, e := zoneDoc(t, gw.Point{X: 200, Y: 0})
+	zb, title := vertexBox(d.Vertex(z)), titleBox(d, d.Vertex(z))
+	for _, c := range []struct {
+		name string
+		box  gw.Viewport
+		want int
+	}{
+		{"inside", gw.Viewport{X: zb.X + 4, Y: zb.Y + zb.H - 14, W: 30, H: 10}, 0},
+		{"across the left side", gw.Viewport{X: zb.X - 10, Y: zb.Y + zb.H - 14, W: 30, H: 10}, 1},
+		{"across the bottom", gw.Viewport{X: zb.X + 4, Y: zb.Y + zb.H - 5, W: 30, H: 10}, 1},
+		{"over the title", gw.Viewport{X: title.X + 2, Y: title.Y + 4, W: 10, H: 10}, placeVertex},
+		{"right of the title", gw.Viewport{X: title.X + title.W + 1, Y: title.Y + 4, W: 10, H: 10}, 0},
+	} {
+		if n := crossings(d, e, c.box); n != c.want {
+			t.Errorf("%s: %d crossings, want %d", c.name, n, c.want)
+		}
+	}
+	// The title's text is its keyword's, nine tenths of a character
+	// each and half one after, and its label's, cut at the band: a box
+	// just past the label's width is under the keyword's, and one in the
+	// padding right of the band is clear of a title too long for it.
+	kd, kz, ke := keywordZoneDoc(t, gw.Point{X: 200, Y: 0}, "kw", "Zone")
+	kt := titleBox(kd, kd.Vertex(kz))
+	if n := crossings(kd, ke, gw.Viewport{X: kt.X + 4*defaultCharWidth + 2, Y: kt.Y + 4, W: 4, H: 10}); n != placeVertex {
+		t.Errorf("a box in the title past its label, with a keyword: %d crossings, want %d", n, placeVertex)
+	}
+	ld, lz, le := keywordZoneDoc(t, gw.Point{X: 200, Y: 0}, "", "A title far longer than the zone")
+	lb := vertexBox(ld.Vertex(lz))
+	if n := crossings(ld, le, gw.Viewport{X: lb.X + lb.W - 7, Y: lb.Y + 4, W: 4, H: 10}); n != 0 {
+		t.Errorf("a box right of the band under a long title: %d crossings, want 0", n)
+	}
+
+	if b, side, turned := edgeLabelBox(d, e); !acrossSide(drawnBox(d, e, b, side, turned), zb) {
+		t.Fatalf("at its middle the label is not across the side: %+v, zone %+v", drawnBox(d, e, b, side, turned), zb)
+	}
+	PlaceLabels(d)
+	if b, side, turned := edgeLabelBox(d, e); acrossSide(drawnBox(d, e, b, side, turned), zb) {
+		t.Errorf("placed at %v, the label is across the side: %+v, zone %+v", d.Edge(e).LabelAt(), drawnBox(d, e, b, side, turned), zb)
+	}
+}

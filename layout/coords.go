@@ -41,6 +41,7 @@ func (l *Layouter) coordinates(opts Options) {
 	}
 	l.columns(opts.Gap, opts.Grid)
 	l.climbRoom(opts.Grid)
+	l.crowdRoom()
 	l.placeLayers(opts)
 	for i := range l.realN {
 		if !l.pin[i] {
@@ -234,3 +235,42 @@ func (l *Layouter) fitsAt(v int32, y, gap float64) bool {
 // straightTol is how far within the gap a node moved into a row is
 // taken to fit: the rows are sums of the same sizes in another order.
 const straightTol = 1e-6
+
+// crowdRoom gives a gap twice the room of a labelled edge across it that
+// another edge climbs across at the label's height, left to right (top
+// to bottom no edge has textW): an
+// edge from a dummy beside one layer to a vertex well above or below it
+// in the next, say. The climb takes the middle of the gap, where the
+// label is drawn, and the label is placed along its edge clear of it
+// (svg.PlaceLabels), in the half of the gap at one end or the other.
+func (l *Layouter) crowdRoom() {
+	for s := range l.s {
+		e := l.segE[s]
+		if l.textW[e] == 0 {
+			continue
+		}
+		k := max(l.layer[l.segF[s]], l.layer[l.segT[s]])
+		mid := float64((l.y[l.segF[s]] + l.y[l.segT[s]]) / 2)
+		if l.climbedPast(s, k, mid) {
+			l.lg[k] = math.Max(l.lg[k], 2*l.textW[e])
+		}
+	}
+}
+
+// climbedPast reports whether a segment other than s's edge's, across
+// the gap before layer k, climbs more than a line of text through the
+// band a line of text either side of mid.
+func (l *Layouter) climbedPast(s int, k int32, mid float64) bool {
+	// bound: the level's segments
+	for o := range l.s {
+		a, b := l.layer[l.segF[o]], l.layer[l.segT[o]]
+		if l.segE[o] == l.segE[s] || max(a, b) != k || a-b != 1 && b-a != 1 {
+			continue
+		}
+		y0, y1 := l.y[l.segF[o]], l.y[l.segT[o]]
+		if math.Abs(y1-y0) > labelLine && math.Min(y0, y1) < mid+labelLine && math.Max(y0, y1) > mid-labelLine {
+			return true
+		}
+	}
+	return false
+}

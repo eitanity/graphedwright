@@ -100,6 +100,7 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 		l.lg[k] = 0
 	}
 	l.runWidths(d)
+	clear(l.textW)
 	if l.down {
 		return
 	}
@@ -130,6 +131,9 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 			// Its text is drawn on its last leg, the half of the gap
 			// past its turn, which it shares with the others.
 			w *= 2
+		}
+		if chars > 0 { // work saved only: an edge without texts has less room than columnGap
+			l.textW[e] = w
 		}
 		l.lg[k] = math.Max(l.lg[k], w)
 	}
@@ -203,7 +207,8 @@ type Layouter struct {
 	roomB    []bool    // whether the gap before a member's layer has room for runs
 	roomA    []bool    // and the gap after it
 	runW     []float64 // the length of an edge's label run, its label's room; 0 for none (labelrun.go)
-	lRun     []int8    // the end an edge's label run is at, or -1 for none
+	textW    []float64 // the room an edge's texts take in the gap it crosses, for one between adjacent layers; 0 for none
+	lRun     []int8    // the end an edge's label run is at, 2 more with a pair level with its far end (inLine), or -1 for none
 	fx, fy   []float64 // a placed vertex's position in its level
 	bw, bh   []float64 // a container's size once what it holds is laid out; 0 before
 	cx, cy   []float64 // where that box's centre fell from the container's centre
@@ -233,6 +238,7 @@ type Layouter struct {
 	layers   int
 	x0       float64 // the x of layer zero
 	down     bool    // the flow is top to bottom: the frame's axes are swapped
+	nested   bool    // the level laid out is a container's, not the top
 	sorted   bool    // the level has no placed vertex, so each layer's order runs down in y
 }
 
@@ -251,7 +257,7 @@ func New(caps gw.Caps) *Layouter {
 		topo: make([]int32, caps.Vertices), indeg: make([]int32, caps.Vertices), stack: make([]int32, caps.Vertices), mark: make([]uint8, caps.Vertices),
 		segF: make([]int32, maxS), segT: make([]int32, maxS), segE: make([]int32, maxS), off: make([]int32, maxN+1), adj: make([]int32, maxS),
 		keys: make([]int32, maxN+1), fen: make([]int32, maxN+1), byTo: make([]int32, maxS), rev: make([]gw.EdgeIndex, 0, caps.Edges),
-		liveReal: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges),
+		liveReal: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges), textW: make([]float64, caps.Edges),
 		eOn: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
 		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1), rg: make([]float64, maxN+1),
 		fx: make([]float64, caps.Vertices), fy: make([]float64, caps.Vertices), bw: make([]float64, caps.Vertices), bh: make([]float64, caps.Vertices),
@@ -398,10 +404,10 @@ func (l *Layouter) placeBends(d *gw.Document) {
 			}
 		}
 		all, src, n := l.withRuns(d, gw.EdgeIndex(i), w) //nolint:gosec // bounded by the capacity
-		switch l.lRun[i] {
-		case 0:
+		if r := l.lRun[i]; r == 0 || r >= 2 {
 			l.setLevel(gw.EdgeIndex(i), 0, src, 2)
-		case 1:
+		}
+		if r := l.lRun[i]; r >= 1 {
 			l.setLevel(gw.EdgeIndex(i), 1, src+n-2, 2)
 		}
 		l.uprightEnds(d, gw.EdgeIndex(i), w, src, n, all) //nolint:gosec // bounded by the capacity
@@ -775,7 +781,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 			l.fx[i], l.fy[i] = l.swap(x, y)
 		}
 	}
-	l.members, l.edges = n, d.EdgeSlots()
+	l.members, l.edges, l.nested = n, d.EdgeSlots(), c != gw.None
 	if n == 0 {
 		return 0, 0, nil
 	}
@@ -865,6 +871,14 @@ func (l *Layouter) box(d *gw.Document, c gw.VertexIndex, opts Options) {
 			x0, x1 = math.Min(x0, x-float64(w/2)), math.Max(x1, x+float64(w/2))
 			y0, y1 = math.Min(y0, y-float64(h/2)), math.Max(y1, y+float64(h/2))
 		}
+	}
+	// Its sides stand out further for the edges between it and what it
+	// holds, as the document fits it.
+	back, on := d.EnclosedRoom(c)
+	if l.down {
+		y0, y1 = y0-back, y1+on
+	} else {
+		x0, x1 = x0-back, x1+on
 	}
 	w, h := x1-x0+2*gw.ContainerPad, y1-y0+2*gw.ContainerPad+gw.ContainerTitle
 	ex, ey := float64((x0+x1)/2), float64((y0+y1)/2)-gw.ContainerTitle/2

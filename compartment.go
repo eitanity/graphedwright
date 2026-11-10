@@ -75,14 +75,17 @@ func (d *Document) holdsCompartments(v VertexIndex) bool {
 
 // refits reports whether a command, applied or undone, can change what
 // the fit sizes: a move, a vertex's attributes when compartments show
-// them, or a container's ports.
+// them, a container's ports, or an edge, its label or its attributes,
+// which a container's sides make room for (EnclosedRoom).
 func (d *Document) refits(op Op) bool {
-	if op == SetPorts || op == AddPort || op == DeletePort {
-		// A container's ports are on its fitted border.
+	switch op {
+	case SetPorts, AddPort, DeletePort, AddEdge, DeleteEdge, Relabel:
 		return d.hasContainers()
-	}
-	if op == SetAttr || op == AddVertex {
+	case SetAttr:
+		return d.hasCompartments() || d.hasContainers()
+	case AddVertex:
 		return d.hasCompartments()
+	case DeleteVertex, Move, Resize, Layout, Compact, SetParent, HostChange:
 	}
 	return moves(op)
 }

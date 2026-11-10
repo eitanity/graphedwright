@@ -209,7 +209,8 @@ func (l *Layouter) drawnOf(d *gw.Document, i gw.EdgeIndex) drawn {
 	e := d.Edge(i)
 	fb, tb := l.frame(d.Vertex(e.From())), l.frame(d.Vertex(e.To()))
 	fx, tx := (fb.x0+fb.x1)/2, (tb.x0+tb.x1)/2
-	w := drawn{route: d.Kinds().Edge(e.Kind()).Route(), back: tx < fx}
+	enc := d.Enclosing(e.From(), e.To())
+	w := drawn{route: d.Kinds().Edge(e.Kind()).Route(), back: tx < fx && enc == 0}
 	w.a, w.b = gw.Point{X: fx, Y: fb.cy}, gw.Point{X: tx, Y: tb.cy}
 	if w.route != gw.Straight {
 		w.a.X, w.b.X = fb.x1, tb.x0
@@ -219,6 +220,15 @@ func (l *Layouter) drawnOf(d *gw.Document, i gw.EdgeIndex) drawn {
 		// Off the side's middle where others are drawn to it too.
 		w.a.Y += d.EndOffset(i, false)
 		w.b.Y += d.EndOffset(i, true)
+		// Between a container and what it holds, the edge runs with the
+		// flow, in from the container's side facing back or out to its
+		// side facing on, level with the vertex's end.
+		switch enc {
+		case 1:
+			w.a = gw.Point{X: fb.x0, Y: w.b.Y}
+		case -1:
+			w.b = gw.Point{X: tb.x1, Y: w.a.Y}
+		}
 	}
 	return w
 }
@@ -417,6 +427,14 @@ func (l *Layouter) find(d *gw.Document, ed gw.EdgeView, w drawn, off float64) in
 	if w.back {
 		ax, bx = fb.x0, tb.x1
 	}
+	// Between a container and what it holds, the detour starts or ends
+	// inside the container, off the side the edge runs from or to.
+	switch d.Enclosing(ed.From(), ed.To()) {
+	case 1:
+		ax = fb.x0
+	case -1:
+		bx = tb.x1
+	}
 	s := gw.Point{X: ax + float64(fwd*dt.gap), Y: w.a.Y + off}
 	t := gw.Point{X: bx - float64(fwd*dt.gap), Y: w.b.Y + off}
 	if !l.obstacles(d, ed, s, t) {
@@ -438,7 +456,7 @@ func (l *Layouter) find(d *gw.Document, ed gw.EdgeView, w drawn, off float64) in
 		}
 		u := l.missed(d, ed, m)
 		if u == gw.None {
-			return m
+			return l.keptIn(d, ed, m)
 		}
 		if dt.nObs == detourObs {
 			return 0
@@ -468,6 +486,30 @@ func (l *Layouter) missed(d *gw.Document, ed gw.EdgeView, m int) gw.VertexIndex 
 		}
 	}
 	return gw.None
+}
+
+// keptIn is m, the corners of the detour just found for edge ed, or 0
+// where ed joins a container and what it holds and a corner is outside
+// the container: the route goes in from its side and stays in, and a
+// detour a gap clear of what it holds can find room for that only past
+// the side, the padding being no wider, so one half a gap clear is
+// tried instead.
+func (l *Layouter) keptIn(d *gw.Document, ed gw.EdgeView, m int) int {
+	c := ed.From()
+	switch d.Enclosing(ed.From(), ed.To()) {
+	case 0:
+		return m
+	case -1:
+		c = ed.To()
+	}
+	b := l.frame(d.Vertex(c))
+	// bound: the detour's corners
+	for _, p := range l.dt.path[:m] {
+		if p.X < b.x0 || p.X > b.x1 || p.Y < b.y0 || p.Y > b.y1 {
+			return 0
+		}
+	}
+	return m
 }
 
 // setDetour gives edge e the m corners of the detour just found, leaned

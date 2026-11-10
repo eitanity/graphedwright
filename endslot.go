@@ -27,15 +27,28 @@ const MaxEndSlots = 16
 // endSide is the side of vertex v that edge e is drawn to: 1 for the
 // side facing on along the flow, -1 for the side facing back, and 0 when
 // the edge is not one whose ends are spread: dead, a loop, straight, or
-// with a port at v. An edge leaves its source's on side and arrives at
-// its target's back side, the other way round when it runs backward, to
-// a vertex earlier in the flow, which an edge with a port never does.
+// with a port at v, or at the container of one between a container and
+// what it holds. An edge leaves its source's on side and arrives at its
+// target's back side, the other way round when it runs backward, to a
+// vertex earlier in the flow, which an edge with a port never does, nor
+// one between a container and what it holds.
 func (d *Document) endSide(e EdgeIndex, v VertexIndex) int {
 	ed := &d.edges[e]
 	if !ed.Live || ed.From == ed.To || d.kinds.edge[ed.Kind].Route == Straight {
 		return 0
 	}
 	if ed.From == v && ed.FromPort != None || ed.To == v && ed.ToPort != None {
+		return 0
+	}
+	// One between a container and what it holds is drawn in to the
+	// vertex's back side, or out of its side facing on, and level with
+	// that end at the container's, which is not spread.
+	switch enc := d.Enclosing(ed.From, ed.To); {
+	case enc == 1 && ed.To == v:
+		return -1
+	case enc == -1 && ed.From == v:
+		return 1
+	case enc != 0:
 		return 0
 	}
 	side := 1
@@ -145,12 +158,16 @@ const levelTol = 1e-6
 // both spreads is passed by: one levelled with this end is within its
 // spread wherever it is levelled, and one levelled with the other end
 // is among the last, so that passing it ends the walk there as
-// stopping at it would.
+// stopping at it would. An edge between a container and what it holds
+// heads where its end is, running straight along the flow from it.
 func (d *Document) heading(e EdgeIndex, target bool) float64 {
 	ed := &d.edges[e]
 	v, far := ed.From, ed.To
 	if target {
 		v, far = ed.To, ed.From
+	}
+	if d.Enclosing(ed.From, ed.To) != 0 {
+		return d.across(v) // straight along the flow from the vertex to its container's side
 	}
 	near, farOff := d.spread(e, v), d.spread(e, far)
 	b := ed.Bends

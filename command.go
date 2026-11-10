@@ -245,9 +245,11 @@ func (d *Document) parallel(e, o EdgeIndex) bool {
 
 // Parallel is where a live edge falls among the edges drawn straight
 // between the same two vertices, which a renderer runs in lanes apart:
-// the live edges joining them, either way, with no bends and no ports.
-// k of them come before e by index, of n in all, e included. A
-// self-loop, or an edge with bends or a port, is alone: 0 of 1.
+// the live edges joining them, either way, with no bends and no ports,
+// and not between a container and what it holds, which run in from one
+// side and out to the other (Enclosing). k of them come before e by
+// index, of n in all, e included. A self-loop, or an edge with bends or
+// a port or between a container and what it holds, is alone: 0 of 1.
 func (d *Document) Parallel(e EdgeIndex) (k, n int) {
 	ed := &d.edges[e]
 	if !d.lane(ed) || ed.From == ed.To {
@@ -274,9 +276,10 @@ func (d *Document) Parallel(e EdgeIndex) (k, n int) {
 	return k, n
 }
 
-// lane reports whether an edge runs in a lane: no bends and no ports.
+// lane reports whether an edge runs in a lane: no bends and no ports,
+// and not between a container and what it holds.
 func (d *Document) lane(e *edge) bool {
-	return len(e.Bends) == 0 && e.FromPort == None && e.ToPort == None
+	return len(e.Bends) == 0 && e.FromPort == None && e.ToPort == None && d.Enclosing(e.From, e.To) == 0
 }
 
 // checkLabel refuses a label past the byte limit or one XML cannot

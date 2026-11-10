@@ -48,6 +48,60 @@ func (d *Document) Within(v, c VertexIndex) bool {
 	return false
 }
 
+// An edge between a container and a vertex it holds, as a transition
+// from a composite state to one of its substates, runs inside the
+// container from its side: in from the side facing back along the flow
+// to the vertex, or out from the vertex to the side facing on, level
+// with the vertex's end. That side stands further out by its texts'
+// room (EnclosedRoom), so that the run holds them.
+
+// Enclosing reports whether vertex from holds vertex to, 1, or to holds
+// from, -1, directly or through the containers between; 0 when neither
+// does, for a loop, and for an index out of range.
+func (d *Document) Enclosing(from, to VertexIndex) int {
+	switch {
+	case from == to:
+		return 0
+	case d.Within(to, from):
+		return 1
+	case d.Within(from, to):
+		return -1
+	}
+	return 0
+}
+
+// EnclosedRoom is how much further out than its padding container c's
+// side facing back along the flow, back, and the side facing on, on,
+// stand for the edges that run in from the one and out to the other
+// (Enclosing): each the room of the widest text among them, its label
+// or its kind's stereotype, at CharWidth a character and 8 either side;
+// 0 where none runs. A straight edge, drawn between centres, has none.
+func (d *Document) EnclosedRoom(c VertexIndex) (back, on float64) {
+	if c < 0 || int(c) >= len(d.vertices) {
+		return 0, 0
+	}
+	// bound: the out list visits each edge of c once
+	for o := d.outHead[c]; o != None; o = d.nextOut[o] {
+		back = math.Max(back, d.enclosedText(EdgeIndex(o), 1))
+	}
+	// bound: the in list visits each edge of c once
+	for o := d.inHead[c]; o != None; o = d.nextIn[o] {
+		on = math.Max(on, d.enclosedText(EdgeIndex(o), -1))
+	}
+	return back, on
+}
+
+// enclosedText is the room EnclosedRoom gives edge e's texts, 0 for an
+// edge that is not live, is straight or is not Enclosing the way given.
+func (d *Document) enclosedText(e EdgeIndex, way int) float64 {
+	x := &d.edges[e]
+	k := &d.kinds.edge[x.Kind]
+	if !x.Live || k.Route == Straight || d.Enclosing(x.From, x.To) != way {
+		return 0
+	}
+	return float64(float64(max(d.EdgeLabelRunes(e), runes(k.Stereotype)))*CharWidth) + 16
+}
+
 // isContainer reports whether the vertex's kind is a container.
 func (d *Document) isContainer(v VertexIndex) bool {
 	return d.kinds.vertex[d.vertices[v].Kind].Container
@@ -171,6 +225,12 @@ func (d *Document) fitOne(i VertexIndex) {
 		var pos Point
 		var size Size
 		if b[0] <= b[2] {
+			back, on := d.EnclosedRoom(i)
+			if d.flow == TopToBottom {
+				b[1], b[3] = b[1]-back, b[3]+on
+			} else {
+				b[0], b[2] = b[0]-back, b[2]+on
+			}
 			pos = Point{X: float64((b[0] + b[2]) / 2), Y: float64((b[1]+b[3])/2) - ContainerTitle/2}
 			size = Size{W: b[2] - b[0] + 2*ContainerPad, H: b[3] - b[1] + 2*ContainerPad + ContainerTitle}
 			// Grown to its own size, and to its ports' room, from the

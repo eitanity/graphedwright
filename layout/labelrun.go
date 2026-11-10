@@ -45,9 +45,23 @@ func (l *Layouter) runWidths(d *gw.Document) {
 }
 
 // climbs reports whether edge i, with a label run's length, has its ends
-// further apart across the flow than a line of text.
+// further apart across the flow than a line of text, or is in line
+// (inLine).
 func (l *Layouter) climbs(i int) bool {
-	return l.runW[i] > 0 && math.Abs(l.y[l.eFrom[i]]-l.y[l.eTo[i]]) > labelLine
+	return l.runW[i] > 0 && (l.inLine(i) || math.Abs(l.y[l.eFrom[i]]-l.y[l.eTo[i]]) > labelLine)
+}
+
+// inLine reports whether edge i, with a label run's length, has its ends
+// within a line of text of each other across a top-to-bottom flow in a
+// container. Its label, drawn level beside a line straight across the
+// gap, would be as wide as its text, which the container, sized to what
+// it holds, has no room for. So it is given a label run, along which
+// its label is turned, as a climbing edge's is; and since the ends'
+// spreads put them a little apart, the far end has a pair of bends
+// level with it too, so that the route arrives level there, the step
+// between the two made in the climb.
+func (l *Layouter) inLine(i int) bool {
+	return l.runW[i] > 0 && l.down && l.nested && math.Abs(l.y[l.eFrom[i]]-l.y[l.eTo[i]]) <= labelLine
 }
 
 // climbRoom gives the gap each climbing edge crosses (climbs) the room
@@ -75,7 +89,37 @@ func (l *Layouter) runPairs(d *gw.Document, i int, g float64, route gw.Route) (s
 	default:
 		tIn, tOut, tOK, l.lRun[i] = in, out, true, 1
 	}
+	if ok && l.inLine(i) {
+		in, out := l.farPair(i, 1-end, g)
+		if end == 0 {
+			tIn, tOut, tOK = in, out, true
+		} else {
+			sIn, sOut, sOK = in, out, true
+		}
+		l.lRun[i] += 2
+	}
 	return sIn, sOut, sOK, tIn, tOut, tOK
+}
+
+// farPair is the pair of bends at the far end of an edge in line
+// (inLine) from its label run, at its source for end 0 or its target for
+// end 1: the inner a grid step out of that end's node and the outer two,
+// both at the end's height, short of the run's outer bend, which is
+// runClimb from the band.
+func (l *Layouter) farPair(i, end int, g float64) (inner, outer gw.Point) {
+	node, toward := l.eFrom[i], l.eTo[i]
+	if end == 1 {
+		node, toward = toward, node
+	}
+	dir := 1.0
+	if l.layer[toward] < l.layer[node] {
+		dir = -1
+	}
+	exit := l.x[node] + float64(dir*float64(l.w[node]/2))
+	x, y := l.swap(exit+float64(dir*g), l.y[node])
+	inner = gw.Point{X: x, Y: y}
+	x, y = l.swap(exit+float64(2*dir*g), l.y[node])
+	return inner, gw.Point{X: x, Y: y}
 }
 
 // labelRun is the pair of bends of climbing edge i's label run: at its

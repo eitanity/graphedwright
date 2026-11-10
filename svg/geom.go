@@ -132,7 +132,40 @@ func ends(d *gw.Document, i gw.EdgeIndex, through gw.PointList) (a, b gw.Point) 
 	default:
 		b = spread(d, to, gw.Point{X: to.Pos().X - toW, Y: to.Pos().Y + d.EndOffset(i, true)}, down)
 	}
+	return enclosedEnds(d, e, through, a, b, down)
+}
+
+// enclosedEnds is the ends a and b of edge e through its bends, with the
+// container's moved, for one between a container and what it holds
+// (gw.Document.Enclosing), to the container's side facing back, for one
+// in, or on, for one out, level with the bend next to it, or with no
+// bends the other end.
+func enclosedEnds(d *gw.Document, e gw.EdgeView, through gw.PointList, a, b gw.Point, down bool) (gw.Point, gw.Point) {
+	n := through.Len()
+	switch d.Enclosing(e.From(), e.To()) {
+	case 1:
+		next := b
+		if n > 0 {
+			next = through.At(0)
+		}
+		a = onSide(d.Vertex(e.From()), next, -1, down)
+	case -1:
+		prev := a
+		if n > 0 {
+			prev = through.At(n - 1)
+		}
+		b = onSide(d.Vertex(e.To()), prev, 1, down)
+	}
 	return a, b
+}
+
+// onSide is the point on the side of vertex v facing back along the
+// flow, way -1, or on, 1, level with p.
+func onSide(v gw.VertexView, p gw.Point, way float64, down bool) gw.Point {
+	if down {
+		return gw.Point{X: p.X, Y: v.Pos().Y + float64(way*float64(v.Size().H/2))}
+	}
+	return gw.Point{X: v.Pos().X + float64(way*float64(v.Size().W/2)), Y: p.Y}
 }
 
 // spread is an end at q on a side of vertex v, moved off the side's
@@ -172,9 +205,10 @@ func toOutline(d *gw.Document, v gw.VertexView, q, in gw.Point) gw.Point {
 // its vertex and arrives at the far side, and its legs pull the way it
 // runs, so that it passes back through its bends with no hook at each;
 // beside an edge the other way between the same two vertices, its lane
-// keeps it apart. An edge with a port keeps the side its port is on.
+// keeps it apart. An edge with a port keeps the side its port is on,
+// and one between a container and what it holds runs with the flow.
 func backward(d *gw.Document, e gw.EdgeView) bool {
-	if e.FromPort() != gw.None || e.ToPort() != gw.None {
+	if e.FromPort() != gw.None || e.ToPort() != gw.None || d.Enclosing(e.From(), e.To()) != 0 {
 		return false
 	}
 	from, to := d.Vertex(e.From()).Pos(), d.Vertex(e.To()).Pos()
@@ -263,14 +297,15 @@ func (f frame) at(route gw.Route, a, b gw.Point, t float64) gw.Point {
 // is labelled apart from the others and an edge back beside one forward
 // does not lie on it. k and n are its lane and how many there are.
 type way struct {
-	f       frame
-	a, b    gw.Point
-	through gw.PointList
-	k, n    int
-	ownLeg  bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
-	away    float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
-	at      float64 // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
-	flip    bool    // its texts go on the other side of its line, a layout's choice
+	f        frame
+	a, b     gw.Point
+	through  gw.PointList
+	k, n     int
+	ownLeg   bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
+	away     float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
+	at       float64 // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
+	flip     bool    // its texts go on the other side of its line, a layout's choice
+	enclosed bool    // it joins a container and what it holds (gw.Document.Enclosing)
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -280,7 +315,7 @@ const laneGap = labelHeight
 // wayOf is the way of edge i; lane holds its lane's point.
 func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	e := d.Edge(i)
-	w := way{f: frameOf(d, e), through: e.Bends(), n: 1}
+	w := way{f: frameOf(d, e), through: e.Bends(), n: 1, enclosed: d.Enclosing(e.From(), e.To()) != 0}
 	w.a, w.b = ends(d, i, e.Bends())
 	k, n := d.Parallel(i)
 	if n < 2 {
@@ -432,12 +467,14 @@ func (w *way) middle(route gw.Route) gw.Point {
 // at mid is centred when it is turned to read along its run: mid moved
 // along the run as little as keeps the label within it. The run is the
 // stretch of the route through its bends, straight along the flow, that
-// mid is on; ok is false where the flow is left to right, the edge is
-// in a lane or has no bends, mid is on no such stretch, or the stretch
-// is shorter than need.
+// mid is on, or, for an edge between a container and what it holds,
+// its line straight along the flow from end to end; ok is false where
+// the flow is left to right, the edge is in a lane or has no bends and
+// holds nothing, mid is on no such stretch, or the stretch is shorter
+// than need.
 func (w *way) turnedAt(mid gw.Point, need float64) (c float64, ok bool) {
 	n := w.through.Len()
-	if !w.f.down || w.n > 1 || n == 0 {
+	if !w.f.down || w.n > 1 || n == 0 && !w.enclosed {
 		return 0, false
 	}
 	// bound: the legs, at most the bends per edge and one

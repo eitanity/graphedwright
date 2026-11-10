@@ -140,15 +140,11 @@ func middleT(f frame, bends gw.PointList) float64 {
 }
 
 // crossings counts what box crosses: the routes but edge e's own, the
-// other edges' labels where they now are, and, placeVertex each, the
-// vertices that hold nothing.
+// other edges' labels where they now are, and the vertices (vertexCrossings).
 func crossings(d *gw.Document, e gw.EdgeIndex, box gw.Viewport) int {
 	n := 0
 	for i := range d.VertexSlots() {
-		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
-		if v.Live() && !d.Kinds().Vertex(v.Kind()).Container() && boxesMeet(box, vertexBox(v)) {
-			n += placeVertex
-		}
+		n += vertexCrossings(d, d.Vertex(gw.VertexIndex(i)), box) //nolint:gosec // bounded by the capacity
 	}
 	for i := range d.EdgeSlots() {
 		o := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
@@ -214,6 +210,49 @@ func segmentMeets(p, q gw.Point, box gw.Viewport) bool {
 // boxesMeet reports whether two boxes share an inside.
 func boxesMeet(a, b gw.Viewport) bool {
 	return a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H
+}
+
+// vertexCrossings is what box crossing vertex v counts for: placeVertex
+// for a vertex that holds nothing it meets or a container's title, and
+// one for a container's side, as a line.
+func vertexCrossings(d *gw.Document, v gw.VertexView, box gw.Viewport) int {
+	switch {
+	case !v.Live():
+		return 0
+	case !d.Kinds().Vertex(v.Kind()).Container():
+		if boxesMeet(box, vertexBox(v)) {
+			return placeVertex
+		}
+		return 0
+	}
+	n := 0
+	if boxesMeet(box, titleBox(d, v)) {
+		n += placeVertex
+	}
+	if acrossSide(box, vertexBox(v)) {
+		n++
+	}
+	return n
+}
+
+// acrossSide reports whether box lies across a side of a container's
+// box c: in part inside it and in part out.
+func acrossSide(box, c gw.Viewport) bool {
+	inside := box.X >= c.X && box.Y >= c.Y && box.X+box.W <= c.X+c.W && box.Y+box.H <= c.Y+c.H
+	return boxesMeet(box, c) && !inside
+}
+
+// titleBox is the box a container's title takes as drawn (title): its
+// keyword and label from the left of the band at its top, as wide as
+// their text, no wider than the band.
+func titleBox(d *gw.Document, v gw.VertexView) gw.Viewport {
+	b := vertexBox(v)
+	kind := d.Kinds().Vertex(v.Kind())
+	w := float64(float64(gw.LabelRunes(kind.LabelFormat(), v.Label(), v.Attrs())) * defaultCharWidth)
+	if k := runeCount(kind.Keyword()); k > 0 {
+		w += float64(float64(k)*float64(defaultCharWidth*0.9)) + defaultCharWidth/2
+	}
+	return gw.Viewport{X: b.X + 8, Y: b.Y, W: math.Min(w, math.Max(0, b.W-16)), H: gw.ContainerTitle}
 }
 
 // vertexBox is a vertex's box.

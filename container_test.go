@@ -302,3 +302,141 @@ func TestContainerOrder(t *testing.T) {
 		t.Errorf("compacted: %s", got)
 	}
 }
+
+// TestEnclosedEdges: an edge between a container and a vertex it holds,
+// at any depth, is Enclosing, 1 in and -1 out, and no other is. The
+// container's side facing back stands out by the room of the widest
+// text of the curved edges in, its label or stereotype at CharWidth a
+// character and 8 either side, and the side facing on by the edges out;
+// a straight or deleted edge gives none. Left to right those are its
+// left and right sides, top to bottom its top and bottom. The vertex's
+// end is spread at its back side for an edge in and its side facing on
+// for one out, whichever way the two stand, and the container's is not
+// spread, and heads straight along from its vertex; and no such edge
+// runs in a lane with another between the same two. A relabel or an
+// attribute its format shows refits the container.
+func TestEnclosedEdges(t *testing.T) {
+	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		d, err := makeDoc(gw.Schema{
+			VertexKinds: []gw.VertexKind{
+				{Name: "box", Size: gw.Size{W: 40, H: 20}},
+				{Name: "zone", Size: gw.Size{W: 100, H: 60}, Container: true},
+			},
+			EdgeKinds: []gw.EdgeKind{{Name: "curve", Route: gw.Curve, Stereotype: "a stereotype", Attrs: []gw.AttrSpec{{Key: "k"}}, LabelFormat: "{label}{|k}"}, {Name: "line"}},
+		}, gw.Caps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.SetFlow(flow)
+		o := at(t, d, 1, "o", 0, 0)
+		z := at(t, d, 1, "z", 0, 0)
+		a := at(t, d, 0, "a", 0, 0)
+		b := at(t, d, 0, "b", 100, 100)
+		apply(t, d, gw.Command{Op: gw.SetParent, Vertex: z, To: o})
+		for _, v := range [2]gw.VertexIndex{a, b} {
+			apply(t, d, gw.Command{Op: gw.SetParent, Vertex: v, To: z})
+		}
+		bare := d.Vertex(z).Size()
+		edge := func(kind gw.KindIndex, from, to gw.VertexIndex, text string) gw.EdgeIndex {
+			t.Helper()
+			return apply(t, d, gw.Command{Op: gw.AddEdge, Kind: kind, From: from, To: to, FromPort: gw.None, ToPort: gw.None, Text: text}).Edges[0]
+		}
+		in := edge(0, z, b, "a label longer than the stereotype")
+		in2 := edge(0, z, a, "")
+		deep := edge(0, o, a, "x") // in from the outer zone, at depth two: the stereotype's room
+		out := edge(0, a, z, "")
+		out2 := edge(0, b, o, "")
+		edge(0, a, b, "")
+		edge(1, z, a, "a straight edge's label, the longest")
+		gone := edge(0, b, z, "a deleted edge's label, the longest")
+		apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: gone})
+		for _, c := range []struct {
+			from, to gw.VertexIndex
+			want     int
+		}{{z, a, 1}, {o, b, 1}, {a, z, -1}, {b, o, -1}, {a, b, 0}, {z, z, 0}, {a, a, 0}, {z, o, -1}, {o, z, 1}, {gw.None, a, 0}, {a, gw.None, 0}} {
+			if got := d.Enclosing(c.from, c.to); got != c.want {
+				t.Errorf("flow %d: Enclosing(%d, %d) = %d, want %d", flow, c.from, c.to, got, c.want)
+			}
+		}
+		labelRoom := float64(len("a label longer than the stereotype"))*gw.CharWidth + 16
+		stereoRoom := float64(len("a stereotype"))*gw.CharWidth + 16
+		if back, on := d.EnclosedRoom(z); back != labelRoom || on != stereoRoom {
+			t.Errorf("flow %d: z's room %v %v, want %v %v", flow, back, on, labelRoom, stereoRoom)
+		}
+		if back, on := d.EnclosedRoom(o); back != stereoRoom || on != stereoRoom {
+			t.Errorf("flow %d: o's room %v %v, want %v %v", flow, back, on, stereoRoom, stereoRoom)
+		}
+		if back, on := d.EnclosedRoom(a); back != 0 || on != 0 {
+			t.Errorf("flow %d: a box's room %v %v", flow, back, on)
+		}
+		if back, on := d.EnclosedRoom(gw.None); back != 0 || on != 0 {
+			t.Errorf("flow %d: no vertex's room %v %v", flow, back, on)
+		}
+		grown := d.Vertex(z).Size()
+		w, h := bare.W+labelRoom+stereoRoom, bare.H
+		if flow == gw.TopToBottom {
+			w, h = bare.W, bare.H+labelRoom+stereoRoom
+		}
+		if grown != (gw.Size{W: w, H: h}) {
+			t.Errorf("flow %d: z %v, from %v, want %v %v", flow, grown, bare, w, h)
+		}
+		// Relabelled longer, the edge in makes z wider along the flow,
+		// and undone, as it was.
+		apply(t, d, gw.Command{Op: gw.Relabel, Edge: in, Vertex: gw.None, Text: "a label longer than the stereotype, and then some"})
+		if l := d.Vertex(z).Size(); l.W+l.H != grown.W+grown.H+15*gw.CharWidth {
+			t.Errorf("flow %d: z relabelled %v, from %v", flow, l, grown)
+		}
+		if _, ok := d.Undo(); !ok {
+			t.Fatal("nothing to undo")
+		}
+		if d.Vertex(z).Size() != grown {
+			t.Errorf("flow %d: z undone %v, want %v", flow, d.Vertex(z).Size(), grown)
+		}
+		// z to a, curved and straight, and a to z run in no lanes.
+		if k, n := d.Parallel(out); k != 0 || n != 1 {
+			t.Errorf("flow %d: a to z in lane %d of %d", flow, k, n)
+		}
+		// So does an attribute the label's format shows.
+		apply(t, d, gw.Command{Op: gw.SetAttr, Edge: in, Vertex: gw.None, Key: "k", Value: "0123456789"})
+		if l := d.Vertex(z).Size(); l.W+l.H != grown.W+grown.H+10*gw.CharWidth {
+			t.Errorf("flow %d: z with the attribute %v, from %v", flow, l, grown)
+		}
+		// a stands before z's and o's middles and b after them; with an
+		// edge a to b, the ends in are at the vertex's back side and those
+		// out at its side facing on all the same, and the container's
+		// two ends in are not spread. At b's back side, among the edges
+		// from a, and from p and q outside before b and either side of it,
+		// the edge in from z, heading straight along from b, is between
+		// p's and q's.
+		pos := func(along, across float64) (float64, float64) {
+			if flow == gw.TopToBottom {
+				return across, along
+			}
+			return along, across
+		}
+		px, py := pos(-300, 75)
+		qx, qy := pos(-300, 125)
+		edge(0, at(t, d, 0, "p", px, py), b, "")
+		edge(0, at(t, d, 0, "q", qx, qy), b, "")
+		if k, n := d.EndSlot(in, true); k != 2 || n != 4 {
+			t.Errorf("flow %d: z to b at b: slot %d of %d, want 2 of 4", flow, k, n)
+		}
+		for _, c := range []struct {
+			name   string
+			e      gw.EdgeIndex
+			target bool
+			n      int
+		}{
+			{"z to b at b, with a, p and q to b", in, true, 4},
+			{"o to a at a, with z to a", deep, true, 2},
+			{"a to z at a, with a to b", out, false, 2},
+			{"b to o at b, alone on", out2, false, 1},
+			{"z to b at z", in, false, 1},
+			{"z to a at z", in2, false, 1},
+		} {
+			if _, n := d.EndSlot(c.e, c.target); n != c.n {
+				t.Errorf("flow %d: %s: %d at its side, want %d", flow, c.name, n, c.n)
+			}
+		}
+	}
+}
