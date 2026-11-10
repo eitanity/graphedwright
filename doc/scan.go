@@ -3,6 +3,7 @@ package doc
 import (
 	"errors"
 	"strconv"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -144,15 +145,12 @@ func unescape(raw []byte, s *scanner) (string, error) {
 		case 't':
 			out = append(out, '\t')
 		case 'u':
-			if i+4 >= len(raw) {
-				return "", s.errorf("bad unicode escape")
+			r, end, msg := uEscape(raw, i)
+			if msg != "" {
+				return "", s.errorf(msg)
 			}
-			v, err := strconv.ParseUint(string(raw[i+1:i+5]), 16, 32)
-			if err != nil {
-				return "", s.errorf("bad unicode escape")
-			}
-			out = utf8.AppendRune(out, rune(v)) //nolint:gosec // at most four hex digits
-			i += 4
+			out = utf8.AppendRune(out, r)
+			i = end
 		default:
 			return "", s.errorf("bad escape")
 		}
@@ -161,6 +159,39 @@ func unescape(raw []byte, s *scanner) (string, error) {
 		return "", s.errorf("string is not valid UTF-8")
 	}
 	return string(out), nil
+}
+
+// uEscape reads the \u escape whose u is raw[i]: the rune it names and
+// the index of its last byte, or why it names none. A character past
+// U+FFFF is escaped as a pair of halves, high then low; either alone is
+// no character. A backslash is never last, so one after the first half
+// has a byte after it.
+func uEscape(raw []byte, i int) (r rune, end int, msg string) {
+	r, ok := escaped(raw, i+1)
+	if !ok {
+		return 0, i, "bad unicode escape"
+	}
+	if !utf16.IsSurrogate(r) {
+		return r, i + 4, ""
+	}
+	lo := rune(0)
+	if i+5 < len(raw) && raw[i+5] == '\\' && raw[i+6] == 'u' {
+		lo, _ = escaped(raw, i+7)
+	}
+	if r = utf16.DecodeRune(r, lo); r == utf8.RuneError {
+		return 0, i, "unpaired surrogate in unicode escape"
+	}
+	return r, i + 10, ""
+}
+
+// escaped is the rune that the four hex digits of a \u escape, in raw
+// from j, name, and whether there are four.
+func escaped(raw []byte, j int) (rune, bool) {
+	if j+4 > len(raw) {
+		return 0, false
+	}
+	v, err := strconv.ParseUint(string(raw[j:j+4]), 16, 32)
+	return rune(v), err == nil //nolint:gosec // at most four hex digits
 }
 
 // num reads a finite number.

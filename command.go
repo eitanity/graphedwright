@@ -662,7 +662,9 @@ func (d *Document) layout(c Command) error {
 	}
 	d.layouts++
 	if n := uint64(d.caps.UndoLayouts); d.layouts > n { //nolint:gosec // bounded by MaxCap
-		d.forgetFrom(0, d.log.dropLayout(d.layouts-n))
+		k := d.log.throughLayout(d.layouts - n)
+		d.forgetFrom(0, k)
+		d.log.drop(k)
 	}
 	d.savePositions(d.layoutSnap(d.layouts, false))
 	if c.Text == "all" {

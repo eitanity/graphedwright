@@ -92,28 +92,31 @@ func (l *undoLog) unpop() (entry, bool) {
 	return e, true
 }
 
-// dropLayout drops the oldest entries up to and including the layout
-// numbered k, when it is still applied, so its snapshots can be reused,
-// and returns how many it dropped. They stay in the ring, before its
-// start, until a push takes their places.
-func (l *undoLog) dropLayout(k uint64) int {
+// throughLayout is how many of the oldest entries go up to and
+// including the layout numbered k, when it is still applied; 0 when it
+// is not.
+func (l *undoLog) throughLayout(k uint64) int {
 	// bound: the applied entries, at most the ring's length
 	for i := 0; i < l.done; i++ {
-		e := &l.entries[(l.start+i)%len(l.entries)]
-		if e.cmd.Op == Layout && e.layout == k {
-			// bound: the entries dropped, at most the ring's length
-			for j := 0; j <= i; j++ {
-				if g := l.entries[(l.start+j)%len(l.entries)].group; g != 0 {
-					l.lost = g
-				}
-			}
-			l.start = (l.start + i + 1) % len(l.entries)
-			l.done -= i + 1
-			l.n -= i + 1
+		if e := &l.entries[(l.start+i)%len(l.entries)]; e.cmd.Op == Layout && e.layout == k {
 			return i + 1
 		}
 	}
 	return 0
+}
+
+// drop drops the oldest n entries, all applied, so a layout's snapshots
+// can be reused. They stay in the ring, before its start, until a push
+// takes their places. An open group's entries are the newest, so when
+// any of them goes, the last one dropped is in it, and the group can no
+// longer be taken back whole.
+func (l *undoLog) drop(n int) {
+	if n > 0 {
+		l.lost = l.entries[(l.start+n-1)%len(l.entries)].group
+	}
+	l.start = (l.start + n) % len(l.entries)
+	l.done -= n
+	l.n -= n
 }
 
 // grouped reports whether the next entry for Undo, or for Redo when redo

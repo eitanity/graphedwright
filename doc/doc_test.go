@@ -393,6 +393,36 @@ func TestEscapes(t *testing.T) {
 	}
 }
 
+// TestSurrogates: a character past U+FFFF escaped as a pair of halves
+// reads as the character, in either case of hex, the same as written
+// raw, and back through the encoder; a half not in such a pair is
+// refused.
+func TestSurrogates(t *testing.T) {
+	const b = "\x5c" // a backslash, so the escapes below stay escapes
+	for _, esc := range []string{b + "ud83d" + b + "ude00", b + "uD83D" + b + "uDE00", "\U0001F600"} {
+		d := decode(t, `{"schema":"basic","vertices":[{"kind":"box","label":"a`+esc+`b"}]}`)
+		if got := d.Vertex(0).Label(); got != "a\U0001F600b" {
+			t.Errorf("%s: label %+q", esc, got)
+		}
+		var buf bytes.Buffer
+		if err := doc.Encode(d, "basic", &buf); err != nil {
+			t.Fatal(err)
+		}
+		if got := decode(t, buf.String()).Vertex(0).Label(); got != "a\U0001F600b" {
+			t.Errorf("%s, after encode: label %+q", esc, got)
+		}
+	}
+	for _, esc := range []string{
+		b + "ud800", b + "udc00", b + "ude00" + b + "ud83d", b + "ud83d" + b + "ud83d", b + "ud800" + b + "u0041",
+		b + "ud83dx", b + "ud83dX" + "ude00", b + "ud83d" + b + "/dc00", b + "ud83d" + b + b + "ude00", b + "ud83d" + b + "uzz00",
+	} {
+		_, err := doc.Decode([]byte(`{"schema":"basic","vertices":[{"kind":"box","label":"a`+esc+`"}]}`), doc.Options{Schemas: doc.Builtin()})
+		if err == nil || !strings.Contains(err.Error(), "unpaired surrogate") || !strings.Contains(err.Error(), "document.vertices[0].label") {
+			t.Errorf("%s: got %v", esc, err)
+		}
+	}
+}
+
 // failing is a writer that fails, to see the error come back.
 type failing struct{}
 

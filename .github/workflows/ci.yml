@@ -64,3 +64,8 @@ jobs:
       - run: make vuln
       - run: make wasm-test
       - run: make size
+      - name: Firefox and geckodriver, which the runner image carries, on the PATH
+        run: |
+          firefox --version
+          command -v geckodriver || echo "$GECKOWEBDRIVER" >> "$GITHUB_PATH"
+      - run: make wasm-smoke

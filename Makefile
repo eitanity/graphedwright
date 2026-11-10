@@ -16,7 +16,7 @@ WASM_SIZE_LIMIT_TINY  := 819200
 
 all: ci
 
-ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc merilo cover vuln wasm-test size
+ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc merilo cover vuln wasm-test size wasm-smoke
 
 # ---- toolchain ------------------------------------------------------------
 
@@ -177,7 +177,9 @@ $(BIN)/graphedwright-eventtree.tinygo.wasm: $(EVENTTREE_SRCS)
 
 # The browser smoke test under each toolchain, in headless Firefox
 # through geckodriver: the page's export, drawing, annotation, DOM and
-# refusals against the native command's render of the same document.
+# refusals against the native command's render of the same document,
+# then the host written in Go and the event-tree editor, every check
+# each reports required. It needs firefox and geckodriver on the PATH.
 wasm-smoke: wasm
 	go run ./cmd/graphedwright render -f web/examples/diamond.json > $(BIN)/native.svg
 	python3 -I web/smoke.py go $(BIN)/native.svg

@@ -8,8 +8,9 @@ import (
 
 // TestDiscard: Discard takes back the open group's commands, and only
 // those, and forgets them, so that nothing is left to redo; with no
-// group open it does nothing; a group longer than the undo depth, whose
-// first command has fallen off the log, is not taken back in part.
+// group open it does nothing; a group whose first command has fallen
+// off the log, past the undo depth or dropped by a layout past the
+// layouts kept, is not taken back in part.
 func TestDiscard(t *testing.T) {
 	d := newDoc(t, gw.Caps{})
 	_, a, _, _ := chain(t, d)
@@ -58,4 +59,26 @@ func TestDiscard(t *testing.T) {
 	if _, ok := s.Discard(); ok {
 		t.Error("Discard with no group open reported a take-back")
 	}
+
+	// A group whose start a layout past the layouts kept has dropped.
+	u := newDoc(t, gw.Caps{UndoLayouts: 1})
+	w := addVertex(t, u, kNode, "w")
+	u.Group()
+	apply(t, u, gw.Command{Op: gw.Relabel, Vertex: w, Text: "1"})
+	apply(t, u, gw.Command{Op: gw.Layout})
+	apply(t, u, gw.Command{Op: gw.Relabel, Vertex: w, Text: "2"})
+	apply(t, u, gw.Command{Op: gw.Layout})
+	if _, ok := u.Discard(); ok || u.Vertex(w).Label() != "2" {
+		t.Errorf("a group a layout dropped the start of: Discard %v, label %q", ok, u.Vertex(w).Label())
+	}
+	u.EndGroup()
+	// And one of which a layout dropped every entry before it.
+	u.Group()
+	apply(t, u, gw.Command{Op: gw.Relabel, Vertex: w, Text: "3"})
+	apply(t, u, gw.Command{Op: gw.Layout})
+	apply(t, u, gw.Command{Op: gw.Layout})
+	if _, ok := u.Discard(); ok || u.Vertex(w).Label() != "3" {
+		t.Errorf("a group a layout dropped all but itself of: Discard %v, label %q", ok, u.Vertex(w).Label())
+	}
+	u.EndGroup()
 }

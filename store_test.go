@@ -384,6 +384,16 @@ func TestStoreForget(t *testing.T) {
 	apply(t, d, gw.Command{Op: gw.Layout})
 	forgotten(t6, 1)
 
+	// Off a log not full: the second layout drops the entries through
+	// the first, t9 among them, and keeps t10.
+	d.ClearUndo()
+	t9 := host()
+	apply(t, d, gw.Command{Op: gw.Layout})
+	t10 := host()
+	apply(t, d, gw.Command{Op: gw.Layout})
+	forgotten(t9, 1)
+	forgotten(t10, 0)
+
 	// ClearUndo.
 	t7 := host()
 	d.ClearUndo()
