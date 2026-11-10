@@ -195,6 +195,19 @@ func TestLayoutOnLoad(t *testing.T) {
 	}
 }
 
+// TestNumbers: the numbers JSON allows read as their values.
+func TestNumbers(t *testing.T) {
+	for _, c := range []struct {
+		text string
+		want float64
+	}{{"0", 0}, {"-0", 0}, {"12", 12}, {"-12.5", -12.5}, {"0.25", 0.25}, {"1e3", 1000}, {"1E+3", 1000}, {"25e-1", 2.5}, {"-1.5e2", -150}} {
+		d := decode(t, `{"schema":"model","vertices":[{"kind":"node","x":`+c.text+`,"y":0}]}`)
+		if got := d.Vertex(0).Pos().X; got != c.want {
+			t.Errorf("%s: read as %g, want %g", c.text, got, c.want)
+		}
+	}
+}
+
 // TestDecodeRefusals: every refusal names the path and the rule, and
 // the engine's own refusals come through with it.
 func TestDecodeRefusals(t *testing.T) {
@@ -233,6 +246,13 @@ func TestDecodeRefusals(t *testing.T) {
 		{"attr key in capitals", v(`{"kind":"node","attrs":{"Owner":"x"}}`), `attribute key "Owner" may hold only`},
 		{"bad number", v(`{"kind":"node","x":"a"}`), "document.vertices[0].x: expected a number"},
 		{"nan number", v(`{"kind":"node","x":1e999}`), `bad number "1e999"`},
+		{"number with a plus", v(`{"kind":"node","x":+5}`), "document.vertices[0].x: expected a number"},
+		{"number from a point", v(`{"kind":"node","x":.5}`), "document.vertices[0].x: expected a number"},
+		{"number ending in a point", v(`{"kind":"node","x":5.}`), `bad number "5."`},
+		{"number without an exponent", v(`{"kind":"node","x":1e}`), `bad number "1e"`},
+		{"number with a signed exponent's sign alone", v(`{"kind":"node","x":1e+}`), `bad number "1e+"`},
+		{"a minus alone", v(`{"kind":"node","x":-}`), `bad number "-"`},
+		{"a leading zero", v(`{"kind":"node","x":05}`), "expected ',' or '}', found '5'"},
 		{"placed not a bool", v(`{"kind":"node","placed":1}`), "document.vertices[0].placed: expected true or false"},
 		{"attrs not object", v(`{"kind":"node","attrs":[]}`), "document.vertices[0].attrs: expected '{', found '['"},
 		{"attr not a string", v(`{"kind":"node","attrs":{"p":1}}`), "document.vertices[0].attrs: expected '\"', found '1'"},

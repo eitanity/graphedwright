@@ -607,11 +607,26 @@ func TestViewMode(t *testing.T) {
 	if d.LiveEdges() != 1 {
 		t.Error("view mode connected")
 	}
-	for _, ev := range []edit.Event{key("Delete", 0), key("ArrowLeft", 0), {Kind: edit.PaletteStart, Item: kNode}} {
+	// With a selected, what would change the document is refused; a key
+	// that is no command is not.
+	for _, ev := range []edit.Event{key("Delete", 0), key("ArrowLeft", 0), key("z", edit.Ctrl), key("Enter", 0), key("F2", 0), key("x", 0), {Kind: edit.PaletteStart, Item: kNode}} {
 		if _, err := e.Handle(ev); !errors.Is(err, edit.ErrView) {
 			t.Errorf("%+v: %v", ev, err)
 		}
 	}
+	for _, ev := range []edit.Event{key("Shift", edit.Shift), key("Control", edit.Ctrl), key("Alt", edit.Alt), key("CapsLock", 0)} {
+		if _, err := e.Handle(ev); err != nil {
+			t.Errorf("%+v in view mode: %v", ev, err)
+		}
+	}
+	// With nothing selected, typing has no label to edit.
+	send(t, e, down(700, 180, 0), up(700, 180))
+	for _, ev := range []edit.Event{key("x", 0), key("Enter", 0)} {
+		if _, err := e.Handle(ev); err != nil {
+			t.Errorf("%+v with nothing selected in view mode: %v", ev, err)
+		}
+	}
+	send(t, e, down(220, 100, 0), up(220, 100))
 	send(t, e, edit.Event{Kind: edit.PointerDown, Point: pt(100, 100), Button: 1}, move(110, 120), up(110, 120))
 	if d.View().X != -10 || d.View().Y != -20 {
 		t.Errorf("pan: %+v", d.View())

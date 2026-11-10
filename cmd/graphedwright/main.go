@@ -11,6 +11,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"strconv"
 
 	gw "code.eitanity.com/graphedwright"
 	"code.eitanity.com/graphedwright/doc"
@@ -97,6 +98,13 @@ func render(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if stray(fs, stderr) {
+		return 2
+	}
+	if _, ok := gw.FlowNamed(*flow); *flow != "" && !ok {
+		say(stderr, "unknown flow "+strconv.Quote(*flow)+"\n"+usage)
+		return 2
+	}
 	d, code := load(*path, "", stderr)
 	if code != 0 {
 		return code
@@ -133,6 +141,9 @@ func check(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if stray(fs, stderr) {
+		return 2
+	}
 	d, code := load(*path, *schema, stderr)
 	if code != 0 {
 		return code
@@ -142,6 +153,16 @@ func check(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// stray reports, and says, whether arguments are left after the flags,
+// which no command takes.
+func stray(fs *flag.FlagSet, stderr io.Writer) bool {
+	if fs.NArg() == 0 {
+		return false
+	}
+	say(stderr, "unexpected argument "+strconv.Quote(fs.Arg(0))+"\n"+usage)
+	return true
 }
 
 // say writes a message for the user to stderr.

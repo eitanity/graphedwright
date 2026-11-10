@@ -198,21 +198,16 @@ func escaped(raw []byte, j int) (rune, bool) {
 func (s *scanner) num() (float64, error) {
 	s.ws()
 	start := s.pos
-	// bound: the input
-	for s.pos < len(s.data) {
-		c := s.data[s.pos]
-		if c >= '0' && c <= '9' || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E' {
-			s.pos++
-			continue
-		}
-		break
-	}
-	if start == s.pos {
+	// JSON's grammar: no plus, no leading zero, a digit either side of a
+	// point (jsonNumber).
+	end, msg := jsonNumber(s.data, start)
+	s.pos = end
+	if end == start {
 		return 0, s.errorf("expected a number")
 	}
-	v, err := strconv.ParseFloat(string(s.data[start:s.pos]), 64)
-	if err != nil || v != v || v-v != 0 {
-		return 0, s.errorf("bad number " + strconv.Quote(string(s.data[start:s.pos])))
+	v, err := strconv.ParseFloat(string(s.data[start:end]), 64)
+	if msg != "" || err != nil || v != v || v-v != 0 {
+		return 0, s.errorf("bad number " + strconv.Quote(string(s.data[start:end])))
 	}
 	return v, nil
 }

@@ -11,7 +11,7 @@ import (
 )
 
 // TestLabelEditing: a double-click on a vertex or an edge, on its path
-// or its label, edits its label; Enter, F2 or a printable character
+// or its label, edits its label, selected alone even among others; Enter, F2 or a printable character
 // with one element selected does too, the character kept for the input
 // to start with; the text done relabels, as one command; nothing starts
 // on the background, with two selected, with Ctrl held or in view mode.
@@ -37,6 +37,15 @@ func TestLabelEditing(t *testing.T) {
 	send(t, e, key("z", edit.Ctrl))
 	if d.Vertex(1).Label() != "a" {
 		t.Errorf("undo of the relabel: %q", d.Vertex(1).Label())
+	}
+	// On one of two selected, it selects that one alone and edits it.
+	send(t, e, down(220, 100, 0), up(220, 100), down(420, 100, edit.Shift), up(420, 100), dbl(420, 100))
+	if sv, _ := selected(e); len(sv) != 1 || sv[0] != 2 {
+		t.Errorf("double-click on b of a and b: selected %v", sv)
+	}
+	send(t, e, edit.Event{Kind: edit.TextDone, Text: "b again"})
+	if d.Vertex(2).Label() != "b again" || d.Vertex(1).Label() != "a" {
+		t.Errorf("text done on b of a and b: labels %q %q", d.Vertex(1).Label(), d.Vertex(2).Label())
 	}
 
 	// The label of an edge is a place to double-click it.

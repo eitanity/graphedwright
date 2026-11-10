@@ -389,6 +389,12 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	if e.Kind == EvTab {
 		return m, ActTab, fsm.Moved
 	}
+	// A key that is no command, and one that would edit a label with no
+	// one element to edit, do nothing in either mode; view mode refuses
+	// only what would change the document.
+	if e.Kind == EvOtherKey || (e.Kind == EvStartText || e.Kind == EvType) && !e.One {
+		return m, 0, fsm.Ignored
+	}
 	if m.view {
 		return m, 0, fsm.Rejected
 	}
@@ -402,14 +408,9 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	case EvRedo:
 		return m, ActRedo, fsm.Moved
 	case EvStartText, EvType:
-		if !e.One {
-			return m, 0, fsm.Ignored
-		}
 		m.state = EditingText
 		return m, ActStartText, fsm.Moved
-	case EvOtherKey:
-		return m, 0, fsm.Ignored
-	case EvPress, EvMove, EvRelease, EvEscape, EvTab, EvPaletteVertex, EvPaletteEdge,
+	case EvOtherKey, EvPress, EvMove, EvRelease, EvEscape, EvTab, EvPaletteVertex, EvPaletteEdge,
 		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit, EvContext, EvHold, EvUnhold:
 		return m, 0, fsm.Invalid
 	default:
@@ -455,7 +456,8 @@ func (m Machine) doubleClick(e Event) (Machine, Actions, fsm.Outcome) {
 		return next, acts, fsm.Moved
 	case HitVertex, HitOutline, HitPort, HitEdge:
 		next.state = EditingText
-		return next, acts | ActSelectHit | ActStartText, fsm.Moved
+		// Alone: one of several selected is selected afresh.
+		return next, acts | ActClearSelection | ActSelectHit | ActStartText, fsm.Moved
 	default:
 		return m, 0, fsm.Invalid
 	}
