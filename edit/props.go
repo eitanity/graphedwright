@@ -135,7 +135,7 @@ func (e *Editor) one() (gw.VertexIndex, gw.EdgeIndex, bool) {
 
 // command applies a command outside an event and reports its change.
 func (e *Editor) command(c gw.Command) (gw.Change, error) {
-	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+	e.resetChange()
 	err := e.apply(c)
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}, err
 }

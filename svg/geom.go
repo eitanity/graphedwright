@@ -729,9 +729,11 @@ func Bounds(d *gw.Document) gw.Viewport { return bounds(d) }
 // gw.MaxCoord. Any other, the empty one included, gives way to the
 // drawing's bounds.
 func usable(v gw.Viewport) bool {
-	in := func(x float64) bool { return x >= -gw.MaxCoord && x <= gw.MaxCoord }
-	return in(v.X) && in(v.Y) && v.W > 0 && v.W <= gw.MaxCoord && v.H > 0 && v.H <= gw.MaxCoord
+	return inCoord(v.X) && inCoord(v.Y) && v.W > 0 && v.W <= gw.MaxCoord && v.H > 0 && v.H <= gw.MaxCoord
 }
+
+// inCoord reports whether x is within gw.MaxCoord of the origin.
+func inCoord(x float64) bool { return x >= -gw.MaxCoord && x <= gw.MaxCoord }
 
 func bounds(d *gw.Document) gw.Viewport {
 	const margin = Margin

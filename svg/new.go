@@ -17,6 +17,9 @@ var Stylesheet string
 // ever makes.
 func New() *Renderer { return &Renderer{o: newOut()} }
 
+// newOut makes an output buffer.
+func newOut() *out { return &out{buf: make([]byte, bufSize)} }
+
 // Render writes a document as SVG text to w with a fresh renderer.
 func Render(d *gw.Document, opts Options, w io.Writer) error {
 	return New().Render(d, opts, w)

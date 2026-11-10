@@ -27,7 +27,7 @@ const usage = "usage: graphedwright render -f document.json [--layout [--flow to
 // run is main without the exit, for the tests.
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		_, _ = io.WriteString(stderr, usage)
+		say(stderr, usage)
 		return 2
 	}
 	switch args[0] {
@@ -36,14 +36,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "check":
 		return check(args[1:], stdout, stderr)
 	}
-	_, _ = io.WriteString(stderr, "unknown command "+args[0]+"\n"+usage)
+	say(stderr, "unknown command "+args[0]+"\n"+usage)
 	return 2
 }
 
 // load reads and decodes the file; it returns the exit code on failure.
 func load(path, schema string, stderr io.Writer) (*gw.Document, int) {
 	if path == "" {
-		_, _ = io.WriteString(stderr, "-f is required\n"+usage)
+		say(stderr, "-f is required\n"+usage)
 		return nil, 2
 	}
 	// Read one byte past the reader's limit, so that a file too big, or
@@ -51,13 +51,15 @@ func load(path, schema string, stderr io.Writer) (*gw.Document, int) {
 	// whole.
 	f, err := os.Open(path) //nolint:gosec // the file the user names
 	if err != nil {
-		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		say(stderr, err.Error()+"\n")
 		return nil, 1
 	}
 	data, err := io.ReadAll(io.LimitReader(f, doc.MaxInput+1))
-	_ = f.Close()
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
 	if err != nil {
-		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		say(stderr, err.Error()+"\n")
 		return nil, 1
 	}
 	opts := doc.Options{Schemas: doc.Builtin()}
@@ -66,7 +68,7 @@ func load(path, schema string, stderr io.Writer) (*gw.Document, int) {
 	}
 	d, err := doc.Decode(data, opts)
 	if err != nil {
-		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		say(stderr, err.Error()+"\n")
 		return nil, 1
 	}
 	return d, 0
@@ -101,11 +103,11 @@ func render(args []string, stdout, stderr io.Writer) int {
 	}
 	if *relayout {
 		if _, err := d.Apply(gw.Command{Op: gw.Layout, Text: "all", Value: *flow}); err != nil {
-			_, _ = io.WriteString(stderr, err.Error()+"\n")
+			say(stderr, err.Error()+"\n")
 			return 1
 		}
 		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
-			_, _ = io.WriteString(stderr, err.Error()+"\n")
+			say(stderr, err.Error()+"\n")
 			return 1
 		}
 	}
@@ -117,7 +119,7 @@ func render(args []string, stdout, stderr io.Writer) int {
 		opts.Style = svg.Stylesheet
 	}
 	if err := svg.Render(d, opts, stdout); err != nil {
-		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		say(stderr, err.Error()+"\n")
 		return 1
 	}
 	return 0
@@ -135,8 +137,18 @@ func check(args []string, stdout, stderr io.Writer) int {
 	if code != 0 {
 		return code
 	}
-	_, _ = io.WriteString(stdout, "ok: "+itoa(d.LiveVertices())+" vertices, "+itoa(d.LiveEdges())+" edges\n")
+	if _, err := io.WriteString(stdout, "ok: "+itoa(d.LiveVertices())+" vertices, "+itoa(d.LiveEdges())+" edges\n"); err != nil {
+		say(stderr, err.Error()+"\n")
+		return 1
+	}
 	return 0
+}
+
+// say writes a message for the user to stderr.
+func say(stderr io.Writer, msg string) {
+	// discarded: when stderr itself fails there is nowhere left to say
+	// so, and the exit code still tells what happened.
+	_, _ = io.WriteString(stderr, msg)
 }
 
 func itoa(n int) string {

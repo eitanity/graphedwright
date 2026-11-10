@@ -60,11 +60,12 @@ func (o Options) filled() Options {
 
 // Result reports a layout: the number of layers, the edge crossings of
 // the order kept, and the edges reversed to break cycles, which a host
-// can mark. Reversed is the layouter's scratch, valid until the next Run.
+// can mark. Reversed reads the layouter's scratch, valid until the next
+// Run.
 type Result struct {
 	Layers    int
 	Crossings int64
-	Reversed  []gw.EdgeIndex
+	Reversed  gw.EdgeList
 }
 
 // dummiesPerEdge bounds the dummy vertices: the budget is this many per
@@ -322,7 +323,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 	l.placeBends(d)
 	l.detours(d)
 	l.levelEnds(d)
-	return Result{Layers: l.layers, Crossings: crossings, Reversed: l.rev}, nil
+	return Result{Layers: l.layers, Crossings: crossings, Reversed: gw.EdgesOf(l.rev)}, nil
 }
 
 // contents lays out what each container holds, deepest first, and sizes

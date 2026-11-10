@@ -150,30 +150,10 @@ type Editor struct {
 
 	changeV []gw.VertexIndex
 	changeE []gw.EdgeIndex
+	inV     []bool         // per vertex, whether changeV holds it, so it holds each once
+	inE     []bool         // per edge, whether changeE holds it
+	atV     []gw.EdgeIndex // the edges at a dragged vertex, found before they are recorded
 	layout  bool
-}
-
-// New makes an editor for the document, allocating its working arrays
-// from the document's capacities. The grid is the nudge and snap unit,
-// 8 when zero, or when it is not a positive size (gw.MaxCoord at most):
-// a grid of NaN or infinity would make every position it snaps one the
-// document refuses.
-func New(d *gw.Document, mode Mode, grid float64) *Editor {
-	if !(grid > 0) || grid > gw.MaxCoord {
-		grid = 8
-	}
-	caps := d.Caps()
-	e := &Editor{
-		d: d, g: gesture.New(), grid: grid,
-		selV: make([]gw.VertexIndex, 0, caps.Vertices), selE: make([]gw.EdgeIndex, 0, caps.Edges),
-		orig: make([]gw.Point, caps.Vertices), hover: background(),
-		dragV: make([]gw.VertexIndex, 0, caps.Vertices), dropTo: make([]gw.VertexIndex, caps.Vertices),
-		connFrom: gw.None, connPort: gw.None, connKind: gw.None, edgeKind: gw.None, editV: gw.None, editE: gw.None, sizeV: gw.None,
-		changeV: make([]gw.VertexIndex, 0, caps.Vertices), changeE: make([]gw.EdgeIndex, 0, caps.Edges),
-		ctx: ContextRequest{Hit: background()},
-	}
-	e.SetMode(mode)
-	return e
 }
 
 func background() svg.Hit {
@@ -202,7 +182,7 @@ func (e *Editor) SetMode(m Mode) {
 	if m != Edit {
 		k = gesture.EvView
 	}
-	// A mode change has no refusal and changes no document.
+	// discarded: a mode change has no refusal and changes no document.
 	_ = e.fire(gesture.Event{Kind: k}, input{})
 }
 
@@ -215,15 +195,15 @@ func (e *Editor) SetMode(m Mode) {
 // commands are not held. It reports what the drag's return changed;
 // holding twice does nothing.
 func (e *Editor) Hold() gw.Change {
-	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
-	// A hold has no refusal and applies no command.
+	e.resetChange()
+	// discarded: a hold has no refusal and applies no command.
 	_ = e.fire(gesture.Event{Kind: gesture.EvHold}, input{})
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}
 }
 
 // Release ends the hold, leaving the mode as it was.
 func (e *Editor) Release() {
-	// A release has no refusal and changes nothing.
+	// discarded: a release has no refusal and changes nothing.
 	_ = e.fire(gesture.Event{Kind: gesture.EvUnhold}, input{})
 }
 
@@ -404,7 +384,7 @@ func (e *Editor) Overlay(opts *svg.Options) {
 // Handle takes one event and reports what changed in the document.
 // A refusal comes back as the error, with the document as it was.
 func (e *Editor) Handle(ev Event) (gw.Change, error) {
-	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+	e.resetChange()
 	var err error
 	switch ev.Kind {
 	case Resize:
@@ -439,7 +419,7 @@ func (e *Editor) Handle(ev Event) (gw.Change, error) {
 // above 1, and reports the change, which names nothing but the view.
 // A zoom past the view's bounds is ignored.
 func (e *Editor) Zoom(f float64) gw.Change {
-	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+	e.resetChange()
 	e.zoomBy(f)
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}
 }
@@ -447,7 +427,7 @@ func (e *Editor) Zoom(f float64) gw.Change {
 // Fit sets the view to the drawing's bounds, when it holds anything,
 // and reports the change, which names nothing but the view.
 func (e *Editor) Fit() gw.Change {
-	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+	e.resetChange()
 	e.fit()
 	return gw.Change{Vertices: e.changeV, Edges: e.changeE, Layout: e.layout}
 }
@@ -482,16 +462,50 @@ func (e *Editor) portPoint(v gw.VertexIndex, p gw.PortIndex) gw.Point {
 // record merges a command's change into the event's.
 func (e *Editor) record(ch gw.Change) {
 	for _, v := range ch.Vertices {
-		if len(e.changeV) < cap(e.changeV) {
-			e.changeV = append(e.changeV, v)
-		}
+		e.touch(v)
 	}
 	for _, x := range ch.Edges {
-		if len(e.changeE) < cap(e.changeE) {
-			e.changeE = append(e.changeE, x)
-		}
+		e.touchEdge(x)
 	}
 	e.layout = e.layout || ch.Layout
+}
+
+// touch records a vertex as changed, once in an event.
+func (e *Editor) touch(v gw.VertexIndex) {
+	if !e.inV[v] {
+		e.inV[v] = true
+		e.changeV = push(e.changeV, v)
+	}
+}
+
+// touchEdge records an edge as changed, once in an event.
+func (e *Editor) touchEdge(x gw.EdgeIndex) {
+	if !e.inE[x] {
+		e.inE[x] = true
+		e.changeE = push(e.changeE, x)
+	}
+}
+
+// resetChange empties the event's change, before an event or a call
+// that reports one.
+func (e *Editor) resetChange() {
+	for _, v := range e.changeV {
+		e.inV[v] = false
+	}
+	for _, x := range e.changeE {
+		e.inE[x] = false
+	}
+	e.changeV, e.changeE, e.layout = e.changeV[:0], e.changeE[:0], false
+}
+
+// push writes x after the last element of s, within the capacity New
+// gave it, which every caller keeps to by holding each element once:
+// a vertex or an edge index is below its capacity.
+func push[T gw.VertexIndex | gw.EdgeIndex](s []T, x T) []T {
+	n := len(s)
+	s = s[:n+1]
+	s[n] = x
+	return s
 }
 
 // apply runs a command in edit mode and records its change.

@@ -7,6 +7,7 @@ package doc
 
 import (
 	"errors"
+	"math"
 	"strconv"
 
 	gw "code.eitanity.com/graphedwright"
@@ -428,11 +429,7 @@ func (dec *decoder) port1() (gw.Port, error) {
 				p.Side, err = sideNamed(s, side)
 			}
 		case "max":
-			var n float64
-			if n, err = s.num(); err == nil && (n < 0 || n != float64(int(n)) || n > 1<<30) {
-				err = s.errorf("port max must be a whole number, not negative")
-			}
-			p.Max = int(n)
+			p.Max, err = portMax(s)
 		default:
 			err = s.errorf("unknown key " + strconv.Quote(k))
 		}
@@ -449,6 +446,19 @@ func (dec *decoder) port1() (gw.Port, error) {
 	}
 	s.close()
 	return p, nil
+}
+
+// portMax reads a port's max: a whole number from 0 to 2^30, checked
+// before it is made an int.
+func portMax(s *scanner) (int, error) {
+	n, err := s.num()
+	if err != nil {
+		return 0, err
+	}
+	if n < 0 || n > 1<<30 || n != math.Trunc(n) {
+		return 0, s.errorf("port max must be a whole number, not negative")
+	}
+	return int(n), nil
 }
 
 // sideName is a side as the format names it.

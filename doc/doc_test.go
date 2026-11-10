@@ -84,6 +84,16 @@ func decode(t *testing.T, text string) *gw.Document {
 	return d
 }
 
+// TestBuiltinCompiles: every built-in schema compiles, which Builtin
+// takes for granted.
+func TestBuiltinCompiles(t *testing.T) {
+	for _, n := range doc.Builtin() {
+		if n.Kinds == nil {
+			t.Errorf("%s does not compile", n.Name)
+		}
+	}
+}
+
 // TestRoundTrip: decode, encode, decode and encode again give the same
 // text, and the decoded document holds what the text said.
 func TestRoundTrip(t *testing.T) {
@@ -291,6 +301,8 @@ func TestDecodeRefusals(t *testing.T) {
 		{"port side not a string", v(`{"kind":"leaf","ports":[{"name":"a","side":2}]}`), `expected '"', found '2'`},
 		{"port max negative", v(`{"kind":"leaf","ports":[{"name":"a","max":-1}]}`), "port max must be a whole number, not negative"},
 		{"port max fraction", v(`{"kind":"leaf","ports":[{"name":"a","max":1.5}]}`), "port max must be a whole number, not negative"},
+		{"port max past 2^30", v(`{"kind":"leaf","ports":[{"name":"a","max":1073741825}]}`), "port max must be a whole number, not negative"},
+		{"port max huge", v(`{"kind":"leaf","ports":[{"name":"a","max":1e300}]}`), "port max must be a whole number, not negative"},
 		{"port max not a number", v(`{"kind":"leaf","ports":[{"name":"a","max":"2"}]}`), "document.vertices[0].ports: expected a number"},
 		{"port unknown key", v(`{"kind":"leaf","ports":[{"name":"a","colour":"red"}]}`), `unknown key "colour"`},
 		{"port separator", v(`{"kind":"leaf","ports":[{"name":"a" "side":"left"}]}`), "expected ',' or '}', found '\"'"},
@@ -675,6 +687,11 @@ func TestPortsRoundTrip(t *testing.T) {
 	}
 	if want := `"ports":[{"name":"in","side":"left","max":2},{"name":"out","side":"right"},{"name":"up","side":"top"},{"name":"down","side":"bottom"}]`; !strings.Contains(out.String(), want) {
 		t.Errorf("written:\n%s\nwant %s", out.String(), want)
+	}
+	// The largest limit a port may have, 2^30, is taken.
+	top := decode(t, `{"schema":"model","vertices":[{"id":"l","kind":"leaf","ports":[{"name":"in","side":"left","max":1073741824}]}]}`)
+	if got := top.Vertex(0).Ports().At(0).Max; got != 1<<30 {
+		t.Errorf("a port limit of 2^30 read as %d", got)
 	}
 	again, err := doc.Decode(out.Bytes(), doc.Options{Schemas: schemas()})
 	if err != nil {

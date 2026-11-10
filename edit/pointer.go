@@ -62,14 +62,9 @@ func (e *Editor) moveDrag(p gw.Point) {
 		pos := e.d.Vertex(v).Pos()
 		e.d.Place(v, gw.Point{X: pos.X + p.X - e.last.X, Y: pos.Y + p.Y - e.last.Y}, true)
 		e.touch(v)
-		e.changeE = e.d.EdgesAt(v, e.changeE)
-	}
-}
-
-// touch records a vertex as changed.
-func (e *Editor) touch(v gw.VertexIndex) {
-	if len(e.changeV) < cap(e.changeV) {
-		e.changeV = append(e.changeV, v)
+		for _, x := range e.d.EdgesAt(v, e.atV[:0]) {
+			e.touchEdge(x)
+		}
 	}
 }
 
@@ -159,7 +154,7 @@ func (e *Editor) startDrag() {
 	for i := range e.d.VertexSlots() {
 		v := gw.VertexIndex(i)                                    //nolint:gosec // bounded by the capacity
 		if e.d.Vertex(gw.VertexIndex(i)).Live() && e.dragged(v) { //nolint:gosec // bounded by the capacity
-			e.dragV = append(e.dragV, v)
+			e.dragV = push(e.dragV, v)
 			e.orig[v] = e.d.Vertex(gw.VertexIndex(i)).Pos() //nolint:gosec // bounded by the capacity
 		}
 	}
@@ -293,7 +288,7 @@ func (e *Editor) place(p gw.Point) error {
 	if err := e.apply(gw.Command{Op: gw.AddVertex, Kind: item, Pos: at}); err != nil {
 		return err
 	}
-	v := e.changeV[len(e.changeV)-1]
+	v := gw.VertexIndex(e.d.VertexSlots() - 1) //nolint:gosec // an added vertex takes the next slot, within the capacity
 	e.d.Place(v, at, true)
 	if c := svg.ContainerAt(e.d, at, v); c != gw.None {
 		if err := e.apply(gw.Command{Op: gw.SetParent, Vertex: v, To: c}); err != nil {

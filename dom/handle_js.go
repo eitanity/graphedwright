@@ -504,7 +504,10 @@ func (h *Handle) after(ch gw.Change, err error) error {
 
 // report is after for an event of the page's, whose refusals the host
 // hears through Refused alone.
-func (h *Handle) report(ch gw.Change, err error) { _ = h.after(ch, err) }
+func (h *Handle) report(ch gw.Change, err error) {
+	// discarded: after has given every refusal to Refused already.
+	_ = h.after(ch, err)
+}
 
 // takeBack takes back the edit and the follow-ups applied so far, as the
 // host's reaction could not be completed: it reports why, with the

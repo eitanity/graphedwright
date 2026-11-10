@@ -23,6 +23,8 @@ func main() {
 	flag.Parse()
 	srv := &http.Server{Addr: *addr, Handler: headers(handler(execJS(goToolchain), execJS(tinyToolchain))), ReadHeaderTimeout: 5 * time.Second}
 	if err := srv.ListenAndServe(); err != nil {
+		// discarded: a server that cannot start has nowhere else to say
+		// so, and exits 1.
 		_, _ = os.Stderr.WriteString(err.Error() + "\n")
 		os.Exit(1)
 	}
@@ -35,6 +37,8 @@ func handler(goExec, tinyExec string) http.Handler {
 	mux.Handle("/", noListing(http.FileServer(http.Dir("web"))))
 	mux.HandleFunc("/graphedwright.css", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		// discarded: a client gone before the stylesheet is written has
+		// no one to tell.
 		_, _ = w.Write([]byte(svg.Stylesheet))
 	})
 	for _, name := range []string{"graphedwright", "graphedwright-gohost", "graphedwright-eventtree"} {

@@ -3,7 +3,7 @@ package graphedwright
 // The lists a document and its kinds hold are read through these
 // values: each holds the list but gives no way to change it, and reads
 // by position, the zero value out of range. A caller's own list is
-// read the same way through PortsOf, AttrsOf and PointsOf.
+// read the same way through PortsOf, AttrsOf, PointsOf and EdgesOf.
 
 // PortList is a list of ports.
 type PortList struct{ s []Port }
@@ -122,6 +122,9 @@ func (l VertexList) At(i int) VertexIndex {
 
 // EdgeList is a list of edge indices.
 type EdgeList struct{ s []EdgeIndex }
+
+// EdgesOf reads the caller's own edge indices as a list.
+func EdgesOf(s []EdgeIndex) EdgeList { return EdgeList{s} }
 
 // Len is the number of indices.
 func (l EdgeList) Len() int { return len(l.s) }

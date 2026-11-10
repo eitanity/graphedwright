@@ -200,6 +200,8 @@ func (d *Document) redoAttr(en entry) {
 		attrs = &d.edges[en.edge].Attrs
 		d.touchEdge(en.edge)
 	}
+	// discarded: the command was applied once, with the attributes as
+	// they are again now, so it applies again.
 	next, _, _ := d.writeAttr(*attrs, en.cmd)
 	*attrs = next
 }

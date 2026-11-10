@@ -19,8 +19,6 @@ type out struct {
 	err error
 }
 
-func newOut() *out { return &out{buf: make([]byte, bufSize)} }
-
 func (o *out) reset(w io.Writer) { o.w, o.n, o.err = w, 0, nil }
 
 // flush writes the buffer out.

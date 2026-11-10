@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -54,6 +55,20 @@ func TestExitCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestStdoutFails: check whose result cannot be written says so and
+// exits 1.
+func TestStdoutFails(t *testing.T) {
+	var stderr bytes.Buffer
+	if code := run([]string{"check", "-f", write(t, "good.json", good)}, broken{}, &stderr); code != 1 || !strings.Contains(stderr.String(), "broken pipe") {
+		t.Errorf("code %d stderr %q", code, stderr.String())
+	}
+}
+
+// broken is a writer that fails as a closed pipe does.
+type broken struct{}
+
+func (broken) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
 
 // TestFullText: a cut label is written in full after it for the
 // stylesheet by default, and with --no-full-text only as its title.

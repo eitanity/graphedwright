@@ -1,4 +1,18 @@
 # Files in which no value may escape to the heap, one repository-relative
 # path per line: the render path and the editor's event path. Checked by
-# internal/lint/escapes. Filled as those packages are written.
+# internal/lint/escapes. The constructors, which make what a renderer and
+# an editor keep, are in new.go files of their own and left out, as is
+# edit/props.go, the host's query of an element's properties, a fresh
+# value by design and not an event.
+svg/escape.go
+svg/geom.go
+svg/hit.go
+svg/label.go
+svg/place.go
+svg/provided.go
 svg/render.go
+edit/editor.go
+edit/keys.go
+edit/pointer.go
+edit/select.go
+edit/gesture/gesture.go

@@ -20,7 +20,7 @@ func (e *Editor) selectVertex(v gw.VertexIndex, add bool) {
 	if !add {
 		e.clearSelection()
 	}
-	e.selV = append(e.selV, v)
+	e.selV = push(e.selV, v)
 }
 
 // selectEdge makes x the selection, or adds it.
@@ -28,7 +28,7 @@ func (e *Editor) selectEdge(x gw.EdgeIndex, add bool) {
 	for i, y := range e.selE {
 		if y == x {
 			if add {
-				e.selE = append(e.selE[:i], e.selE[i+1:]...)
+				e.selE = e.selE[:i+copy(e.selE[i:], e.selE[i+1:])]
 			}
 			return
 		}
@@ -36,7 +36,7 @@ func (e *Editor) selectEdge(x gw.EdgeIndex, add bool) {
 	if !add {
 		e.clearSelection()
 	}
-	e.selE = append(e.selE, x)
+	e.selE = push(e.selE, x)
 }
 
 func (e *Editor) isSelectedV(v gw.VertexIndex) bool {
@@ -51,7 +51,7 @@ func (e *Editor) isSelectedV(v gw.VertexIndex) bool {
 func (e *Editor) removeV(v gw.VertexIndex) {
 	for i, x := range e.selV {
 		if x == v {
-			e.selV = append(e.selV[:i], e.selV[i+1:]...)
+			e.selV = e.selV[:i+copy(e.selV[i:], e.selV[i+1:])]
 			return
 		}
 	}

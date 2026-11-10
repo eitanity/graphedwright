@@ -104,8 +104,8 @@ func lay(d *gw.Document, p gw.Point) float64 {
 }
 
 func reversed(res layout.Result, e gw.EdgeIndex) bool {
-	for _, r := range res.Reversed {
-		if r == e {
+	for i := range res.Reversed.Len() {
+		if res.Reversed.At(i) == e {
 			return true
 		}
 	}
@@ -142,7 +142,7 @@ func TestInvariantsOnRandomDAGs(t *testing.T) {
 		if res.Crossings > none.Crossings {
 			t.Errorf("%s: %d crossings after sweeps, %d after one", name, res.Crossings, none.Crossings)
 		}
-		if len(res.Reversed) != 0 || res.Layers < 2 {
+		if res.Reversed.Len() != 0 || res.Layers < 2 {
 			t.Errorf("%s: reversed %v layers %d", name, res.Reversed, res.Layers)
 		}
 		first := positions(d)
@@ -216,7 +216,7 @@ func TestCycleReversed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Reversed) != 1 || res.Reversed[0] != 2 || res.Layers != 3 {
+	if res.Reversed.Len() != 1 || res.Reversed.At(0) != 2 || res.Layers != 3 {
 		t.Errorf("reversed %v layers %d", res.Reversed, res.Layers)
 	}
 	checkInvariants(t, "cycle", d, res, layout.Options{})

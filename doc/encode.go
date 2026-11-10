@@ -84,7 +84,7 @@ func (e *encoder) flush() error {
 
 func (e *encoder) byte(c byte) {
 	if len(e.buf) == cap(e.buf) {
-		_ = e.flush() //nolint:errcheck // kept in e.err and returned by Encode
+		_ = e.flush() // discarded: kept in e.err and returned by Encode
 	}
 	e.buf = append(e.buf, c)
 }

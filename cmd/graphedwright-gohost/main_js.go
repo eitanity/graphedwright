@@ -130,6 +130,14 @@ func (r *report) check(name string, ok bool, detail string) {
 	r.b.WriteString(`{"name":` + strconv.Quote(name) + `,"ok":` + strconv.FormatBool(ok) + `,"detail":` + strconv.Quote(detail) + `}`)
 }
 
+// destroy destroys a handle a check is done with, a refusal a failed
+// check of its own.
+func (r *report) destroy(h *dom.Handle) {
+	if err := h.Destroy(); err != nil {
+		r.check("the handle is destroyed", false, err.Error())
+	}
+}
+
 func main() {
 	page := js.Global().Get("document")
 	r := &report{}
@@ -212,13 +220,17 @@ func chains(page, el js.Value, h *dom.Handle, t *host, a gw.VertexIndex, r *repo
 	el2 := page.Call("createElement", "div")
 	el2.Get("style").Set("cssText", "width:300px;height:200px")
 	page.Get("body").Call("appendChild", el2)
-	d3, _ := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	d3, errD3 := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	if errD3 != nil {
+		r.check("decode", false, errD3.Error())
+		return
+	}
 	t3 := &host{first: gw.None, mode: followAlways}
 	h3, err := dom.Mount(el2, d3, dom.Options{IDPrefix: "go3-", MaxFollow: 2}, t3)
 	if err == nil {
 		t3.h = h3
 		_, err = h3.Apply(gw.Command{Op: gw.Relabel, Vertex: 0, Text: "start"})
-		_ = h3.Destroy()
+		r.destroy(h3)
 	}
 	r.check("a host's own bound is the one kept", strings.Contains(errText(err), "taken back") && t3.changed == 2+2, "changes "+strconv.Itoa(t3.changed)+", "+errText(err))
 }
@@ -250,7 +262,7 @@ func contexts(page js.Value, r *report) {
 		prevented := ev.Get("defaultPrevented").Bool()
 		if !takes {
 			r.check("without Options.Context the browser's menu stays and Context is not called", !prevented && len(t.contexts) == 0 && t.selected == "b", "prevented "+strconv.FormatBool(prevented)+", requests "+strconv.Itoa(len(t.contexts))+", selected "+strconv.Quote(t.selected))
-			_ = h.Destroy()
+			r.destroy(h)
 			continue
 		}
 		var req edit.ContextRequest
@@ -264,7 +276,7 @@ func contexts(page js.Value, r *report) {
 		relabelled := d.Vertex(b).Label()
 		h.Undo()
 		r.check("the menu's action is a command, undone as any edit", err == nil && relabelled == "from the menu" && d.Vertex(b).Label() == "b", "label "+relabelled+" then "+d.Vertex(b).Label()+" "+errText(err))
-		_ = h.Destroy()
+		r.destroy(h)
 	}
 	page.Get("body").Call("removeChild", el)
 }
@@ -314,7 +326,7 @@ func holds(page js.Value, r *report) {
 	errRelease := h.Release()
 	drag(el, "a", 80)
 	r.check("released, the mark goes and a drag moves", errRelease == nil && !el.Call("hasAttribute", "data-held").Bool() && d2.Vertex(a2).Pos().X != x0, "x "+num(d2.Vertex(a2).Pos().X)+" "+errText(errRelease))
-	_ = h.Destroy()
+	r.destroy(h)
 	page.Get("body").Call("removeChild", el)
 }
 
@@ -334,7 +346,11 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	r.check("Apply from Go is drawn and undone", err == nil && n == 3 && el.Call("querySelectorAll", "svg g.vertex").Length() == 2, "vertices "+strconv.Itoa(n)+" "+errText(err))
 
 	// Load keeps the mode.
-	d2, _ := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	d2, errD2 := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	if errD2 != nil {
+		r.check("decode", false, errD2.Error())
+		return
+	}
 	errMode := h.SetMode(edit.View)
 	errLoad := h.Load(d2)
 	r.check("Load keeps the mode", errMode == nil && errLoad == nil && h.Editor().Mode() == edit.View && h.Document() == d2, errText(errLoad))
@@ -360,7 +376,7 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	marquee(el)
 	sv, se := h2.Editor().Selected(make([]gw.VertexIndex, 0, 4), make([]gw.EdgeIndex, 0, 4))
 	r.check("the host is given the whole selection after Load, in a copy of its own", errSmall == nil && t2.selected == "abce" && len(sv) == 3 && len(se) == 1 && sv[0] != gw.None && se[0] != gw.None, "host given "+strconv.Quote(t2.selected)+", editor holds "+strconv.Itoa(len(sv))+" "+errText(errSmall))
-	_ = h2.Destroy()
+	r.destroy(h2)
 
 	// An empty document loaded is shown one unit to a pixel, so that a
 	// box added to it is drawn at its size, not scaled to fill.
@@ -379,7 +395,7 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	}
 	errAdd = errors.Join(errLoad4, errAdd)
 	r.check("an empty document loaded is shown one unit to a pixel", errAdd == nil && math.Abs(scale-1) < 0.01, "pixels to a unit "+num(scale)+" "+errText(errAdd))
-	_ = h4.Destroy()
+	r.destroy(h4)
 
 	// And one mounted empty.
 	empty5, errEmpty5 := doc.Decode([]byte(`{"schema":"basic"}`), doc.Options{Schemas: doc.Builtin()})
@@ -390,7 +406,7 @@ func lifecycle(el js.Value, h *dom.Handle, t *host, r *report) {
 	}
 	_, errAdd5 := h5.Apply(gw.Command{Op: gw.AddVertex, Kind: 0, Text: "box", Pos: gw.Point{X: 200, Y: 100}})
 	r.check("an empty document mounted is shown one unit to a pixel", errAdd5 == nil && math.Abs(screenScale(el)-1) < 0.01, "pixels to a unit "+num(screenScale(el))+" "+errText(errAdd5))
-	_ = h5.Destroy()
+	r.destroy(h5)
 }
 
 // screenScale is the drawing's pixels to a document unit, once it shows

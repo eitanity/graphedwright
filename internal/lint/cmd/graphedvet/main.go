@@ -16,5 +16,6 @@ func main() {
 		analyzers.Stmts,
 		analyzers.Unordered,
 		analyzers.Sealed,
+		analyzers.Discarded,
 	)
 }

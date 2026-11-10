@@ -36,6 +36,8 @@ func Builtin() []Named {
 
 // named compiles a schema under its name.
 func named(name string, s gw.Schema) Named {
+	// discarded: the built-in schemas are the module's own, and
+	// TestBuiltinCompiles compiles each.
 	k, _ := gw.Compile(s)
 	return Named{Name: name, Kinds: k}
 }

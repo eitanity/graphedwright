@@ -241,6 +241,70 @@ func TestDrag(t *testing.T) {
 	}
 }
 
+// TestChangeOnce: an event's change names each vertex and edge once, an
+// edge between two vertices dragged together among them; each move of
+// a drag names the edges at what it moves, again after the first; and
+// shift-clicking an edge in the middle of a selection takes out that
+// one alone.
+func TestChangeOnce(t *testing.T) {
+	d, e := fixture(t, gw.Caps{})
+	for _, c := range []gw.Command{
+		{Op: gw.AddEdge, Kind: eOutcome, From: 1, To: 2, FromPort: 1, ToPort: 0},
+		{Op: gw.AddEdge, Kind: eOutcome, From: 2, To: 3, FromPort: 1, ToPort: gw.None},
+	} {
+		if _, err := d.Apply(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	once := func(what string, ch gw.Change, wantV, wantE int) {
+		t.Helper()
+		seenV, seenE := map[gw.VertexIndex]bool{}, map[gw.EdgeIndex]bool{}
+		for _, v := range ch.Vertices {
+			if seenV[v] {
+				t.Errorf("%s: vertex %d named twice in %v", what, v, ch.Vertices)
+			}
+			seenV[v] = true
+		}
+		for _, x := range ch.Edges {
+			if seenE[x] {
+				t.Errorf("%s: edge %d named twice in %v", what, x, ch.Edges)
+			}
+			seenE[x] = true
+		}
+		if len(seenV) != wantV || len(seenE) != wantE {
+			t.Errorf("%s: %d vertices %v and %d edges %v, want %d and %d", what, len(seenV), ch.Vertices, len(seenE), ch.Edges, wantV, wantE)
+		}
+	}
+	send(t, e, down(220, 100, 0), up(220, 100), down(420, 100, edit.Shift), up(420, 100))
+	send(t, e, down(220, 100, 0))
+	// a and b, and the edges at them: s to a, a to b, b to c.
+	for i, p := range []gw.Point{pt(230, 110), pt(240, 120)} {
+		ch, err := e.Handle(move(p.X, p.Y))
+		if err != nil {
+			t.Fatal(err)
+		}
+		once("move "+strconv.Itoa(i+1), ch, 2, 3)
+	}
+	ch, err := e.Handle(up(240, 120))
+	if err != nil {
+		t.Fatal(err)
+	}
+	once("release", ch, 2, 3)
+
+	// All four selected by a marquee, so the three edges are too, in
+	// index order; shift-clicking the middle one leaves the first and
+	// the last.
+	send(t, e, key("Escape", 0), down(5, 5, 0), move(795, 195), up(795, 195))
+	if _, se := selected(e); len(se) != 3 {
+		t.Fatalf("the marquee selected edges %v", se)
+	}
+	a, b := d.Vertex(1).Pos(), d.Vertex(2).Pos()
+	send(t, e, down((a.X+b.X)/2, (a.Y+b.Y)/2, edit.Shift), up((a.X+b.X)/2, (a.Y+b.Y)/2))
+	if _, se := selected(e); len(se) != 2 || se[0] != 0 || se[1] != 2 {
+		t.Errorf("after shift-clicking the middle edge, edges %v selected, want [0 2]", se)
+	}
+}
+
 // TestConnect: a drag from a port to a port adds an edge of the first
 // kind that allows it; a refusal names the rule and adds nothing; a
 // release elsewhere drops the edge.

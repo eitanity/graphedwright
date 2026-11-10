@@ -21,6 +21,10 @@ func TestNoAny(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), analyzers.NoAny, mod+"/svg", mod+"/dom", mod+"/cmd/x")
 }
 
+func TestDiscarded(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), analyzers.Discarded, mod+"/dc")
+}
+
 func TestUnordered(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), analyzers.Unordered, mod+"/um")
 }
