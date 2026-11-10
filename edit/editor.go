@@ -216,7 +216,7 @@ func (e *Editor) Held() bool { return e.g.Held() }
 func (e *Editor) EdgeKind() gw.KindIndex { return e.edgeKind }
 
 // State is where the editor is.
-func (e *Editor) State() State { return e.g.State() }
+func (e *Editor) State() State { return e.g.Activity() }
 
 // Selected appends the selected vertices to dstV and the selected edges
 // to dstE, within their capacities, and returns them. The slices are
@@ -263,7 +263,7 @@ func (e *Editor) Editing() (gw.VertexIndex, gw.EdgeIndex) { return e.editV, e.ed
 // names an EditAttr, that attribute's value. Done, the text is set where
 // it came from.
 func (e *Editor) EditText() string {
-	if e.g.State() != EditingText {
+	if e.g.Activity() != EditingText {
 		return ""
 	}
 	if key := e.editAttr(); key != "" {
@@ -286,7 +286,7 @@ func (e *Editor) Typed() string { return e.typed }
 // Ghost is the line the overlay draws while connecting, from the port
 // to the pointer.
 func (e *Editor) Ghost() (from, to gw.Point, ok bool) {
-	if e.g.State() != Connecting {
+	if e.g.Activity() != Connecting {
 		return gw.Point{}, gw.Point{}, false
 	}
 	if e.connPort == gw.None {
@@ -303,14 +303,15 @@ func (e *Editor) Target() (gw.VertexIndex, bool) {
 		return gw.None, false
 	}
 	h := e.hover
-	switch e.g.State() {
+	switch e.g.Activity() {
 	case Idle:
 		return h.Vertex, h.Kind == svg.OutlineHit
 	case Connecting:
 		ok := h.Kind == svg.PortHit || h.Kind == svg.OutlineHit ||
 			h.Kind == svg.VertexHit && e.d.Vertex(h.Vertex).Ports().Len() == 0
 		return h.Vertex, ok && h.Vertex != e.connFrom && e.joins(e.connFrom, h.Vertex)
-	case Selecting, Dragging, Placing, Panning, EditingText, Resizing:
+	case Selecting, Dragging, Placing, Panning, EditingText, Resizing,
+		gesture.ViewIdle, gesture.ViewPanning, gesture.ViewSelecting, gesture.HeldIdle, gesture.HeldPanning, gesture.ViewHeldIdle, gesture.ViewHeldPanning:
 		return gw.None, false
 	default:
 		return gw.None, false
@@ -324,7 +325,7 @@ func (e *Editor) Expanded() (gw.VertexIndex, bool) {
 	h := e.hover
 	switch h.Kind {
 	case svg.VertexHit, svg.PortHit, svg.OutlineHit:
-		return h.Vertex, !e.noExpand && e.g.State() == Idle
+		return h.Vertex, !e.noExpand && e.g.Activity() == Idle
 	case svg.Background, svg.EdgeHit:
 		return gw.None, false
 	default:
@@ -335,12 +336,13 @@ func (e *Editor) Expanded() (gw.VertexIndex, bool) {
 // Marquee is the rectangle the overlay draws while selecting, or while
 // resizing the box the vertex will have.
 func (e *Editor) Marquee() (gw.Viewport, bool) {
-	switch e.g.State() {
+	switch e.g.Activity() {
 	case Selecting:
 		return rect(e.down, e.last), true
 	case Resizing:
 		return e.sizeBox(), true
-	case Idle, Dragging, Connecting, Placing, Panning, EditingText:
+	case Idle, Dragging, Connecting, Placing, Panning, EditingText,
+		gesture.ViewIdle, gesture.ViewPanning, gesture.ViewSelecting, gesture.HeldIdle, gesture.HeldPanning, gesture.ViewHeldIdle, gesture.ViewHeldPanning:
 		return gw.Viewport{}, false
 	default:
 		return gw.Viewport{}, false
@@ -350,7 +352,7 @@ func (e *Editor) Marquee() (gw.Viewport, bool) {
 // ResizeHandle is the vertex whose resize handle the overlay draws: the one
 // selected vertex, alone and idle in edit mode.
 func (e *Editor) ResizeHandle() (gw.VertexIndex, bool) {
-	if e.g.View() || e.g.State() != Idle {
+	if e.g.View() || e.g.Activity() != Idle {
 		return gw.None, false
 	}
 	return e.onlyVertex()

@@ -19,7 +19,7 @@ func TestPressWithoutAHit(t *testing.T) {
 	}
 }
 
-// TestHoldOutcomes: a hold moves to Idle held, ending a gesture; a
+// TestHoldOutcomes: a hold moves to HeldIdle, ending a gesture; a
 // second hold, and a release of what is not held, are ignored; held, a
 // press that would select or start a gesture and the keys that edit are
 // rejected, a pan's press is not, and the release leaves the mode as it
@@ -30,7 +30,7 @@ func TestHoldOutcomes(t *testing.T) {
 		t.Fatalf("state %s, want Dragging", m.State())
 	}
 	held, acts, out := m.Fire(Event{Kind: EvHold})
-	if out != fsm.Moved || !held.Held() || held.State() != Idle || acts&ActRestoreDrag == 0 || acts&ActReset == 0 {
+	if out != fsm.Moved || !held.Held() || held.State() != HeldIdle || held.Activity() != Idle || acts&ActRestoreDrag == 0 || acts&ActReset == 0 {
 		t.Errorf("hold during a drag: %v held %v state %s acts %b", out, held.Held(), held.State(), acts)
 	}
 	if _, acts, out := held.Fire(Event{Kind: EvHold}); out != fsm.Ignored || acts != 0 {
@@ -48,7 +48,7 @@ func TestHoldOutcomes(t *testing.T) {
 			t.Errorf("held, %s: %v acts %b", e.Kind, out, acts)
 		}
 	}
-	if next, _, out := held.Fire(Event{Kind: EvPress, Hit: HitVertex, Pan: true}); out != fsm.Moved || next.State() != Panning {
+	if next, _, out := held.Fire(Event{Kind: EvPress, Hit: HitVertex, Pan: true}); out != fsm.Moved || next.State() != HeldPanning || next.Activity() != Panning {
 		t.Errorf("held, a pan's press: %v state %s", out, next.State())
 	}
 	for _, e := range []Event{{Kind: EvTab}, {Kind: EvContext, Hit: HitVertex}, {Kind: EvEscape}} {
@@ -57,11 +57,91 @@ func TestHoldOutcomes(t *testing.T) {
 		}
 	}
 	view, _, _ := held.Fire(Event{Kind: EvView})
-	if !view.Held() || !view.View() {
+	if !view.Held() || !view.View() || view.State() != ViewHeldIdle {
 		t.Errorf("view while held: held %v view %v", view.Held(), view.View())
 	}
 	free, _, out := view.Fire(Event{Kind: EvUnhold})
-	if out != fsm.Moved || free.Held() || !free.View() {
+	if out != fsm.Moved || free.Held() || !free.View() || free.State() != ViewIdle {
 		t.Errorf("released in view: %v held %v view %v", out, free.Held(), free.View())
+	}
+}
+
+// table is every event with a named kind and hit, under every flag, and
+// every machine Fire reaches from New with them.
+func table() ([]Event, []Machine) {
+	var evs []Event
+	for k := 1; k < 256; k++ {
+		for h := 1; h < 256; h++ {
+			if EventKind(k).String() == invalidName || Hit(h).String() == invalidName {
+				continue
+			}
+			for f := range 16 {
+				evs = append(evs, Event{Kind: EventKind(k), Hit: Hit(h), Pan: f&1 != 0, Shift: f&2 != 0, Handle: f&4 != 0, One: f&8 != 0})
+			}
+		}
+	}
+	ms := []Machine{New()}
+	seen := map[Machine]bool{ms[0]: true}
+	// bound: each machine is listed once, and there are few: three fields
+	for i := 0; i < len(ms); i++ {
+		for _, e := range evs {
+			if next, _, out := ms[i].Fire(e); out == fsm.Moved && !seen[next] {
+				seen[next] = true
+				ms = append(ms, next)
+			}
+		}
+	}
+	return evs, ms
+}
+
+// editWork is the actions that edit the document, or begin or carry on
+// an edit gesture or label editing, which view mode and a hold never do.
+const editWork = ActCommitText | ActCommitDrag | ActEndResize | ActEndConnect | ActPlace | ActRestoreDrag |
+	ActStartDrag | ActStartResize | ActBeginConnect | ActStartText | ActPlacing | ActChooseEdge | ActMoveDrag |
+	ActDelete | ActNudge | ActUndo | ActRedo
+
+// mode is a machine's mode: view or edit, held or not.
+func mode(m Machine) [2]bool { return [2]bool{m.View(), m.Held()} }
+
+// TestModesAreStates: the reachable states are the edit states and view
+// mode's and the hold's own, 15; a mode changes only by a mode event; and
+// each view and held state does the work of the edit state it reports as
+// its activity: never an edit, the same where its edit counterpart does
+// only what view mode keeps, and a refusal only where the counterpart
+// would edit or, held, the press is not a pan.
+func TestModesAreStates(t *testing.T) {
+	evs, ms := table()
+	states := map[State]bool{}
+	for _, m := range ms {
+		states[m.state] = true
+	}
+	if len(states) != 15 {
+		t.Errorf("%d states reachable, want 15: %v", len(states), states)
+	}
+	for _, m := range ms {
+		twin := Machine{state: m.Activity(), moved: m.moved}
+		for _, e := range evs {
+			next, acts, out := m.Fire(e)
+			modal := e.Kind == EvView || e.Kind == EvEdit || e.Kind == EvHold || e.Kind == EvUnhold
+			if out == fsm.Moved && mode(next) != mode(m) && !modal {
+				t.Errorf("%s on %s: mode %v to %v", e.Kind, m.state, mode(m), mode(next))
+			}
+			if m == twin || modal {
+				continue
+			}
+			if acts&editWork != 0 {
+				t.Errorf("%s on %s: edit work %b", e.Kind, m.state, acts&editWork)
+			}
+			tNext, tActs, tOut := twin.Fire(e)
+			heldPress := m.Held() && e.Kind == EvPress && !e.Pan
+			edits := tActs&editWork != 0 ||
+				tOut == fsm.Moved && (tNext.state == Dragging || tNext.state == Connecting || tNext.state == Placing || tNext.state == Resizing || tNext.state == EditingText)
+			if out == fsm.Rejected && !edits && !heldPress {
+				t.Errorf("%s on %s: refused, though %s does only %b with it", e.Kind, m.state, twin.state, tActs)
+			}
+			if !edits && !heldPress && (out != tOut || acts != tActs || next.Activity() != tNext.Activity()) {
+				t.Errorf("%s on %s: %v %b to %s, but %s %v %b to %s", e.Kind, m.state, out, acts, next.Activity(), twin.state, tOut, tActs, tNext.Activity())
+			}
+		}
 	}
 }

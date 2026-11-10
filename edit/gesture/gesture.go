@@ -24,6 +24,17 @@ const (
 	Panning           // the viewport follows the pointer
 	EditingText       // the host shows an input for a label, or the attribute its kind edits
 	Resizing          // the selected vertex's corner follows the pointer
+
+	// View mode's states and the host's hold's: each does what the edit
+	// state Activity reports it as does, and returns only to its own
+	// mode.
+	ViewIdle        // view mode, nothing in progress
+	ViewPanning     // view mode, the viewport follows the pointer
+	ViewSelecting   // view mode, a marquee from the pointer-down point
+	HeldIdle        // held in edit mode, nothing in progress
+	HeldPanning     // held in edit mode, the viewport follows the pointer
+	ViewHeldIdle    // held in view mode, nothing in progress
+	ViewHeldPanning // held in view mode, the viewport follows the pointer
 )
 
 // EventKind is what happened, as the editor decodes a host's event.
@@ -121,8 +132,6 @@ const (
 // only with Fire.
 type Machine struct {
 	state State
-	view  bool // view mode: no event may change the document
-	held  bool // held by the host: no event may change the document or start a gesture but a pan
 	moved bool // the pointer moved since the press that began the gesture
 }
 
@@ -132,20 +141,58 @@ func New() Machine { return Machine{state: Idle} }
 // State returns the control state.
 func (m Machine) State() State { return m.state }
 
-// View reports view mode.
-func (m Machine) View() bool { return m.view }
+// Activity is what is in progress: the edit state whose work the state
+// does, Idle, Panning or Selecting for view mode's and a hold's.
+func (m Machine) Activity() State {
+	switch m.state {
+	case ViewIdle, HeldIdle, ViewHeldIdle:
+		return Idle
+	case ViewPanning, HeldPanning, ViewHeldPanning:
+		return Panning
+	case ViewSelecting:
+		return Selecting
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing:
+		return m.state
+	default:
+		return m.state
+	}
+}
 
-// Held reports whether the host holds the machine.
-func (m Machine) Held() bool { return m.held }
+// View reports view mode: whether the machine is in one of its states.
+func (m Machine) View() bool {
+	switch m.state {
+	case ViewIdle, ViewPanning, ViewSelecting, ViewHeldIdle, ViewHeldPanning:
+		return true
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		HeldIdle, HeldPanning:
+		return false
+	default:
+		return false
+	}
+}
+
+// Held reports whether the host holds the machine: whether it is in one
+// of a hold's states.
+func (m Machine) Held() bool {
+	switch m.state {
+	case HeldIdle, HeldPanning, ViewHeldIdle, ViewHeldPanning:
+		return true
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewIdle, ViewPanning, ViewSelecting:
+		return false
+	default:
+		return false
+	}
+}
 
 // Fire applies e and returns the next machine, the actions the editor
-// must carry out and what happened.
+// must carry out and what happened. Each event's transition names what
+// it does in every state; an event a state of view mode or of a hold
+// does not take is refused when it would change the document or start
+// an edit, and ignored otherwise.
 func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 	if !m.state.valid() {
 		return m, 0, fsm.Invalid
-	}
-	if m.held && heldRefuses(m, e) {
-		return m, 0, fsm.Rejected
 	}
 	var next Machine
 	var acts Actions
@@ -172,10 +219,12 @@ func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 		next, acts, out = m.context(e)
 	case EvView, EvEdit:
 		next, acts = m.cancel(0)
-		next.view = e.Kind == EvView
+		next.state = next.state.mode(e.Kind == EvView)
 		out = fsm.Moved
-	case EvHold, EvUnhold:
-		next, acts, out = m.hold(e.Kind == EvHold)
+	case EvHold:
+		next, acts, out = m.hold()
+	case EvUnhold:
+		next, out = m.unhold()
 	default:
 		return m, 0, fsm.Invalid
 	}
@@ -183,47 +232,93 @@ func (m Machine) Fire(e Event) (Machine, Actions, fsm.Outcome) {
 }
 
 // hold holds the machine, ending what is in progress as a mode change
-// does, or releases it, leaving the mode as it was. Holding twice, or
-// releasing what is not held, is ignored.
-func (m Machine) hold(on bool) (Machine, Actions, fsm.Outcome) {
-	if m.held == on {
+// does, in a hold of the mode it is in. Holding twice is ignored.
+func (m Machine) hold() (Machine, Actions, fsm.Outcome) {
+	if m.Held() {
 		return m, 0, fsm.Ignored
 	}
-	if !on {
-		m.held = false
-		return m, 0, fsm.Moved
-	}
 	next, acts := m.cancel(0)
-	next.held = true
-	return next, acts, fsm.Moved
+	switch next.state {
+	case ViewIdle:
+		next.state = ViewHeldIdle
+		return next, acts, fsm.Moved
+	case Idle:
+		next.state = HeldIdle
+		return next, acts, fsm.Moved
+	case stateNone, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewPanning, ViewSelecting, HeldIdle, HeldPanning, ViewHeldIdle, ViewHeldPanning:
+		return m, 0, fsm.Invalid
+	default:
+		return m, 0, fsm.Invalid
+	}
 }
 
-// heldRefuses reports whether a held machine refuses e: every event
-// that would change the document or start a gesture but a pan. Hover,
-// pan, zoom, Tab, Escape and a context request still act, and so do a
-// mode change and the release.
-func heldRefuses(m Machine, e Event) bool {
-	switch e.Kind {
-	case EvPress:
-		return m.state == Idle && !e.Pan
-	case EvDelete, EvNudge, EvUndo, EvRedo, EvStartText, EvType,
-		EvPaletteVertex, EvPaletteEdge, EvDoubleClick:
-		return true
-	case EvMove, EvRelease, EvEscape, EvTab, EvOtherKey, EvBlur, EvTextDone, EvTextCancel,
-		EvView, EvEdit, EvContext, EvHold, EvUnhold:
-		return false
+// unhold releases the hold to the mode it was held in, a pan going on
+// as one of that mode's. Releasing what is not held is ignored.
+func (m Machine) unhold() (Machine, fsm.Outcome) {
+	switch m.state {
+	case HeldIdle:
+		m.state = Idle
+	case HeldPanning:
+		m.state = Panning
+	case ViewHeldIdle:
+		m.state = ViewIdle
+	case ViewHeldPanning:
+		m.state = ViewPanning
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewIdle, ViewPanning, ViewSelecting:
+		return m, fsm.Ignored
 	default:
-		return false
+		return m, fsm.Ignored
 	}
+	return m, fsm.Moved
 }
 
 // valid reports whether s is a state New or Fire gives.
 func (s State) valid() bool {
 	switch s {
-	case Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing:
+	case Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewIdle, ViewPanning, ViewSelecting, HeldIdle, HeldPanning, ViewHeldIdle, ViewHeldPanning:
 		return true
+	case stateNone:
+		return false
 	default:
 		return false
+	}
+}
+
+// idle is the state nothing is in progress in, in s's mode.
+func (s State) idle() State {
+	switch s {
+	case ViewIdle, ViewPanning, ViewSelecting:
+		return ViewIdle
+	case HeldIdle, HeldPanning:
+		return HeldIdle
+	case ViewHeldIdle, ViewHeldPanning:
+		return ViewHeldIdle
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing:
+		return Idle
+	default:
+		return Idle
+	}
+}
+
+// mode is the idle state of view mode, or of edit mode, held if s is.
+func (s State) mode(view bool) State {
+	switch s.idle() {
+	case HeldIdle, ViewHeldIdle:
+		if view {
+			return ViewHeldIdle
+		}
+		return HeldIdle
+	case stateNone, Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewIdle, ViewPanning, ViewSelecting, HeldPanning, ViewHeldPanning:
+		if view {
+			return ViewIdle
+		}
+		return Idle
+	default:
+		return Idle
 	}
 }
 
@@ -241,9 +336,10 @@ func (h Hit) valid() bool {
 // release finishes and Escape cancels.
 func (m Machine) gesture() bool {
 	switch m.state {
-	case Selecting, Dragging, Connecting, Placing, Panning, Resizing:
+	case Selecting, Dragging, Connecting, Placing, Panning, Resizing,
+		ViewPanning, ViewSelecting, HeldPanning, ViewHeldPanning:
 		return true
-	case Idle, EditingText:
+	case stateNone, Idle, EditingText, ViewIdle, HeldIdle, ViewHeldIdle:
 		return false
 	default:
 		return false
@@ -251,12 +347,13 @@ func (m Machine) gesture() bool {
 }
 
 // cancel ends whatever is in progress, after acts: a drag goes back to
-// where it began, and the gesture or label editing is dropped.
+// where it began, and the gesture or label editing is dropped, to the
+// idle state of the mode the machine is in.
 func (m Machine) cancel(acts Actions) (Machine, Actions) {
 	if m.state == Dragging {
 		acts |= ActRestoreDrag
 	}
-	m.state, m.moved = Idle, false
+	m.state, m.moved = m.state.idle(), false
 	return m, acts | ActReset
 }
 
@@ -264,22 +361,30 @@ func (m Machine) cancel(acts Actions) (Machine, Actions) {
 // what is under the pointer. A second pointer while a gesture is under
 // way is ignored, so the gesture keeps its own start and its release
 // still finishes it. A press during a palette drop or a connection only
-// moves the pointer: the release finishes them.
+// moves the pointer: the release finishes them. In view mode a press
+// pans, selects or starts a marquee; held, it only pans.
 func (m Machine) press(e Event) (Machine, Actions, fsm.Outcome) {
 	if !e.Hit.valid() {
 		return m, 0, fsm.Invalid
 	}
-	var acts Actions
+	acts := ActPress
 	switch m.state {
-	case Selecting, Dragging, Panning, Resizing:
+	case Selecting, Dragging, Panning, Resizing, ViewPanning, ViewSelecting, HeldPanning, ViewHeldPanning:
 		return m, 0, fsm.Ignored
+	case ViewIdle:
+		return m.pressView(e, acts)
+	case HeldIdle:
+		return m.pressHeld(e, acts, HeldPanning)
+	case ViewHeldIdle:
+		return m.pressHeld(e, acts, ViewHeldPanning)
 	case EditingText:
 		m, acts = m.cancel(acts)
 	case Idle, Connecting, Placing:
+	case stateNone:
+		return m, 0, fsm.Invalid
 	default:
 		return m, 0, fsm.Invalid
 	}
-	acts |= ActPress
 	m.moved = false
 	if e.Pan {
 		m.state = Panning
@@ -288,30 +393,50 @@ func (m Machine) press(e Event) (Machine, Actions, fsm.Outcome) {
 	if m.state == Placing || m.state == Connecting {
 		return m, acts, fsm.Moved
 	}
-	if e.Handle && !m.view {
+	if e.Handle {
 		m.state = Resizing
 		return m, acts | ActStartResize, fsm.Moved
 	}
 	return m.pressOn(e, acts)
 }
 
-// pressOn is a press from Idle on what e.Hit names. In view mode a port,
-// an outline or a vertex only selects.
+// pressView is a press in view mode with nothing in progress: a pan, a
+// marquee on the background, and otherwise what is hit selected.
+func (m Machine) pressView(e Event, acts Actions) (Machine, Actions, fsm.Outcome) {
+	m.moved = false
+	switch {
+	case e.Pan:
+		m.state = ViewPanning
+		return m, acts, fsm.Moved
+	case e.Hit == HitBackground:
+		if !e.Shift {
+			acts |= ActClearSelection
+		}
+		m.state = ViewSelecting
+		return m, acts, fsm.Moved
+	}
+	return m, acts | ActSelectHit, fsm.Moved
+}
+
+// pressHeld is a press while held with nothing in progress: a pan, in
+// the held mode's panning, and nothing else.
+func (m Machine) pressHeld(e Event, acts Actions, panning State) (Machine, Actions, fsm.Outcome) {
+	if !e.Pan {
+		return m, 0, fsm.Rejected
+	}
+	m.state, m.moved = panning, false
+	return m, acts, fsm.Moved
+}
+
+// pressOn is a press in edit mode from Idle on what e.Hit names.
 func (m Machine) pressOn(e Event, acts Actions) (Machine, Actions, fsm.Outcome) {
 	switch e.Hit {
 	case HitOutline, HitPort:
-		if m.view {
-			return m, acts | ActSelectHit, fsm.Moved
-		}
 		m.state = Connecting
 		return m, acts | ActBeginConnect, fsm.Moved
 	case HitVertex:
-		acts |= ActSelectHit
-		if m.view {
-			return m, acts, fsm.Moved
-		}
 		m.state = Dragging
-		return m, acts | ActStartDrag, fsm.Moved
+		return m, acts | ActSelectHit | ActStartDrag, fsm.Moved
 	case HitEdge:
 		return m, acts | ActSelectHit, fsm.Moved
 	case HitBackground:
@@ -329,36 +454,39 @@ func (m Machine) pressOn(e Event, acts Actions) (Machine, Actions, fsm.Outcome) 
 // gesture whose release depends on whether the pointer moved.
 func (m Machine) move() (Machine, Actions, fsm.Outcome) {
 	switch m.state {
-	case Panning:
+	case Panning, ViewPanning, HeldPanning, ViewHeldPanning:
 		return m, ActPan, fsm.Moved
 	case Dragging:
 		m.moved = true
 		return m, ActMoveDrag, fsm.Moved
-	case Selecting, Connecting, Placing, Resizing:
+	case Selecting, ViewSelecting, Connecting, Placing, Resizing:
 		if m.moved {
 			return m, 0, fsm.Ignored
 		}
 		m.moved = true
 		return m, 0, fsm.Moved
-	case Idle, EditingText:
+	case Idle, EditingText, ViewIdle, HeldIdle, ViewHeldIdle:
 		return m, 0, fsm.Ignored
+	case stateNone:
+		return m, 0, fsm.Invalid
 	default:
 		return m, 0, fsm.Invalid
 	}
 }
 
-// release finishes the gesture under way. A release ends a gesture, not
-// label editing, which goes on until the host's input commits or cancels.
+// release finishes the gesture under way, to the idle state of its mode.
+// A release ends a gesture, not label editing, which goes on until the
+// host's input commits or cancels.
 func (m Machine) release() (Machine, Actions, fsm.Outcome) {
 	var acts Actions
 	switch m.state {
-	case Idle, EditingText:
+	case Idle, EditingText, ViewIdle, HeldIdle, ViewHeldIdle:
 		return m, 0, fsm.Ignored
 	case Dragging:
 		if m.moved {
 			acts = ActCommitDrag
 		}
-	case Selecting:
+	case Selecting, ViewSelecting:
 		if m.moved {
 			acts = ActSelectIn
 		}
@@ -370,18 +498,22 @@ func (m Machine) release() (Machine, Actions, fsm.Outcome) {
 		acts = ActEndConnect
 	case Placing:
 		acts = ActPlace
-	case Panning:
+	case Panning, ViewPanning, HeldPanning, ViewHeldPanning:
+	case stateNone:
+		return m, 0, fsm.Invalid
 	default:
 		return m, 0, fsm.Invalid
 	}
-	m.state, m.moved = Idle, false
+	m.state, m.moved = m.state.idle(), false
 	return m, acts | ActReset, fsm.Moved
 }
 
 // key is a key other than Escape and the zoom keys. During a gesture or
 // label editing keys do nothing: the first would change the document or
 // the selection under the gesture, and the host's input has the keyboard
-// for the second. In view mode only Tab acts.
+// for the second. A key that is no command, and one that would edit a
+// label with no one element to edit, do nothing; in view mode and held,
+// only Tab acts, and what would change the document is refused.
 func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	if m.gesture() || m.state == EditingText {
 		return m, 0, fsm.Ignored
@@ -389,14 +521,18 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	if e.Kind == EvTab {
 		return m, ActTab, fsm.Moved
 	}
-	// A key that is no command, and one that would edit a label with no
-	// one element to edit, do nothing in either mode; view mode refuses
-	// only what would change the document.
 	if e.Kind == EvOtherKey || (e.Kind == EvStartText || e.Kind == EvType) && !e.One {
 		return m, 0, fsm.Ignored
 	}
-	if m.view {
+	switch m.state {
+	case ViewIdle, HeldIdle, ViewHeldIdle:
 		return m, 0, fsm.Rejected
+	case Idle:
+	case stateNone, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing,
+		ViewPanning, ViewSelecting, HeldPanning, ViewHeldPanning:
+		return m, 0, fsm.Invalid
+	default:
+		return m, 0, fsm.Invalid
 	}
 	switch e.Kind {
 	case EvDelete:
@@ -410,7 +546,7 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 	case EvStartText, EvType:
 		m.state = EditingText
 		return m, ActStartText, fsm.Moved
-	case EvOtherKey, EvPress, EvMove, EvRelease, EvEscape, EvTab, EvPaletteVertex, EvPaletteEdge,
+	case EvOtherKey, EvTab, EvPress, EvMove, EvRelease, EvEscape, EvPaletteVertex, EvPaletteEdge,
 		EvBlur, EvTextDone, EvTextCancel, EvDoubleClick, EvView, EvEdit, EvContext, EvHold, EvUnhold:
 		return m, 0, fsm.Invalid
 	default:
@@ -419,10 +555,17 @@ func (m Machine) key(e Event) (Machine, Actions, fsm.Outcome) {
 }
 
 // palette cancels what is in progress and begins placing a vertex kind,
-// or chooses an edge kind for new edges.
+// or chooses an edge kind for new edges; in view mode and held it is
+// refused.
 func (m Machine) palette(e Event) (Machine, Actions, fsm.Outcome) {
-	if m.view {
+	switch m.state {
+	case ViewIdle, ViewPanning, ViewSelecting, HeldIdle, HeldPanning, ViewHeldIdle, ViewHeldPanning:
 		return m, 0, fsm.Rejected
+	case Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing:
+	case stateNone:
+		return m, 0, fsm.Invalid
+	default:
+		return m, 0, fsm.Invalid
 	}
 	next, acts := m.cancel(0)
 	if e.Kind == EvPaletteEdge {
@@ -442,13 +585,24 @@ func (m Machine) textDone() (Machine, Actions, fsm.Outcome) {
 }
 
 // doubleClick cancels what is in progress and edits the label of what is
-// under the pointer, selecting it alone.
+// under the pointer, selecting it alone; in view mode and held only the
+// cancel is done, on the background, and the label editing refused.
 func (m Machine) doubleClick(e Event) (Machine, Actions, fsm.Outcome) {
 	if !e.Hit.valid() {
 		return m, 0, fsm.Invalid
 	}
-	if m.view {
+	switch m.state {
+	case ViewIdle, ViewPanning, ViewSelecting, HeldIdle, HeldPanning, ViewHeldIdle, ViewHeldPanning:
+		if e.Hit == HitBackground {
+			next, acts := m.cancel(0)
+			return next, acts, fsm.Moved
+		}
 		return m, 0, fsm.Rejected
+	case Idle, Selecting, Dragging, Connecting, Placing, Panning, EditingText, Resizing:
+	case stateNone:
+		return m, 0, fsm.Invalid
+	default:
+		return m, 0, fsm.Invalid
 	}
 	next, acts := m.cancel(0)
 	switch e.Hit {
@@ -501,6 +655,22 @@ func (s State) String() string {
 		return "EditingText"
 	case Resizing:
 		return "Resizing"
+	case ViewIdle:
+		return "ViewIdle"
+	case ViewPanning:
+		return "ViewPanning"
+	case ViewSelecting:
+		return "ViewSelecting"
+	case HeldIdle:
+		return "HeldIdle"
+	case HeldPanning:
+		return "HeldPanning"
+	case ViewHeldIdle:
+		return "ViewHeldIdle"
+	case ViewHeldPanning:
+		return "ViewHeldPanning"
+	case stateNone:
+		return invalidName
 	default:
 		return invalidName
 	}
