@@ -103,14 +103,13 @@ func alongGap(t *testing.T, f gw.Flow, d *gw.Document, e gw.EdgeIndex) (gx, band
 }
 
 // TestGapRoom: a gap in a zone that a labelled edge crosses is as wide
-// as the label and gapRunRoom either side, 16. Left to right, the band
-// above the zone's members has the zone's title above it, room for two:
-// a run along the gap from before the zone keeps half the room beside
-// the layer of the member it goes to, and one from after the zone half
-// the room beside the other side's, along the band 8 further out. Top to
-// bottom the padding has room for one band, and the runs keep five
-// eighths of the way from their members' layers across the gap, off
-// each other, as they do with no label in either flow. A zone larger
+// as the label and gapRunRoom either side, 16. The band above the zone's
+// members has room for two, the zone's side standing out by the band
+// room: a run along the gap from before the zone keeps half the room
+// beside the layer of the member it goes to, and one from after the
+// zone half the room beside the other side's, along the band 8 further
+// out. With no label the runs keep five eighths of the way from their
+// members' layers across the gap, off each other. A zone larger
 // than what it holds has room for two bands below it too, in either
 // flow, which runs from below take.
 func TestGapRoom(t *testing.T) {
@@ -122,7 +121,7 @@ func TestGapRoom(t *testing.T) {
 			q0, _, _, _ := box(f, d.Vertex(d.Edge(fromO).To()))
 			gxO, bandO := alongGap(t, f, d, fromO)
 			gxR, bandR := alongGap(t, f, d, fromR)
-			if text != "" && f == gw.LeftToRight {
+			if text != "" {
 				if q0-p1 < 65+2*16 {
 					t.Errorf("flow %d: the gap is %g, want at least %d", f, q0-p1, 65+2*16)
 				}

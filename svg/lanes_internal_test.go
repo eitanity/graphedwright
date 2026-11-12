@@ -414,8 +414,11 @@ func TestLaidOutExamplesClear(t *testing.T) {
 			PlaceLabels(d)
 			label := name + " " + strconv.Itoa(int(flow))
 			footLabelsClear(t, label, d)
-			edgeTextsClear(t, label, d)
+			r := &reports{t: t}
+			edgeTextsClear(r, label, d)
+			knownReports(t, label, r.errs, knownTexts[label])
 			edgesApart(t, label, d, knownAlong[label]...)
+			edgesOffSides(t, label, d)
 		}
 	}
 }
@@ -423,13 +426,106 @@ func TestLaidOutExamplesClear(t *testing.T) {
 // knownAlong are the pairs of edges in the examples laid out afresh that
 // run along each other where the order of the ends at a side, found from
 // the bends alone, cannot tell a route that runs on along the side's
-// middle from one that turns away: left to right, t16 runs on along
-// EditingText's middle from its back side, and t20 turns down across it
-// at once; top to bottom, t4 runs down from press level with its end to
-// an upright far into the gap, and t6 curves across it.
+// middle from one that turns away: t12 runs in along EditingText's
+// middle, level with its end there, and t16's dummies stand at that
+// middle, so are taken to be levelled with its end and passed by; left
+// to right, t10 turns in to Idle across t12's run out, levelled with its
+// end, which its order there does not see; and top to bottom, t4 runs
+// down from press level with its end to an upright far into the gap,
+// and t6 curves across it.
 var knownAlong = map[string][][2]gw.ID{
-	"state-machine 0": {{"t20", "t16"}},
-	"state-machine 1": {{"t6", "t4"}},
+	"state-machine 0": {{"t10", "t12"}, {"t12", "t16"}, {"t16", "t12"}},
+	"state-machine 1": {{"t6", "t4"}, {"t12", "t16"}, {"t16", "t12"}},
+}
+
+// knownTexts are the reports of the text check (edgeTextsClear) in the
+// examples laid out afresh, by their start, that are let be: top to
+// bottom, t12's run out of Idle, levelled with its end, stands next to
+// t10's upright, with no room between for t10's label turned along it.
+var knownTexts = map[string][]string{
+	"state-machine 1": {`state-machine 1: the label "Release / finish" of edge t10 crosses edge t12`},
+}
+
+// knownReports fails the test for each report not begun by one of the
+// known, and for each known that begins none, so that the list goes
+// when what it lets be does.
+func knownReports(t *testing.T, name string, errs, known []string) {
+	t.Helper()
+	found := make([]bool, len(known))
+	for _, e := range errs {
+		k := slices.IndexFunc(known, func(s string) bool { return strings.HasPrefix(e, s) })
+		if k < 0 {
+			t.Error(e)
+			continue
+		}
+		found[k] = true
+	}
+	for k, ok := range found {
+		if !ok {
+			t.Errorf("%s: no longer reported: %s; drop it from the known", name, known[k])
+		}
+	}
+}
+
+// edgesOffSides checks that no edge runs along a container's side inside
+// it, within its padding, for more than a padding: closer than that
+// and parallel to the side, to a tenth.
+func edgesOffSides(t *testing.T, name string, d *gw.Document) {
+	t.Helper()
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() {
+			continue
+		}
+		pts := drawnPoints(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		for j := range d.VertexSlots() {
+			c := d.Vertex(gw.VertexIndex(j)) //nolint:gosec // bounded by the capacity
+			if !c.Live() || !d.Kinds().Vertex(c.Kind()).Container() {
+				continue
+			}
+			for side := range 4 {
+				if l := alongSide(d, pts, c, side); l > gw.ContainerPad {
+					t.Errorf("%s: edge %s runs %.1f along a side of %s", name, e.ID(), l, c.ID())
+				}
+			}
+		}
+	}
+}
+
+// alongSide is the longest stretch of the points a, sampled along an
+// edge, inside container c and within its padding of its side: 0 left,
+// 1 right, 2 top, 3 bottom; and parallel to it, to a tenth, and off the
+// vertices, whose ends it may reach.
+func alongSide(d *gw.Document, a []gw.Point, c gw.VertexView, side int) float64 {
+	box := vertexBox(c)
+	off := func(p gw.Point) float64 {
+		switch side {
+		case 0:
+			return p.X - box.X
+		case 1:
+			return box.X + box.W - p.X
+		case 2:
+			return p.Y - box.Y
+		}
+		return box.Y + box.H - p.Y
+	}
+	inside := func(p gw.Point) bool {
+		return p.X > box.X && p.X < box.X+box.W && p.Y > box.Y && p.Y < box.Y+box.H && off(p) < gw.ContainerPad && !nearVertex(d, p)
+	}
+	run, longest := 0.0, 0.0
+	for k := 1; k < len(a); k++ {
+		dx, dy := math.Abs(a[k].X-a[k-1].X), math.Abs(a[k].Y-a[k-1].Y)
+		if side >= 2 {
+			dx, dy = dy, dx
+		}
+		if !inside(a[k-1]) || !inside(a[k]) || dx > 0.1*dy {
+			run = 0
+			continue
+		}
+		run += math.Hypot(dx, dy)
+		longest = math.Max(longest, run)
+	}
+	return longest
 }
 
 // footLabelsClear checks that each label drawn at an actor's foot
@@ -1001,4 +1097,33 @@ func labelledGap(t *testing.T, boxes int, edges [][2]gw.VertexIndex, text string
 		t.Fatal(err)
 	}
 	return d.Vertex(edges[0][1]).Pos().X - d.Vertex(edges[0][0]).Pos().X
+}
+
+// TestRunInOffSide: a straight edge from outside a zone to a member with
+// another before it along the flow runs round that one, along a band beside
+// what the zone holds, which the zone's side stands far enough out from
+// for the run, and its label, to keep off the side, in either flow.
+func TestRunInOffSide(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		d, z, _ := zoneDoc(t, gw.Point{X: -200, Y: 0})
+		first := placeVertexAt(t, d, gw.Point{X: 200, Y: 0})
+		if _, err := d.Apply(gw.Command{Op: gw.SetParent, Vertex: first, To: z}); err != nil {
+			t.Fatal(err)
+		}
+		member := gw.VertexIndex(1) // the zone's own member, the edge's target
+		if _, err := d.Apply(gw.Command{Op: gw.AddEdge, From: first, To: member, FromPort: gw.None, ToPort: gw.None}); err != nil {
+			t.Fatal(err)
+		}
+		d.SetFlow(f)
+		if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		PlaceLabels(d)
+		if n := d.Edge(0).Bends().Len(); n < 2 {
+			t.Fatalf("flow %d: the edge in has %d bends, want a run round the first member, along the band and in from beside it", f, n)
+		}
+		name := "flow " + strconv.Itoa(int(f))
+		edgesOffSides(t, name, d)
+		edgeTextsClear(t, name, d)
+	}
 }

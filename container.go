@@ -18,6 +18,14 @@ const ContainerPad = 16
 // label.
 const ContainerTitle = 20
 
+// BandRoom is how much further out than its padding a container's sides
+// across the flow stand where an edge from outside runs in to a member
+// that others stand wholly before or after along the flow: a layout
+// takes such a run round them, along a band beside what the container
+// holds, and the room keeps the band clear of the side. Either way the
+// run may go, so both sides stand out.
+const BandRoom = ContainerPad
+
 // Depth is the number of containers a vertex is in; 0 for an index out
 // of range.
 func (d *Document) Depth(v VertexIndex) int {
@@ -200,9 +208,11 @@ func (d *Document) fit() {
 			d.depth[i] = int32(d.Depth(VertexIndex(i))) //nolint:gosec // bounded by the capacity
 			deepest = max(deepest, int(d.depth[i]))
 		}
-		b := d.box[4*i : 4*i+4]
+		b := d.box[fitSlots*i : fitSlots*i+fitSlots]
 		b[0], b[1], b[2], b[3] = math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+		b[4], b[5], b[6], b[7] = math.Inf(1), math.Inf(-1), math.Inf(-1), math.Inf(1)
 	}
+	d.markCrossing()
 	// bound: the deepest nesting, at most the vertex count
 	for k := deepest; k >= 0; k-- {
 		for i := range d.vertices {
@@ -213,6 +223,53 @@ func (d *Document) fit() {
 	}
 }
 
+// fitSlots is how many numbers the fit gathers for each container: the
+// box x0 y0 x1 y1 and the band span (bandSpan).
+const fitSlots = 8
+
+// markCrossing marks each vertex that an edge from outside its container
+// runs to, or into: those on the way from each end of an edge up to the
+// innermost container holding both, but for an edge between a container
+// and what it holds, which runs in from the container's own side.
+func (d *Document) markCrossing() {
+	clear(d.crossing)
+	for i := range d.edges {
+		e := &d.edges[i]
+		if !e.Live || e.From == e.To || d.Enclosing(e.From, e.To) != 0 {
+			continue
+		}
+		level := d.vertices[e.From].Parent
+		// bound: the parent chain is acyclic, so at most the vertex count
+		for n := 0; level != None && !d.Within(e.To, level) && n <= len(d.vertices); n++ {
+			level = d.vertices[level].Parent
+		}
+		for _, v := range [2]VertexIndex{e.From, e.To} {
+			// bound: the parent chain is acyclic, so at most the vertex count
+			for n := 0; v != None && d.vertices[v].Parent != level && n <= len(d.vertices); n++ {
+				d.crossing[v] = true
+				v = d.vertices[v].Parent
+			}
+		}
+	}
+}
+
+// bandSpan gathers, into the four numbers b, what decides whether a
+// container stands out by BandRoom: the least far end along the flow of
+// what it holds and the greatest near end, and the greatest near end and
+// least far end of those an edge from outside runs to (crossing).
+// A member wholly before a crossed one, or wholly after, is then one a
+// run to it goes round (banded).
+func bandSpan(b []float64, lo, hi float64, crossed bool) {
+	b[0], b[1] = math.Min(b[0], hi), math.Max(b[1], lo)
+	if crossed {
+		b[2], b[3] = math.Max(b[2], lo), math.Min(b[3], hi)
+	}
+}
+
+// banded reports whether the band span b has a member wholly before or
+// after one an edge from outside runs to.
+func banded(b []float64) bool { return b[0] <= b[2] || b[1] >= b[3] }
+
 // fitOne sizes a container to the box gathered from what it holds, or
 // to its own size when it holds nothing, and a vertex to its
 // compartments, and adds the vertex's own box to its container's.
@@ -221,15 +278,19 @@ func (d *Document) fitOne(i VertexIndex) {
 		d.fitContent(i)
 	}
 	v := &d.vertices[i]
-	if b := d.box[4*i : 4*i+4]; d.isContainer(i) {
+	if b := d.box[fitSlots*int(i) : fitSlots*int(i)+fitSlots]; d.isContainer(i) {
 		var pos Point
 		var size Size
 		if b[0] <= b[2] {
 			back, on := d.EnclosedRoom(i)
+			band := 0.0
+			if banded(b[4:]) {
+				band = BandRoom
+			}
 			if d.flow == TopToBottom {
-				b[1], b[3] = b[1]-back, b[3]+on
+				b[0], b[1], b[2], b[3] = b[0]-band, b[1]-back, b[2]+band, b[3]+on
 			} else {
-				b[0], b[2] = b[0]-back, b[2]+on
+				b[0], b[1], b[2], b[3] = b[0]-back, b[1]-band, b[2]+on, b[3]+band
 			}
 			pos = Point{X: float64((b[0] + b[2]) / 2), Y: float64((b[1]+b[3])/2) - ContainerTitle/2}
 			size = Size{W: b[2] - b[0] + 2*ContainerPad, H: b[3] - b[1] + 2*ContainerPad + ContainerTitle}
@@ -248,11 +309,16 @@ func (d *Document) fitOne(i VertexIndex) {
 		}
 	}
 	if v.Parent != None {
-		b := d.box[4*int(v.Parent) : 4*int(v.Parent)+4]
+		b := d.box[fitSlots*int(v.Parent) : fitSlots*int(v.Parent)+fitSlots]
 		b[0] = math.Min(b[0], v.Pos.X-float64(v.Size.W/2))
 		b[1] = math.Min(b[1], v.Pos.Y-float64(v.Size.H/2))
 		b[2] = math.Max(b[2], v.Pos.X+float64(v.Size.W/2))
 		b[3] = math.Max(b[3], v.Pos.Y+float64(v.Size.H/2))
+		lo, hi := v.Pos.X-float64(v.Size.W/2), v.Pos.X+float64(v.Size.W/2)
+		if d.flow == TopToBottom {
+			lo, hi = v.Pos.Y-float64(v.Size.H/2), v.Pos.Y+float64(v.Size.H/2)
+		}
+		bandSpan(b[4:], lo, hi, d.crossing[i])
 	}
 }
 

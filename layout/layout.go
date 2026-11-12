@@ -194,6 +194,7 @@ type Layouter struct {
 	byTo     []int32
 	rev      []gw.EdgeIndex
 	liveReal []bool // the vertices of the level being laid out
+	crossing []bool // the vertices an edge from outside their container runs to or into
 	pin      []bool // the placed ones among them
 	eOn      []bool // the edges of the level, between the nodes that hold their ends
 	eFrom    []int32
@@ -257,7 +258,7 @@ func New(caps gw.Caps) *Layouter {
 		topo: make([]int32, caps.Vertices), indeg: make([]int32, caps.Vertices), stack: make([]int32, caps.Vertices), mark: make([]uint8, caps.Vertices),
 		segF: make([]int32, maxS), segT: make([]int32, maxS), segE: make([]int32, maxS), off: make([]int32, maxN+1), adj: make([]int32, maxS),
 		keys: make([]int32, maxN+1), fen: make([]int32, maxN+1), byTo: make([]int32, maxS), rev: make([]gw.EdgeIndex, 0, caps.Edges),
-		liveReal: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges), textW: make([]float64, caps.Edges),
+		liveReal: make([]bool, caps.Vertices), crossing: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges), textW: make([]float64, caps.Edges),
 		eOn: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
 		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1), rg: make([]float64, maxN+1),
 		fx: make([]float64, caps.Vertices), fy: make([]float64, caps.Vertices), bw: make([]float64, caps.Vertices), bh: make([]float64, caps.Vertices),
@@ -311,6 +312,7 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 		l.zRt[i] = -1
 	}
 	d.ClearBends()
+	l.markCrossing(d)
 	crossings, err := l.contents(d, opts, deepest)
 	if err != nil {
 		return Result{}, err
@@ -864,21 +866,28 @@ func holder(d *gw.Document, v, c gw.VertexIndex) int32 {
 // from it, all in the document's axes.
 func (l *Layouter) box(d *gw.Document, c gw.VertexIndex, opts Options) {
 	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	span := [4]float64{math.Inf(1), math.Inf(-1), math.Inf(-1), math.Inf(1)}
 	for i := range d.VertexSlots() {
 		if l.liveReal[i] {
 			x, y := l.swap(l.x[i], l.y[i])
 			w, h := l.swap(l.w[i], l.h[i])
 			x0, x1 = math.Min(x0, x-float64(w/2)), math.Max(x1, x+float64(w/2))
 			y0, y1 = math.Min(y0, y-float64(h/2)), math.Max(y1, y+float64(h/2))
+			bandSpan(&span, l.x[i]-float64(l.w[i]/2), l.x[i]+float64(l.w[i]/2), l.crossing[i])
 		}
 	}
 	// Its sides stand out further for the edges between it and what it
-	// holds, as the document fits it.
+	// holds, and across the flow for the runs in to what it holds that
+	// go round others (inside), as the document fits it.
 	back, on := d.EnclosedRoom(c)
+	band := 0.0
+	if span[0] <= span[2] || span[1] >= span[3] {
+		band = gw.BandRoom
+	}
 	if l.down {
-		y0, y1 = y0-back, y1+on
+		x0, y0, x1, y1 = x0-band, y0-back, x1+band, y1+on
 	} else {
-		x0, x1 = x0-back, x1+on
+		x0, y0, x1, y1 = x0-back, y0-band, x1+on, y1+band
 	}
 	w, h := x1-x0+2*gw.ContainerPad, y1-y0+2*gw.ContainerPad+gw.ContainerTitle
 	ex, ey := float64((x0+x1)/2), float64((y0+y1)/2)-gw.ContainerTitle/2

@@ -216,3 +216,81 @@ func TestContainerArrowRoom(t *testing.T) {
 		}
 	}
 }
+
+// TestBandRoomGap: a zone holding a and, a layer on, b, beside y across
+// the flow, stands out across it by the band room for an edge from
+// outside to a or b, and not for one to the zone itself, or from the
+// zone to a, as the document fits it; the layout makes room for it as
+// the document does, so y stands the same gap off the zone either way.
+func TestBandRoomGap(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		gap0, across0 := 0.0, 0.0
+		for _, c := range []struct {
+			name   string
+			banded bool
+		}{{"x to the zone", false}, {"x to b", true}, {"x to a", true}, {"and the zone to a", false}} {
+			d, err := makeDoc(gw.Schema{
+				VertexKinds: []gw.VertexKind{{Name: "node", Shape: gw.Rect, Size: gw.Size{W: 60, H: 40}}, {Name: "zone", Shape: gw.Rect, Size: gw.Size{W: 60, H: 40}, Container: true}},
+				EdgeKinds:   []gw.EdgeKind{{Name: "line", Route: gw.Orthogonal}},
+			}, gw.Caps{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			add := func(k gw.KindIndex) gw.VertexIndex {
+				t.Helper()
+				ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: k})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return ch.Vertices[0]
+			}
+			cmd := func(c gw.Command) {
+				t.Helper()
+				if _, err := d.Apply(c); err != nil {
+					t.Fatal(err)
+				}
+			}
+			edge := func(from, to gw.VertexIndex) {
+				cmd(gw.Command{Op: gw.AddEdge, From: from, To: to, FromPort: gw.None, ToPort: gw.None})
+			}
+			z := add(1)
+			a, b, x, y := add(0), add(0), add(0), add(0)
+			cmd(gw.Command{Op: gw.SetParent, Vertex: a, To: z})
+			cmd(gw.Command{Op: gw.SetParent, Vertex: b, To: z})
+			edge(a, b)
+			edge(x, y)
+			switch c.name {
+			case "x to b":
+				edge(x, b)
+			case "x to a":
+				edge(x, a)
+			case "and the zone to a":
+				edge(x, z)
+				edge(z, a)
+			default:
+				edge(x, z)
+			}
+			d.SetFlow(f)
+			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+				t.Fatal(err)
+			}
+			zv, yv := d.Vertex(z), d.Vertex(y)
+			gap := math.Abs(zv.Pos().Y-yv.Pos().Y) - (zv.Size().H+yv.Size().H)/2
+			across := zv.Size().H
+			if f == gw.TopToBottom {
+				gap = math.Abs(zv.Pos().X-yv.Pos().X) - (zv.Size().W+yv.Size().W)/2
+				across = zv.Size().W
+			}
+			if gap0 == 0 {
+				gap0, across0 = gap, across
+			}
+			want := across0
+			if c.banded {
+				want += 2 * gw.BandRoom
+			}
+			if gap != gap0 || across != want {
+				t.Errorf("flow %d, %s: y %v off the zone, %v across, want %v off and %v across", f, c.name, gap, across, gap0, want)
+			}
+		}
+	}
+}

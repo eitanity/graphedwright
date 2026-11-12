@@ -381,9 +381,11 @@ at the middle, is 16 wider on each side, and a run along it keeps to
 that room beside the layer of the member it goes to, off the label.
 Runs from either side of the container then pass each other along the
 band above or below what it holds, so one from the far side keeps 8
-further out, where the padding has room, as under a container's title;
-where it has not, the runs from both sides keep five eighths of the way
-across the gap from their members' layers instead, off each other.
+further out; the container's sides across the flow stand 16 further
+out than its padding for these runs, so that both keep the padding's
+width off the side. Where a band has no room for the second, the runs
+from both sides keep five eighths of the way across the gap from their
+members' layers instead, off each other.
 
 ## Containers
 
@@ -396,7 +398,11 @@ containers nest.
   for a container that doesn't take the vertex's kind (`Contains`), or
   for a vertex going inside itself or something it holds.
 - **Fitting:** a container that holds anything is fitted around it,
-  with 16 units of padding and 20 more at the top for its title. It is
+  with 16 units of padding and 20 more at the top for its title. Its
+  sides across the flow stand 16 further out (`BandRoom`) when an edge
+  from outside runs to a member that another stands wholly before or
+  after along the flow, so that the run round that one, along the band
+  beside what the container holds, keeps clear of the side. It is
   fitted again after every command that moves, resizes, deletes or
   re-parents a vertex.
 - **Its own size:** a container that holds nothing is its own size: the

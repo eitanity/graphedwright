@@ -440,3 +440,92 @@ func TestEnclosedEdges(t *testing.T) {
 		}
 	}
 }
+
+// TestBandRoom: a container's sides across the flow stand BandRoom
+// further out where an edge from outside runs to a member that another
+// stands wholly before or after along the flow, either way, but not for
+// members side by side across the flow, an edge between members, one
+// between the container and what it holds, or a deleted edge; and an
+// outer container stands out for its own member on the way in, not the
+// inner one's.
+func TestBandRoom(t *testing.T) {
+	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		d := containerDoc(t)
+		d.SetFlow(flow)
+		pos := func(along, across float64) gw.Point {
+			if flow == gw.TopToBottom {
+				return gw.Point{X: across, Y: along}
+			}
+			return gw.Point{X: along, Y: across}
+		}
+		// room is how much further out than its padding around what it
+		// holds container c stands across the flow.
+		room := func(c gw.VertexIndex) float64 {
+			lo, hi := 1e9, -1e9
+			for i := range d.VertexSlots() {
+				v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+				if !v.Live() || v.Parent() != c {
+					continue
+				}
+				p, h := v.Pos().Y, v.Size().H/2
+				if flow == gw.TopToBottom {
+					p, h = v.Pos().X, v.Size().W/2
+				}
+				lo, hi = min(lo, p-h), max(hi, p+h)
+			}
+			s := d.Vertex(c).Size().H - gw.ContainerTitle
+			if flow == gw.TopToBottom {
+				s = d.Vertex(c).Size().W
+			}
+			return s - (hi - lo) - 2*gw.ContainerPad
+		}
+		check := func(name string, wantZ, wantO float64) {
+			t.Helper()
+			if got := room(1); got != wantZ {
+				t.Errorf("flow %d, %s: z's room %v, want %v", flow, name, got, wantZ)
+			}
+			if got := room(0); got != wantO {
+				t.Errorf("flow %d, %s: o's room %v, want %v", flow, name, got, wantO)
+			}
+		}
+		o := at(t, d, cZone, "o", 0, 0)
+		z := at(t, d, cZone, "z", 0, 0)
+		a := addVertex(t, d, cBox, "a")
+		b := addVertex(t, d, cBox, "b")
+		x := addVertex(t, d, cBox, "x")
+		apply(t, d, gw.Command{Op: gw.SetParent, Vertex: z, To: o})
+		for v, p := range map[gw.VertexIndex]gw.Point{a: pos(0, 0), b: pos(0, 100), x: pos(-300, 0)} {
+			apply(t, d, gw.Command{Op: gw.Move, Vertex: v, Pos: p})
+		}
+		for _, v := range [2]gw.VertexIndex{a, b} {
+			apply(t, d, gw.Command{Op: gw.SetParent, Vertex: v, To: z})
+		}
+		edge := func(from, to gw.VertexIndex) gw.EdgeIndex {
+			t.Helper()
+			return apply(t, d, gw.Command{Op: gw.AddEdge, From: from, To: to, FromPort: gw.None, ToPort: gw.None}).Edges[0]
+		}
+		edge(a, b)
+		edge(z, a)
+		edge(o, b)
+		check("side by side, between members and with containers", 0, 0)
+		in := edge(x, a)
+		check("side by side, in from outside", 0, 0)
+		apply(t, d, gw.Command{Op: gw.Move, Vertex: b, Pos: pos(200, 0)})
+		check("in to a, with b after it", 2*gw.BandRoom, 0)
+		apply(t, d, gw.Command{Op: gw.DeleteEdge, Edge: in})
+		check("no edge in", 0, 0)
+		edge(x, b)
+		check("in to b, with a before it", 2*gw.BandRoom, 0)
+		// From inside the outer zone, beside z, the run to b is o's to
+		// make no more.
+		apply(t, d, gw.Command{Op: gw.SetParent, Vertex: x, To: o})
+		check("in to b from beside z", 2*gw.BandRoom, 0)
+		// With x before z in o, o's run goes to z, which nothing stands
+		// before or after in o; with another member after z, it does.
+		y := addVertex(t, d, cBox, "y")
+		apply(t, d, gw.Command{Op: gw.SetParent, Vertex: x, To: gw.None})
+		apply(t, d, gw.Command{Op: gw.Move, Vertex: y, Pos: pos(800, 0)})
+		apply(t, d, gw.Command{Op: gw.SetParent, Vertex: y, To: o})
+		check("in to b, with y after z in o", 2*gw.BandRoom, 2*gw.BandRoom)
+	}
+}

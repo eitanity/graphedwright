@@ -196,10 +196,13 @@ type Document struct {
 	stamp          uint32
 	resized        bool // the change grew or shrank a vertex to its compartments
 
-	// Scratch for fitting the containers: each vertex's depth and the
-	// box around what each holds, x0 y0 x1 y1.
-	depth []int32
-	box   []float64
+	// Scratch for fitting the containers: each vertex's depth, the box
+	// around what each holds, x0 y0 x1 y1, and the extents along the flow
+	// that decide its band room (bandSpan); and whether an edge from
+	// outside each vertex's container runs to it or into it.
+	depth    []int32
+	box      []float64
+	crossing []bool
 
 	// The live containers in drawing order, and per container the
 	// first container it holds and the next beside it, for building it.
@@ -248,7 +251,8 @@ func New(kinds *Kinds, caps Caps) (*Document, error) {
 	d.vstamp = make([]uint32, caps.Vertices)
 	d.estamp = make([]uint32, caps.Edges)
 	d.depth = make([]int32, caps.Vertices)
-	d.box = make([]float64, 4*caps.Vertices)
+	d.box = make([]float64, fitSlots*caps.Vertices)
+	d.crossing = make([]bool, caps.Vertices)
 	d.order = make([]VertexIndex, 0, caps.Vertices)
 	d.kid = make([]VertexIndex, caps.Vertices)
 	d.sib = make([]VertexIndex, caps.Vertices)

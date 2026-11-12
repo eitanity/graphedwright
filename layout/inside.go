@@ -87,6 +87,9 @@ func (l *Layouter) inside(d *gw.Document, c, m gw.VertexIndex, r run, buf []gw.P
 	if !low {
 		col = col1
 	}
+	// The bands run half the padding off what c holds, and c's side
+	// stands out by gw.BandRoom beyond the padding, so that a band, or one
+	// from the far side further out (gapSide), keeps a padding off it.
 	gr := gapRun{in: in, ways: [2]bandWay{
 		l.gapSide(m, low, col, cb, bandWay{by: top - g, gx: gx, last: last}, -1),
 		l.gapSide(m, low, col, cb, bandWay{by: bottom + g, gx: gx, last: last}, 1),
@@ -338,6 +341,39 @@ func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, 
 		}
 	}
 	return w, got > 0 // the last found is the run to v itself
+}
+
+// markCrossing marks each vertex that an edge from outside its container
+// runs to, or into, as the document does when it fits the containers:
+// those on the way from each end of an edge up to the level it is laid
+// out at, but for an edge between a container and what it holds.
+func (l *Layouter) markCrossing(d *gw.Document) {
+	clear(l.crossing)
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		if !e.Live() || e.From() == e.To() || d.Enclosing(e.From(), e.To()) != 0 {
+			continue
+		}
+		level := eLevelOf(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		for _, v := range [2]gw.VertexIndex{e.From(), e.To()} {
+			// bound: the parent chain is acyclic, so at most the vertex count
+			for n := 0; v != gw.None && d.Vertex(v).Parent() != level && n <= d.VertexSlots(); n++ {
+				l.crossing[v] = true
+				v = d.Vertex(v).Parent()
+			}
+		}
+	}
+}
+
+// bandSpan gathers what decides whether a container stands out by
+// gw.BandRoom, as the document does: the least far end along the flow
+// of its members and the greatest near end, and the greatest near end
+// and least far end of those an edge from outside runs to (crossing).
+func bandSpan(b *[4]float64, lo, hi float64, crossed bool) {
+	b[0], b[1] = math.Min(b[0], hi), math.Max(b[1], lo)
+	if crossed {
+		b[2], b[3] = math.Max(b[2], lo), math.Min(b[3], hi)
+	}
 }
 
 // eLevelOf is the container whose level an edge is laid out at: the
