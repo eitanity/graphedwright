@@ -429,7 +429,11 @@ func (r *Renderer) levelLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annotat
 		r.label("stereotype", kind.Stereotype(), mid.X, near, 0, opts)
 		near += step
 	}
-	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
+	if runes, lines := gw.LabelLines(kind.LabelFormat(), e.Label(), e.Attrs()); runes > 0 {
+		// Above the stroke, its last line is the nearest.
+		if side >= 0 {
+			near -= gw.MoreLines(lines)
+		}
 		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), mid.X, near, 0, "middle", opts)
 	}
 	if note.Text != "" {
@@ -448,9 +452,11 @@ func (r *Renderer) besideLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annota
 		x, other, anchor, otherAnchor = other, x, otherAnchor, anchor
 	}
 	above := y
-	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
-		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), x, y, 0, anchor, opts)
-		above -= opts.FontSize
+	if runes, lines := gw.LabelLines(kind.LabelFormat(), e.Label(), e.Attrs()); runes > 0 {
+		// Its lines centred on the middle, the stereotype over them.
+		first := y - float64(gw.MoreLines(lines)/2)
+		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), x, first, 0, anchor, opts)
+		above = first - opts.FontSize
 	}
 	if kind.Stereotype() != "" {
 		r.labelAt("stereotype", kind.Stereotype(), x, above, 0, anchor, opts)
@@ -474,8 +480,17 @@ func (r *Renderer) turnedLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annota
 		near, step, far = left, -opts.FontSize, right
 	}
 	r.turn = true
-	if gw.LabelRunes(kind.LabelFormat(), e.Label(), e.Attrs()) > 0 {
+	if runes, lines := gw.LabelLines(kind.LabelFormat(), e.Label(), e.Attrs()); runes > 0 {
+		// A turned text's lines go right, each a line under the one
+		// before as it reads, so on the left the first is the furthest.
+		more := gw.MoreLines(lines)
+		if side < 0 {
+			near -= more
+		}
 		r.formatted("label", kind.LabelFormat(), e.Label(), e.Attrs(), near, at.Y, 0, "middle", opts)
+		if side >= 0 {
+			near += more
+		}
 		near += step
 	}
 	if kind.Stereotype() != "" {
@@ -569,6 +584,9 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	r.dataAttrs(v.Attrs())
 	o.byte('>')
 	r.shape(shapeClass, d.Kinds(), kind.Shape(), v.Size(), turned(d, v))
+	if kind.Shape() == gw.Actor || kind.Shape() == gw.DataStore {
+		r.figure(kind.Shape(), v.Size(), gw.MoreLines(d.VertexLabelLines(i)))
+	}
 	r.texts(d, opts, i)
 	r.ports(d, i)
 	o.str(`</g>`)
@@ -598,13 +616,26 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 			labelY = float64(v.Size().H/2) + opts.FontSize + 2 // belowGap at the default size
 		}
 	}
+	// A label of more than one line has them one under another: centred
+	// where its one line would be; at an actor's foot up from it, the
+	// figure above them, and under a provided shape's box down from it.
+	more := gw.MoreLines(d.VertexLabelLines(i))
+	shift := float64(more / 2)
+	switch {
+	case below && kind.Shape() >= gw.Provided:
+		shift = 0
+	case below:
+		shift = more
+	}
+	last := labelY // the label's last line, which the annotation is under
 	switch {
 	case kind.Container():
 		r.title(v, kind, opts)
 	case d.ShowsCompartments(i):
-		r.compartments(v, kind, labelW, opts)
+		r.compartments(v, kind, labelW, d.TitleHeight(i), more, opts)
 	case none:
 	default:
+		labelY -= shift
 		if kw := kind.Keyword(); kw != "" {
 			// The keyword is the line above the label, the two centred
 			// in the shape; an actor's, whose label is at its foot, is
@@ -619,24 +650,26 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 			r.label("keyword", kw, labelX, kwY, labelW, opts)
 		}
 		r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), labelX, labelY, labelW, "middle", opts)
+		last = labelY + more
 	}
 	if note.Text != "" {
-		r.label("annotation", note.Text, labelX, labelY+opts.FontSize, noteW, opts)
+		r.label("annotation", note.Text, labelX, last+opts.FontSize, noteW, opts)
 	}
 }
 
 // compartments draws the label at the top of a vertex, under its
-// keyword if it has one, and below it each compartment with a value:
+// keyword if it has one, in the room given, its lines after its first
+// taking more, and below it each compartment with a value:
 // a rule across the vertex, then a line of text for each line of the
 // value, cut at the vertex's width as a label is. The sizes are the
 // document's, by which the vertex was sized to hold them.
-func (r *Renderer) compartments(v gw.VertexView, kind gw.VertexKindView, labelW float64, opts Options) {
+func (r *Renderer) compartments(v gw.VertexView, kind gw.VertexKindView, labelW, room, more float64, opts Options) {
 	o := r.o
-	top, room := float64(-v.Size().H/2), gw.TitleRoom(kind)
+	top := float64(-v.Size().H / 2)
 	if kind.Keyword() != "" {
 		r.label("keyword", kind.Keyword(), 0, top+gw.CompartmentTitle-8, labelW, opts)
 	}
-	r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), 0, top+room-8, labelW, "middle", opts)
+	r.formatted("label", kind.LabelFormat(), v.Label(), v.Attrs(), 0, top+room-8-more, labelW, "middle", opts)
 	fixed := opts
 	fixed.CharWidth = gw.CharWidth
 	left, w, y := float64(-v.Size().W/2), v.Size().W, top+room
@@ -757,9 +790,6 @@ func (r *Renderer) builtin(class string, shape gw.Shape, s gw.Size) {
 		o.numAttr("width", w)
 		o.numAttr("height", h)
 		o.str(`/>`)
-		if class == shapeClass {
-			r.figure(shape, s)
-		}
 	case gw.Provided: // drawn by provided, above
 	}
 }
@@ -769,9 +799,10 @@ func (r *Renderer) builtin(class string, shape gw.Shape, s gw.Size) {
 const actorLabel = 16
 
 // figure writes the strokes of an actor or a data store over its box:
-// a stick figure above the label, or the two lines that close a store
+// a stick figure above the label, with more room at the foot for the
+// label's lines after its first, or the two lines that close a store
 // above and below.
-func (r *Renderer) figure(shape gw.Shape, s gw.Size) {
+func (r *Renderer) figure(shape gw.Shape, s gw.Size, more float64) {
 	o := r.o
 	w, h := s.W, s.H
 	if shape == gw.DataStore {
@@ -786,7 +817,7 @@ func (r *Renderer) figure(shape gw.Shape, s gw.Size) {
 		o.str(`"/>`)
 		return
 	}
-	fh := h - actorLabel
+	fh := h - actorLabel - more
 	if fh <= 0 {
 		fh = h
 	}
@@ -830,25 +861,27 @@ func (r *Renderer) labelAt(class, text string, x, y, width float64, anchor strin
 
 // formatted is labelAt for the label a kind's format draws from the
 // label as set and the attributes, written part by part, with nothing
-// built.
+// built. A label of more than one line is written a line to a tspan,
+// each gw.LabelLine below the one before, the first at (x, y), and each
+// line wider than width is cut.
 func (r *Renderer) formatted(class, format, text string, attrs gw.AttrList, x, y, width float64, anchor string, opts Options) {
 	o := r.o
 	// The fit is converted only below the text's length, so that it is
 	// within an int on every target.
-	runes := gw.LabelRunes(format, text, attrs)
+	runes, lines := gw.LabelLines(format, text, attrs)
 	fit := runes
 	if n := width / opts.CharWidth; width > 0 && n < float64(fit) {
 		fit = int(n)
 	}
 	if r.expand {
 		if runes > fit {
-			r.expanded(class, format, text, attrs, x, y, runes, anchor, opts)
+			r.expanded(class, format, text, attrs, x, y, runes, lines, anchor, opts)
 		}
 		return
 	}
 	if runes <= fit {
 		r.textOpen(class, "", x, y, anchor)
-		r.parts(format, text, attrs, runes)
+		r.lines(format, text, attrs, x, y, lines, runes)
 		o.str(`</text>`)
 		return
 	}
@@ -857,16 +890,102 @@ func (r *Renderer) formatted(class, format, text string, attrs gw.AttrList, x, y
 	} else {
 		r.textOpen(class, cutMark, x, y, anchor)
 	}
-	r.parts(format, text, attrs, max(fit-1, 0))
-	o.str("…</text>")
+	r.lines(format, text, attrs, x, y, lines, fit)
+	o.str(`</text>`)
 	if !opts.NoFullText {
 		r.textOpen(class, fullMark, x, y, anchor)
-		r.parts(format, text, attrs, runes)
+		r.lines(format, text, attrs, x, y, lines, runes)
 		o.str(`</text>`)
 	}
 	o.str(`<title>`)
-	r.parts(format, text, attrs, runes)
+	// bound: the label's lines
+	for k := range lines {
+		if k > 0 {
+			o.byte('\n')
+		}
+		r.line(format, text, attrs, k, runes, true)
+	}
 	o.str(`</title>`)
+}
+
+// lines writes the label a format draws, of the number of lines given,
+// each cut with an ellipsis where it has more than fit characters: one
+// line as it is, more a line to a tspan, the first at (x, y) and each
+// gw.LabelLine below the one before.
+func (r *Renderer) lines(format, label string, attrs gw.AttrList, x, y float64, lines, fit int) {
+	o := r.o
+	// bound: the label's lines
+	for k := range lines {
+		if lines > 1 {
+			o.str(`<tspan`)
+			o.numAttr("x", x)
+			o.numAttr("y", y+float64(float64(k)*gw.LabelLine))
+			o.byte('>')
+		}
+		if n := r.line(format, label, attrs, k, 0, false); n > fit {
+			r.line(format, label, attrs, k, max(fit-1, 0), true)
+			o.str("…")
+		} else {
+			r.line(format, label, attrs, k, n, true)
+		}
+		if lines > 1 {
+			o.str(`</tspan>`)
+		}
+	}
+}
+
+// line writes, when write is set, the first n characters of line k of
+// the label a format draws, escaped, and is the number of characters
+// the line has (gw.LabelLines).
+func (r *Renderer) line(format, label string, attrs gw.AttrList, k, n int, write bool) int {
+	w := lineWalk{o: r.o, k: k, n: n, write: write}
+	// bound: the format's parts, at most its length
+	for more := true; more && w.at <= k; {
+		var before, value, after string
+		before, value, after, format = gw.NextLabelPart(format, label, attrs)
+		w.feed(before)
+		w.feed(value)
+		w.feed(after)
+		more = format != ""
+	}
+	return w.count
+}
+
+// lineWalk walks the parts of a label for its line k, counting its
+// characters and writing the first n of them when write is set; at is
+// the line it is on, and cr whether the last byte was a carriage
+// return, whose line feed is part of the same break.
+type lineWalk struct {
+	o         *out
+	k, n      int
+	at, count int
+	cr, write bool
+}
+
+// feed walks one part of the label.
+func (w *lineWalk) feed(s string) {
+	// bound: the part
+	for i := 0; i < len(s) && w.at <= w.k; i++ {
+		c := s[i]
+		brk := c == '\r' || c == '\n' && !w.cr
+		w.cr = c == '\r'
+		switch {
+		case brk:
+			w.at++
+		case c == '\n' || w.at != w.k: // the line feed of a CRLF, or another line
+		case nonchar(s, i):
+			// Counted, as the document refuses it and the writer drops it.
+			w.count++
+			i += 2
+		default:
+			if c&0xC0 != 0x80 {
+				w.count++
+			}
+			if w.write && w.count <= w.n {
+				w.o.textByte(c)
+			}
+		}
+	}
 }
 
 // The marks of a cut text and of the full text written after it.
@@ -906,7 +1025,7 @@ func (r *Renderer) textOpen(class, mark string, x, y float64, anchor string) {
 // expanded writes a cut text in full for the overlay, at its place in
 // the hovered vertex, over a box as wide as its estimated width, the
 // width it was cut by.
-func (r *Renderer) expanded(class, format, text string, attrs gw.AttrList, x, y float64, runes int, anchor string, opts Options) {
+func (r *Renderer) expanded(class, format, text string, attrs gw.AttrList, x, y float64, runes, lines int, anchor string, opts Options) {
 	o := r.o
 	w := float64(float64(runes)*opts.CharWidth) + 4
 	left := x - 2
@@ -919,24 +1038,10 @@ func (r *Renderer) expanded(class, format, text string, attrs gw.AttrList, x, y 
 	o.str(`<g class="expanded" transform="translate(`)
 	o.point(r.centre.X, r.centre.Y)
 	o.str(`)">`)
-	r.rect(`<rect class="backing"`, gw.Viewport{X: left, Y: y - opts.FontSize, W: w, H: opts.FontSize + 4})
+	r.rect(`<rect class="backing"`, gw.Viewport{X: left, Y: y - opts.FontSize, W: w, H: opts.FontSize + 4 + gw.MoreLines(lines)})
 	r.textOpen(class, "", x, y, anchor)
-	r.parts(format, text, attrs, runes)
+	r.lines(format, text, attrs, x, y, lines, runes)
 	o.str(`</text></g>`)
-}
-
-// parts writes the first n characters of the label a format draws.
-func (r *Renderer) parts(format, label string, attrs gw.AttrList, n int) {
-	// bound: the format's parts, at most its length
-	for more := true; more; {
-		var before, value, after string
-		before, value, after, format = gw.NextLabelPart(format, label, attrs)
-		for _, s := range [3]string{before, value, after} {
-			r.textRunes(s, n)
-			n -= min(runeCount(s), n)
-		}
-		more = format != ""
-	}
 }
 
 // runeCount counts the characters of a string.
@@ -948,25 +1053,6 @@ func runeCount(s string) int {
 		}
 	}
 	return n
-}
-
-// textRunes writes the first n characters of a string, escaped.
-func (r *Renderer) textRunes(s string, n int) {
-	o := r.o
-	seen := 0
-	for i := 0; i < len(s); i++ {
-		if s[i]&0xC0 != 0x80 {
-			if seen == n {
-				return
-			}
-			seen++
-		}
-		if nonchar(s, i) {
-			i += 2
-			continue
-		}
-		o.textByte(s[i])
-	}
 }
 
 // ports writes a vertex's ports as circles on its sides.

@@ -20,14 +20,31 @@ import (
 // textRE finds an edge's group and, in it, each label and stereotype as
 // drawn: its class, position, anchor and text.
 var (
-	edgeRE = regexp.MustCompile(`<g class="edge [^"]*" id="([^"]+)"[^>]*>(.*?)</g>`)
-	textRE = regexp.MustCompile(`<text class="(label|stereotype)" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle|end)"( transform="rotate\(-90 [-0-9. ]+\)")?>([^<]*)</text>`)
+	edgeRE  = regexp.MustCompile(`<g class="edge [^"]*" id="([^"]+)"[^>]*>(.*?)</g>`)
+	textRE  = regexp.MustCompile(`<text class="(label|stereotype)" x="([-0-9.]+)" y="([-0-9.]+)" text-anchor="(start|middle|end)"( transform="rotate\(-90 [-0-9. ]+\)")?>((?:[^<]|</?tspan[^>]*>)*)</text>`)
+	tspanRE = regexp.MustCompile(`<tspan x="([-0-9.]+)" y="([-0-9.]+)">([^<]*)</tspan>`)
 )
 
 // textBox is the box a drawn text takes at the default metrics: as wide
 // as its runes, from the font's ascent above the baseline to its
-// descent below.
+// descent below; for a text of lines, each a tspan, the box round
+// theirs.
 func textBox(x, y float64, anchor, text string) gw.Viewport {
+	if lines := tspanRE.FindAllStringSubmatch(text, -1); lines != nil {
+		x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+		for _, l := range lines {
+			lx, _ := strconv.ParseFloat(l[1], 64)
+			ly, _ := strconv.ParseFloat(l[2], 64)
+			b := lineBox(lx, ly, anchor, l[3])
+			x0, y0, x1, y1 = math.Min(x0, b.X), math.Min(y0, b.Y), math.Max(x1, b.X+b.W), math.Max(y1, b.Y+b.H)
+		}
+		return gw.Viewport{X: x0, Y: y0, W: x1 - x0, H: y1 - y0}
+	}
+	return lineBox(x, y, anchor, text)
+}
+
+// lineBox is the box one line of drawn text takes (textBox).
+func lineBox(x, y float64, anchor, text string) gw.Viewport {
 	w := float64(runeCount(text)) * defaultCharWidth
 	switch anchor {
 	case "middle":
@@ -528,8 +545,9 @@ func alongSide(d *gw.Document, a []gw.Point, c gw.VertexView, side int) float64 
 	return longest
 }
 
-// footLabelsClear checks that each label drawn at an actor's foot
-// overlaps neither another such label nor another vertex's box.
+// footLabelsClear checks that each label drawn at an actor's foot, its
+// lines up from there, overlaps neither another such label nor another
+// vertex's box.
 func footLabelsClear(t *testing.T, name string, d *gw.Document) {
 	t.Helper()
 	box := func(i int) (gw.Viewport, bool) {
@@ -537,7 +555,11 @@ func footLabelsClear(t *testing.T, name string, d *gw.Document) {
 		if !v.Live() || d.Kinds().Vertex(v.Kind()).Shape() != gw.Actor {
 			return gw.Viewport{}, false
 		}
-		return textBox(v.Pos().X, v.Pos().Y+v.Size().H/2-4, "middle", v.Label()), true
+		// The last line at the foot, the others up from it.
+		b := lineBox(v.Pos().X, v.Pos().Y+v.Size().H/2-4, "middle", strings.Repeat("x", d.VertexLabelRunes(gw.VertexIndex(i)))) //nolint:gosec // bounded by the capacity
+		more := gw.MoreLines(d.VertexLabelLines(gw.VertexIndex(i)))                                                             //nolint:gosec // bounded by the capacity
+		b.Y, b.H = b.Y-more, b.H+more
+		return b, true
 	}
 	for i := range d.VertexSlots() {
 		a, ok := box(i)
@@ -1125,5 +1147,76 @@ func TestRunInOffSide(t *testing.T) {
 		name := "flow " + strconv.Itoa(int(f))
 		edgesOffSides(t, name, d)
 		edgeTextsClear(t, name, d)
+	}
+}
+
+// TestTwoLineLabelsClear: the examples, with every label of more than
+// one word broken in two at its middle space, laid out afresh in each
+// flow, keep each edge's texts clear, as TestLaidOutExamplesClear has
+// them with one line, the labels at a vertex's foot clear, and the
+// edges apart and off the containers' sides.
+func TestTwoLineLabelsClear(t *testing.T) {
+	for _, flow := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		for _, name := range exampleNames {
+			d := readExample(t, name)
+			breakLabels(t, d)
+			d.SetFlow(flow)
+			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+				t.Fatal(err)
+			}
+			PlaceLabels(d)
+			label := name + " " + strconv.Itoa(int(flow))
+			footLabelsClear(t, label, d)
+			r := &reports{t: t}
+			edgeTextsClear(r, label, d)
+			knownReports(t, label, r.errs, knownTwoLineTexts[label])
+			edgesApart(t, label, d, knownTwoLineAlong[label]...)
+			edgesOffSides(t, label, d)
+		}
+	}
+}
+
+// knownTwoLineTexts and knownTwoLineAlong are knownTexts and knownAlong
+// for the examples with their labels broken in two.
+// The pairs are knownAlong's, which the broken labels leave as they are.
+var (
+	knownTwoLineTexts = map[string][]string{}
+	knownTwoLineAlong = map[string][][2]gw.ID{
+		"state-machine 0": {{"t12", "t16"}, {"t16", "t12"}},
+		"state-machine 1": {{"t12", "t16"}, {"t16", "t12"}},
+	}
+)
+
+// breakLabels breaks every label of d with a space in two at the space
+// nearest its middle.
+func breakLabels(t *testing.T, d *gw.Document) {
+	t.Helper()
+	broken := func(s string) (string, bool) {
+		at := -1
+		for i := 0; i < len(s); i++ {
+			if s[i] == ' ' && (at < 0 || math.Abs(float64(i)-float64(len(s))/2) < math.Abs(float64(at)-float64(len(s))/2)) {
+				at = i
+			}
+		}
+		if at < 0 {
+			return s, false
+		}
+		return s[:at] + "\n" + s[at+1:], true
+	}
+	for i := range d.VertexSlots() {
+		v := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+		if s, ok := broken(d.Vertex(v).Label()); d.Vertex(v).Live() && ok {
+			if _, err := d.Apply(gw.Command{Op: gw.Relabel, Vertex: v, Text: s}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for i := range d.EdgeSlots() {
+		e := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
+		if s, ok := broken(d.Edge(e).Label()); d.Edge(e).Live() && ok {
+			if _, err := d.Apply(gw.Command{Op: gw.Relabel, Edge: e, Vertex: gw.None, Text: s}); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }

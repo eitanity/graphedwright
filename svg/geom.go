@@ -773,21 +773,26 @@ func usable(v gw.Viewport) bool {
 func inCoord(x float64) bool { return x >= -gw.MaxCoord && x <= gw.MaxCoord }
 
 func bounds(d *gw.Document) gw.Viewport {
-	const margin = Margin
+	const margin, labelPad = Margin, 4
 	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	lx0, ly0, lx1, ly1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1) // the edges' labels
 	for i := range d.VertexSlots() {
 		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		if !v.Live() {
 			continue
 		}
-		half := v.Size().W / 2
+		half, foot := v.Size().W/2, 0.0
 		if labelBelow(d, v) {
 			half = math.Max(half, float64(d.VertexLabelRunes(gw.VertexIndex(i)))*defaultCharWidth/2) //nolint:gosec // bounded by the capacity
+			if d.Kinds().Vertex(v.Kind()).Shape() >= gw.Provided {
+				// The lines after the first of a label under the box.
+				foot = gw.MoreLines(d.VertexLabelLines(gw.VertexIndex(i))) //nolint:gosec // bounded by the capacity
+			}
 		}
 		x0 = math.Min(x0, v.Pos().X-half)
 		y0 = math.Min(y0, v.Pos().Y-float64(v.Size().H/2))
 		x1 = math.Max(x1, v.Pos().X+half)
-		y1 = math.Max(y1, v.Pos().Y+float64(v.Size().H/2))
+		y1 = math.Max(y1, v.Pos().Y+float64(v.Size().H/2)+foot)
 		// bound: the vertex's own ports, at most the ports per vertex
 		for p := d.Kinds().Vertex(v.Kind()).Ports().Len(); p < v.Ports().Len(); p++ {
 			_, _, _, b := portLabel(d, gw.VertexIndex(i), gw.PortIndex(p)) //nolint:gosec // bounded by the capacities
@@ -800,10 +805,19 @@ func bounds(d *gw.Document) gw.Viewport {
 				p := e.Bends().At(at)
 				x0, y0, x1, y1 = math.Min(x0, p.X), math.Min(y0, p.Y), math.Max(x1, p.X), math.Max(y1, p.Y)
 			}
+			// A label's lines, which the margin may not hold.
+			if d.EdgeLabelRunes(gw.EdgeIndex(i)) > 0 { //nolint:gosec // bounded by the capacity
+				b, side, turned := edgeLabelBox(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+				b = drawnBox(d, gw.EdgeIndex(i), b, side, turned)   //nolint:gosec // bounded by the capacity
+				lx0, ly0, lx1, ly1 = math.Min(lx0, b.X), math.Min(ly0, b.Y), math.Max(lx1, b.X+b.W), math.Max(ly1, b.Y+b.H)
+			}
 		}
 	}
 	if x0 > x1 {
 		return gw.Viewport{W: 1, H: 1}
 	}
-	return gw.Viewport{X: x0 - margin, Y: y0 - margin, W: x1 - x0 + 2*margin, H: y1 - y0 + 2*margin}
+	// The labels a little room off the edge, the rest the margin.
+	x0, y0 = math.Min(x0-margin, lx0-labelPad), math.Min(y0-margin, ly0-labelPad)
+	x1, y1 = math.Max(x1+margin, lx1+labelPad), math.Max(y1+margin, ly1+labelPad)
+	return gw.Viewport{X: x0, Y: y0, W: x1 - x0, H: y1 - y0}
 }

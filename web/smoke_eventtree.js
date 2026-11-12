@@ -74,7 +74,7 @@ const done = arguments[arguments.length - 1];
   const figures = (list) => Object.fromEntries(list.map((id) => [id, text(id)]));
   // A double-click on a branch's label, then the text typed into the
   // input the editor shows and Enter; what the input started with.
-  const input = () => root.querySelector("input.graphedwright-label");
+  const input = () => root.querySelector("textarea.graphedwright-label");
   const retype = async (id, value) => {
     const [x, y] = centre(byId(id).querySelector("text").getBoundingClientRect());
     document.elementFromPoint(x, y).dispatchEvent(new MouseEvent("dblclick", { clientX: x, clientY: y, button: 0, bubbles: true }));

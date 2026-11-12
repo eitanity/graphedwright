@@ -177,7 +177,7 @@ async function main() {
   bounded.outside = graphedwright.setAttr(hb, "share", "1.5");
   bounded.below = graphedwright.setAttr(hb, "rate", "-1");
   clash.querySelector("svg").dispatchEvent(new MouseEvent("dblclick", { clientX: onX.clientX, clientY: onX.clientY, button: 0, bubbles: true }));
-  const input = clash.querySelector("input.graphedwright-label");
+  const input = clash.querySelector("textarea.graphedwright-label");
   bounded.editing = input.style.display === "block" ? input.value : null;
   input.value = "0.25";
   input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
@@ -246,7 +246,7 @@ async function main() {
   const ctrlZ = () => clash.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
   // A label being edited is kept when a request ends the editing.
   clash.querySelector("svg #n").dispatchEvent(new MouseEvent("dblclick", Object.assign({ button: 0, bubbles: true }, centreOf("#n"))));
-  clash.querySelector("input.graphedwright-label").value = "typed";
+  clash.querySelector("textarea.graphedwright-label").value = "typed";
   menuOn("#n");
   ctx.typed = labelOfN();
   ctrlZ();
@@ -286,9 +286,9 @@ async function main() {
   const x0k = xOfK();
   // A label being edited is dropped by the hold, and its input hidden.
   clash.querySelector("svg #k").dispatchEvent(new MouseEvent("dblclick", { clientX: atK.clientX, clientY: atK.clientY, button: 0, bubbles: true }));
-  clash.querySelector("input.graphedwright-label").value = "dropped";
+  clash.querySelector("textarea.graphedwright-label").value = "dropped";
   hold.hold = graphedwright.hold(hk);
-  hold.inputHidden = clash.querySelector("input.graphedwright-label").style.display === "none";
+  hold.inputHidden = clash.querySelector("textarea.graphedwright-label").style.display === "none";
   hold.labelKept = graphedwright.export(hk).ok.vertices[0].label;
   hold.marked = clash.hasAttribute("data-held");
   dragK(21);
@@ -305,6 +305,35 @@ async function main() {
   hold.releasedMoved = xOfK() !== x0k;
   graphedwright.destroy(hk);
   out.hold = hold;
+  // A label of lines: the input holds them, Enter keeps them as they
+  // were, Shift+Enter leaves the editing open for a new line, the input
+  // grows taller for lines typed, and Enter then keeps the lines typed;
+  // each is drawn as a line of its own.
+  const lines = {};
+  const hl = graphedwright.create(clash, { schema: "basic" }).ok;
+  graphedwright.load(hl, { schema: "basic", vertices: [{ id: "l", kind: "box", label: "one\ntwo", x: 200, y: 80, placed: true }], edges: [] });
+  const labelOfL = () => graphedwright.export(hl).ok.vertices[0].label;
+  const area = () => clash.querySelector("textarea.graphedwright-label");
+  const editL = () => { const r = clash.querySelector("svg #l").getBoundingClientRect(); clash.querySelector("svg #l").dispatchEvent(new MouseEvent("dblclick", { clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, button: 0, bubbles: true })); };
+  const key = (shiftKey) => area().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey, bubbles: true, cancelable: true }));
+  editL();
+  lines.editing = area().style.display === "block" ? area().value : null;
+  key(false);
+  lines.unchanged = labelOfL();
+  editL();
+  lines.shiftKept = key(true);
+  lines.shiftOpen = area().style.display === "block";
+  lines.shiftLabel = labelOfL();
+  const h0 = parseFloat(area().style.height);
+  area().value = "one\ntwo\nthree\nfour\nfive";
+  area().dispatchEvent(new Event("input", { bubbles: true }));
+  lines.grew = parseFloat(area().style.height) > h0;
+  area().value = "one\ntwo\nthree";
+  key(false);
+  lines.typed = labelOfL();
+  lines.drawn = clash.querySelectorAll("svg #l text.label tspan").length;
+  graphedwright.destroy(hl);
+  out.lines = lines;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

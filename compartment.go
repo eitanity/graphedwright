@@ -28,21 +28,21 @@ func TitleRoom(k VertexKindView) float64 {
 	return CompartmentTitle
 }
 
-// NextLine splits off the first line of a compartment's value, without
-// the carriage return of a CRLF; rest is empty after the last line.
+// NextLine splits off the first line of a compartment's value or a
+// label: a line ends at a line feed, a carriage return, or the two
+// together, which is one break; rest is empty after the last line.
 func NextLine(s string) (line, rest string, more bool) {
 	// bound: the string
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			line, rest = s[:i], s[i+1:]
-			if n := len(line); n > 0 && line[n-1] == '\r' {
-				line = line[:n-1]
+		switch s[i] {
+		case '\n':
+			return s[:i], s[i+1:], true
+		case '\r':
+			if i+1 < len(s) && s[i+1] == '\n' {
+				return s[:i], s[i+2:], true
 			}
-			return line, rest, true
+			return s[:i], s[i+1:], true
 		}
-	}
-	if n := len(s); n > 0 && s[n-1] == '\r' {
-		s = s[:n-1]
 	}
 	return s, "", false
 }
@@ -74,14 +74,15 @@ func (d *Document) holdsCompartments(v VertexIndex) bool {
 }
 
 // refits reports whether a command, applied or undone, can change what
-// the fit sizes: a move, a vertex's attributes when compartments show
-// them, a container's ports, or an edge, its label or its attributes,
-// which a container's sides make room for (EnclosedRoom).
+// the fit sizes: a move, a vertex's attributes or label when
+// compartments show them, a container's ports or title, or an edge, its
+// label or its attributes, which a container's sides make room for
+// (EnclosedRoom).
 func (d *Document) refits(op Op) bool {
 	switch op {
-	case SetPorts, AddPort, DeletePort, AddEdge, DeleteEdge, Relabel:
+	case SetPorts, AddPort, DeletePort, AddEdge, DeleteEdge:
 		return d.hasContainers()
-	case SetAttr:
+	case SetAttr, Relabel:
 		return d.hasCompartments() || d.hasContainers()
 	case AddVertex:
 		return d.hasCompartments()
@@ -97,7 +98,7 @@ func (d *Document) refits(op Op) bool {
 func (d *Document) fitted(i VertexIndex, own Size) Size {
 	v := &d.vertices[i]
 	kind := &d.kinds.vertex[v.Kind]
-	h, w, shown := TitleRoom(VertexKindView{kind}), 0.0, false
+	h, w, shown := d.TitleHeight(i), 0.0, false
 	for _, key := range kind.Compartments {
 		val := AttrValue(v.Attrs, key)
 		if val == "" {

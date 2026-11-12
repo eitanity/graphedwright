@@ -71,7 +71,8 @@ capacities. The reader is strict and bounded:
 - **Unknown keys are refused,** with their path.
 - **Text XML can carry:** strings must be valid UTF-8. Labels and
   attribute values may hold tabs and line breaks but no other control
-  characters, and IDs none at all, whether written raw or as `\u`
+  characters (a label's line breaks start new lines, as an attribute's
+  do in a compartment), and IDs none at all, whether written raw or as `\u`
   escapes. Attribute keys hold only lowercase letters, digits, `-` and
   `_`, and `kind`, `from` and `to` are reserved for the drawing. The same rules hold for edits made through the Go and
   JavaScript APIs, and for a schema's names and text.

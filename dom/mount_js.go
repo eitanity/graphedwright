@@ -1,6 +1,7 @@
 package dom
 
 import (
+	"math"
 	"strconv"
 	"syscall/js"
 
@@ -10,8 +11,8 @@ import (
 )
 
 // mount builds the host element's content: the drawing, the palette
-// in edit mode, the zoom buttons, the hidden label input, and the
-// listeners.
+// in edit mode, the zoom buttons, the hidden label input, a textarea so
+// that a label keeps its lines, and the listeners.
 func (h *Handle) mount() {
 	doc := js.Global().Get("document")
 	h.el.Set("tabIndex", 0)
@@ -24,8 +25,9 @@ func (h *Handle) mount() {
 	drawing.Set("className", "graphedwright-drawing")
 	h.el.Call("appendChild", drawing)
 	h.zoomBar(doc)
-	h.input = doc.Call("createElement", "input")
+	h.input = doc.Call("createElement", "textarea")
 	h.input.Set("className", "graphedwright-label")
+	h.input.Set("wrap", "off")
 	h.input.Get("style").Set("display", "none")
 	h.el.Call("appendChild", h.input)
 	h.buildPalette()
@@ -41,6 +43,7 @@ func (h *Handle) mount() {
 	h.listen(drawing, "contextmenu", h.contextMenu)
 	h.listen(h.el, "keydown", h.keydown)
 	h.listen(h.input, "keydown", h.inputKey)
+	h.listen(h.input, "input", h.inputGrow)
 	h.listen(h.input, "blur", h.inputBlur)
 }
 
@@ -360,8 +363,9 @@ func (h *Handle) doubleClick(_ js.Value, args []js.Value) any {
 }
 
 // showInput puts the label input over the label being edited, as big
-// as its box at the drawing's scale, holding the label selected, or the
-// character typed to begin the editing with the caret after it.
+// as its box at the drawing's scale, its text at the drawing's size and
+// its lines as far apart, holding the label selected, or the character
+// typed to begin the editing with the caret after it.
 func (h *Handle) showInput() {
 	v, e := h.ed.Editing()
 	text := h.ed.EditText()
@@ -384,7 +388,13 @@ func (h *Handle) showInput() {
 	style.Set("top", px(tl.Y))
 	style.Set("width", px(br.X-tl.X))
 	style.Set("height", px(br.Y-tl.Y))
-	style.Set("fontSize", px((br.Y-tl.Y)*0.6))
+	scale := 1.0
+	if box.H > 0 {
+		scale = (br.Y - tl.Y) / box.H
+	}
+	h.inputH = br.Y - tl.Y
+	style.Set("fontSize", px(scale*labelFont))
+	style.Set("lineHeight", px(scale*gw.LabelLine))
 	h.input.Call("focus")
 	if typed := h.ed.Typed(); typed != "" {
 		h.input.Set("value", typed)
@@ -438,6 +448,8 @@ func (h *Handle) hideInput() {
 	h.el.Call("focus")
 }
 
+// inputKey keeps the text on Enter and drops it on Escape; Shift-Enter
+// starts a new line, as the textarea does by itself.
 func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return nil
@@ -447,6 +459,9 @@ func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
 	// while still editing keeps the text.
 	switch ev.Get("key").String() {
 	case "Enter":
+		if ev.Get("shiftKey").Bool() {
+			break
+		}
 		ev.Call("preventDefault")
 		h.handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
 		h.hideInput()
@@ -458,6 +473,17 @@ func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
 	ev.Call("stopPropagation")
 	return nil
 }
+
+// inputGrow makes the input tall enough for the lines typed into it,
+// never less than the label's box it was put over.
+func (h *Handle) inputGrow(js.Value, []js.Value) any {
+	h.input.Get("style").Set("height", px(math.Max(h.inputH, h.input.Get("scrollHeight").Float())))
+	return nil
+}
+
+// labelFont is a label's size at the default font, which the input's
+// text is drawn at, scaled as the drawing is.
+const labelFont = 12
 
 // inputBlur keeps the text when the input loses the focus while still
 // editing, as a click elsewhere does.

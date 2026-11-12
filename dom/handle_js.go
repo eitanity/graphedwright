@@ -121,6 +121,7 @@ type Handle struct {
 	maxFollow int        // Options.MaxFollow, or its default
 	follow    int        // what Options.MaxFollow asked for, checked again against each document Load gives
 	input     js.Value
+	inputH    float64 // the height the label input was put at, of the label's box
 	d         *gw.Document
 	ed        *edit.Editor
 	r         *svg.Renderer

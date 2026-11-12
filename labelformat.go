@@ -40,20 +40,49 @@ func NextLabelPart(format, label string, attrs AttrList) (before, value, after, 
 	return before, value, after, format[end+1:]
 }
 
-// LabelRunes is the number of characters of the label drawn by a
-// format, by which the layout makes room for it and the renderer cuts
-// it.
+// LabelRunes is the number of characters of the widest line of the
+// label drawn by a format, by which the layout makes room for it and the
+// renderer cuts it (LabelLines).
 func LabelRunes(format, label string, attrs AttrList) int {
-	n := 0
+	widest, _ := LabelLines(format, label, attrs)
+	return widest
+}
+
+// LabelLines is the size of the label drawn by a format: the number of
+// characters of its widest line, and its number of lines, one at least.
+// A line ends at a line feed, a carriage return, or the two together,
+// which is one break (NextLine), wherever in the format's parts it
+// falls; the lines are drawn LabelLine apart.
+func LabelLines(format, label string, attrs AttrList) (widest, lines int) {
+	n, cr := 0, false
+	lines = 1
 	// bound: the format's parts, at most its length
 	for more := true; more; {
 		var before, value, after string
 		before, value, after, format = NextLabelPart(format, label, attrs)
-		n += runes(before) + runes(value) + runes(after)
+		for _, s := range [3]string{before, value, after} {
+			// bound: the part
+			for i := 0; i < len(s); i++ {
+				c := s[i]
+				switch {
+				case c == '\n' && cr: // the line feed of a CRLF, whose return broke the line
+				case c == '\n' || c == '\r':
+					widest, n = max(widest, n), 0
+					lines++
+				case c&0xC0 != 0x80:
+					n++
+				}
+				cr = c == '\r'
+			}
+		}
 		more = format != ""
 	}
-	return n
+	return max(widest, n), lines
 }
+
+// LabelLine is how far apart the lines of a label are drawn, as a
+// compartment's are.
+const LabelLine = CompartmentLine
 
 // AppendLabel appends the label drawn by a format.
 func AppendLabel(dst []byte, format, label string, attrs AttrList) []byte {
@@ -140,4 +169,36 @@ func (d *Document) VertexLabelRunes(v VertexIndex) int {
 func (d *Document) EdgeLabelRunes(e EdgeIndex) int {
 	x := &d.edges[e]
 	return LabelRunes(d.kinds.edge[x.Kind].LabelFormat, x.Label, AttrList{x.Attrs})
+}
+
+// VertexLabelLines is the number of lines of a vertex's label as its
+// kind's format draws it.
+func (d *Document) VertexLabelLines(v VertexIndex) int {
+	x := &d.vertices[v]
+	_, lines := LabelLines(d.kinds.vertex[x.Kind].LabelFormat, x.Label, AttrList{x.Attrs})
+	return lines
+}
+
+// EdgeLabelLines is the number of lines of an edge's label as its
+// kind's format draws it.
+func (d *Document) EdgeLabelLines(e EdgeIndex) int {
+	x := &d.edges[e]
+	_, lines := LabelLines(d.kinds.edge[x.Kind].LabelFormat, x.Label, AttrList{x.Attrs})
+	return lines
+}
+
+// MoreLines is the room the lines of a label after its first take, of
+// lines in all: LabelLine each.
+func MoreLines(lines int) float64 { return float64(float64(max(lines-1, 0)) * LabelLine) }
+
+// TitleHeight is the room at the top of vertex v for its label: a
+// container's title (ContainerTitle), or what is above a vertex's
+// compartments (TitleRoom), with a line's more for each line of the
+// label after its first.
+func (d *Document) TitleHeight(v VertexIndex) float64 {
+	room := float64(ContainerTitle)
+	if k := (VertexKindView{&d.kinds.vertex[d.vertices[v].Kind]}); !k.Container() {
+		room = TitleRoom(k)
+	}
+	return room + MoreLines(d.VertexLabelLines(v))
 }

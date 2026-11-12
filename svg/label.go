@@ -28,32 +28,36 @@ const minLabelWidth = 80
 
 // VertexLabelBox is the box of a vertex's label: across the vertex at
 // its label's height, at an actor's foot as wide as its text, or a
-// container's title at its top.
+// container's title at its top; a line taller for each line of the
+// label after its first, about where the renderer draws them.
 func VertexLabelBox(d *gw.Document, v gw.VertexIndex) gw.Viewport {
 	x := d.Vertex(v)
 	kind := d.Kinds().Vertex(x.Kind())
 	textW := float64(float64(d.VertexLabelRunes(v)) * defaultCharWidth)
+	more := gw.MoreLines(d.VertexLabelLines(v))
 	switch {
 	case kind.Container():
 		top := x.Pos().Y - float64(x.Size().H/2)
-		return gw.Viewport{X: x.Pos().X - float64(x.Size().W/2) + 4, Y: top + gw.ContainerTitle/2 - labelHeight/2 + 1, W: math.Max(x.Size().W-8, minLabelWidth), H: labelHeight}
+		return gw.Viewport{X: x.Pos().X - float64(x.Size().W/2) + 4, Y: top + gw.ContainerTitle/2 - labelHeight/2 + 1, W: math.Max(x.Size().W-8, minLabelWidth), H: labelHeight + more}
 	case d.ShowsCompartments(v):
 		top := x.Pos().Y - float64(x.Size().H/2)
-		return centred(x.Pos().X, top+gw.TitleRoom(kind)-8-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth))
+		return centred(x.Pos().X, top+d.TitleHeight(v)-8-float64(more/2)-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth), more)
 	case labelBelow(d, x):
+		// At an actor's foot its lines go up, under a provided shape's
+		// box down.
 		w := math.Max(textW+16, minLabelWidth)
-		foot := float64(x.Size().H/2) - 4
+		foot := float64(x.Size().H/2) - 4 - float64(more/2)
 		if kind.Shape() >= gw.Provided {
-			foot = float64(x.Size().H/2) + belowGap
+			foot = float64(x.Size().H/2) + belowGap + float64(more/2)
 		}
-		return centred(x.Pos().X, x.Pos().Y+foot-defaultFontSize/3, w)
+		return centred(x.Pos().X, x.Pos().Y+foot-defaultFontSize/3, w, more)
 	}
 	if kind.Shape() >= gw.Provided {
 		// Between a provided shape's margins.
 		lx, ly, lw, _, _ := labelSlot(d, x)
-		return centred(x.Pos().X+lx, x.Pos().Y+ly+4-defaultFontSize/3, math.Max(lw+8, minLabelWidth))
+		return centred(x.Pos().X+lx, x.Pos().Y+ly+4-defaultFontSize/3, math.Max(lw+8, minLabelWidth), more)
 	}
-	return centred(x.Pos().X, x.Pos().Y+4-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth))
+	return centred(x.Pos().X, x.Pos().Y+4-defaultFontSize/3, math.Max(x.Size().W, minLabelWidth), more)
 }
 
 // EdgeLabelBox is the box of an edge's label, where it is drawn or
@@ -103,28 +107,33 @@ func turnedLength(d *gw.Document, i gw.EdgeIndex) float64 {
 }
 
 // labelBoxAt is the box of edge i's label drawn at mid on its way w, and
-// whether it is turned.
+// whether it is turned: a line taller, or turned wider, for each line
+// of the label after its first.
 func labelBoxAt(d *gw.Document, i gw.EdgeIndex, w *way, mid gw.Point) (gw.Viewport, bool) {
 	kind := d.Kinds().Edge(d.Edge(i).Kind())
 	lw, side := labelWidth(d, i), w.side()
+	more := gw.MoreLines(d.EdgeLabelLines(i))
 	if c, ok := w.turnedAt(mid, turnedLength(d, i)); ok {
 		x := mid.X + 2
 		if side < 0 {
-			x = mid.X - 2 - labelHeight
+			x = mid.X - 2 - labelHeight - more
 		}
-		return gw.Viewport{X: x, Y: c - float64(lw/2), W: labelHeight, H: lw}, true
+		return gw.Viewport{X: x, Y: c - float64(lw/2), W: labelHeight + more, H: lw}, true
 	}
-	return levelBoxAt(kind, w.f, mid, side, lw), false
+	return levelBoxAt(kind, w.f, mid, side, lw, more), false
 }
 
 // levelBoxAt is the box of a label of width w drawn level at mid, on
-// side of its lane, in frame f.
-func levelBoxAt(kind gw.EdgeKindView, f frame, mid gw.Point, side, w float64) gw.Viewport {
+// side of its lane, in frame f, with more room for its lines after its
+// first: beside the stroke they are centred on mid, above it the last
+// is the nearest, and below it the first.
+func levelBoxAt(kind gw.EdgeKindView, f frame, mid gw.Point, side, w, more float64) gw.Viewport {
 	if f.down {
+		y := mid.Y - float64((labelHeight+more)/2)
 		if side < 0 {
-			return gw.Viewport{X: mid.X - 2 - w, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
+			return gw.Viewport{X: mid.X - 2 - w, Y: y, W: w, H: labelHeight + more}
 		}
-		return gw.Viewport{X: mid.X + 2, Y: mid.Y - labelHeight/2, W: w, H: labelHeight}
+		return gw.Viewport{X: mid.X + 2, Y: y, W: w, H: labelHeight + more}
 	}
 	base, step := mid.Y-defaultStroke/2-4, -float64(defaultFontSize)
 	if side < 0 {
@@ -133,15 +142,20 @@ func levelBoxAt(kind gw.EdgeKindView, f frame, mid gw.Point, side, w float64) gw
 	if kind.Stereotype() != "" {
 		base += step
 	}
-	return centred(mid.X, base-defaultFontSize/3, w)
+	if side < 0 {
+		return centred(mid.X, base+float64(more/2)-defaultFontSize/3, w, more)
+	}
+	return centred(mid.X, base-float64(more/2)-defaultFontSize/3, w, more)
 }
 
 // defaultStroke is the stroke width of an unweighted edge.
 const defaultStroke = 1.5
 
-// centred is a label box of the width centred on (x, y).
-func centred(x, y, w float64) gw.Viewport {
-	return gw.Viewport{X: x - float64(w/2), Y: y - labelHeight/2, W: w, H: labelHeight}
+// centred is a label box of the width centred on (x, y), with more
+// room for the lines of a label after its first.
+func centred(x, y, w, more float64) gw.Viewport {
+	h := labelHeight + more
+	return gw.Viewport{X: x - float64(w/2), Y: y - float64(h/2), W: w, H: h}
 }
 
 // inLabel reports whether p is in the box of an edge's label, when it

@@ -314,7 +314,7 @@ In edit mode the drawing shows a palette of the schema's kinds above it.
 | add a shape | drag a kind from the palette onto the drawing |
 | connect | drag from a port, or from the edge of a shape without ports (it shows a ring and a crosshair), to another shape |
 | choose a line kind | click an edge kind in the palette: new edges take it until it is clicked again; otherwise the first kind the two shapes allow is used |
-| edit a label | double-click a shape, an edge or a container, or select one and press Enter, press F2 or just start typing; Enter or a click elsewhere keeps the text, Escape drops it. A kind with an `EditAttr` edits that attribute instead ([Schemas](schemas.md)) |
+| edit a label | double-click a shape, an edge or a container, or select one and press Enter, press F2 or just start typing; Enter or a click elsewhere keeps the text, Shift+Enter starts a new line, Escape drops it. A kind with an `EditAttr` edits that attribute instead ([Schemas](schemas.md)) |
 | delete | Delete or Backspace |
 | nudge | the arrow keys, one grid step |
 | undo, redo | Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y (Cmd on a Mac) |
@@ -389,7 +389,7 @@ restyle it with CSS or script it.
   `.graphedwright-palette` with `.graphedwright-item` buttons
   (`.graphedwright-vertex` and `.graphedwright-edge`, the chosen one
   `.graphedwright-chosen`), `.graphedwright-drawing` and the
-  `.graphedwright-label` input. The host element carries `data-held`
+  `.graphedwright-label` textarea, which keeps a label's lines. The host element carries `data-held`
   while the page holds the editor.
 
 The default stylesheet sets an edge halo's colour but not its width,

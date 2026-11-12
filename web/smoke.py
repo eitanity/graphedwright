@@ -199,6 +199,10 @@ def check(out, native, example):
     if h != {"hold": {"ok": True}, "inputHidden": True, "labelKept": "k", "marked": True, "heldMoved": False, "setLabel": {"ok": True}, "label": "by the host", "loadedMoved": False, "loadedMarked": True, "release": {"ok": True}, "unmarked": True, "releasedMoved": True}:
         raise SystemExit(f"the hold: {h}")
 
+    ln = out["lines"]
+    if ln != {"editing": "one\ntwo", "unchanged": "one\ntwo", "shiftKept": True, "shiftOpen": True, "shiftLabel": "one\ntwo", "grew": True, "typed": "one\ntwo\nthree", "drawn": 3}:
+        raise SystemExit(f"a label of lines: {ln}")
+
 def check_eventtree(seen):
     """What a person using the event-tree example would see: the figures
     the app computed, the split its rule made, one undo for an edit and

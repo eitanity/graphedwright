@@ -244,15 +244,17 @@ func acrossSide(box, c gw.Viewport) bool {
 
 // titleBox is the box a container's title takes as drawn (title): its
 // keyword and label from the left of the band at its top, as wide as
-// their text, no wider than the band.
+// their text, no wider than the band, and a line deeper for each line
+// of the label after its first.
 func titleBox(d *gw.Document, v gw.VertexView) gw.Viewport {
 	b := vertexBox(v)
 	kind := d.Kinds().Vertex(v.Kind())
-	w := float64(float64(gw.LabelRunes(kind.LabelFormat(), v.Label(), v.Attrs())) * defaultCharWidth)
+	runes, lines := gw.LabelLines(kind.LabelFormat(), v.Label(), v.Attrs())
+	w := float64(float64(runes) * defaultCharWidth)
 	if k := runeCount(kind.Keyword()); k > 0 {
 		w += float64(float64(k)*float64(defaultCharWidth*0.9)) + defaultCharWidth/2
 	}
-	return gw.Viewport{X: b.X + 8, Y: b.Y, W: math.Min(w, math.Max(0, b.W-16)), H: gw.ContainerTitle}
+	return gw.Viewport{X: b.X + 8, Y: b.Y, W: math.Min(w, math.Max(0, b.W-16)), H: gw.ContainerTitle + gw.MoreLines(lines)}
 }
 
 // vertexBox is a vertex's box.

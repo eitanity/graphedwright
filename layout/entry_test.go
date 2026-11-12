@@ -206,12 +206,12 @@ func TestFootWidth(t *testing.T) {
 // the descent, and keep the usual gap of 20 beyond it; without names
 // they stand the gap apart, short of a name's room more. A keyword over
 // the box, with no name, takes the line above as the name takes the one
-// below.
+// below. A name of four lines takes three lines more.
 func TestFootHeight(t *testing.T) {
 	for _, c := range []struct {
 		label, keyword string
 		room           float64
-	}{{"", "", 20}, {"a", "", 20 + 18}, {"", "«k»", 20 + 18}} {
+	}{{"", "", 20}, {"a", "", 20 + 18}, {"", "«k»", 20 + 18}, {"a\nb\nc\nd", "", 20 + 18 + 3*gw.LabelLine}} {
 		s := gw.Schema{
 			Shapes:      []gw.ShapeDef{{Name: "dot", Box: gw.Size{W: 28, H: 28}, Outline: gw.OutlineEllipse, Label: gw.LabelBelow, Paths: []gw.ShapePath{{D: "M 0 14 A 14 14 0 0 1 28 14 A 14 14 0 0 1 0 14 Z"}}}},
 			VertexKinds: []gw.VertexKind{{Name: "dot", Shape: gw.Provided, Size: gw.Size{W: 32, H: 32}, Keyword: c.keyword}},

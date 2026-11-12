@@ -294,3 +294,67 @@ func TestBandRoomGap(t *testing.T) {
 		}
 	}
 }
+
+// TestTitleLinesLaidOut: a container whose title has two lines is laid
+// out a line taller, with what it holds as far below its title as
+// below one of one line, and the vertices beside it, across the flow
+// left to right and after it along the flow top to bottom, as far off
+// it as from one with a title of one line.
+func TestTitleLinesLaidOut(t *testing.T) {
+	for _, f := range []gw.Flow{gw.LeftToRight, gw.TopToBottom} {
+		var gap0, h0 float64
+		for _, title := range []string{"zone", "zone\nof two lines"} {
+			d, err := makeDoc(gw.Schema{
+				VertexKinds: []gw.VertexKind{{Name: "node", Shape: gw.Rect, Size: gw.Size{W: 60, H: 40}}, {Name: "zone", Shape: gw.Rect, Size: gw.Size{W: 60, H: 40}, Container: true}},
+				EdgeKinds:   []gw.EdgeKind{{Name: "line", Route: gw.Orthogonal}},
+			}, gw.Caps{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			add := func(k gw.KindIndex, text string) gw.VertexIndex {
+				t.Helper()
+				ch, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: k, Text: text})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return ch.Vertices[0]
+			}
+			cmd := func(c gw.Command) {
+				t.Helper()
+				if _, err := d.Apply(c); err != nil {
+					t.Fatal(err)
+				}
+			}
+			z := add(1, title)
+			a, x, y, w := add(0, "a"), add(0, "x"), add(0, "y"), add(0, "w")
+			cmd(gw.Command{Op: gw.SetParent, Vertex: a, To: z})
+			// x before the zone and y beside it, w after it.
+			cmd(gw.Command{Op: gw.AddEdge, From: x, To: z, FromPort: gw.None, ToPort: gw.None})
+			cmd(gw.Command{Op: gw.AddEdge, From: x, To: y, FromPort: gw.None, ToPort: gw.None})
+			cmd(gw.Command{Op: gw.AddEdge, From: z, To: w, FromPort: gw.None, ToPort: gw.None})
+			d.SetFlow(f)
+			if _, err := layout.New(d.Caps()).Run(d, layout.Options{All: true}); err != nil {
+				t.Fatal(err)
+			}
+			zv, av := d.Vertex(z), d.Vertex(a)
+			top := zv.Pos().Y - zv.Size().H/2
+			if got, want := av.Pos().Y-av.Size().H/2-top, gw.ContainerPad+d.TitleHeight(z); math.Abs(got-want) > 1e-9 {
+				t.Errorf("flow %v, %q: what the zone holds %v below its top, want %v", f, title, got, want)
+			}
+			// The gap across the flow left to right, which the title is
+			// across; along it top to bottom.
+			other := d.Vertex(y)
+			if f == gw.TopToBottom {
+				other = d.Vertex(w)
+			}
+			gap := math.Abs(zv.Pos().Y-other.Pos().Y) - (zv.Size().H+other.Size().H)/2
+			if h0 == 0 {
+				gap0, h0 = gap, zv.Size().H
+				continue
+			}
+			if math.Abs(gap-gap0) > 1e-9 || math.Abs(zv.Size().H-(h0+gw.LabelLine)) > 1e-9 {
+				t.Errorf("flow %v, %q: gap %v, zone %v high; want %v, %v", f, title, gap, zv.Size().H, gap0, h0+gw.LabelLine)
+			}
+		}
+	}
+}

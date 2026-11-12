@@ -87,6 +87,20 @@ The rules a schema can set:
   room for the label as drawn. A schema refuses a format whose braces
   are unpaired or nested, with more than two bars in a placeholder, or
   naming a key the kind does not declare.
+- **Lines:** a label's line breaks (a line feed, a carriage return, or
+  the two together) start new lines, wherever the format's parts put
+  them, as a compartment's do. The lines are drawn one under another,
+  14 apart: a vertex's centred where its one line would be, at an
+  actor's foot up from it with the figure shorter above them, and under
+  a provided shape's box down from it. A container's title, and the
+  label above a vertex's compartments, are given a line's more room
+  for each line after the first, so the box grows when the label does.
+  An edge's label stacks away from the stroke: above it the last line
+  is the nearest, and beside it the lines are centred on its middle.
+  The room a label takes is its widest line across and its lines
+  down, wherever the layout, the label placer and the input measure
+  it, and a line too wide for its room is cut on its own, the others
+  drawn whole.
 - **No cycles:** `Acyclic` refuses an edge that would close a cycle,
   naming it: `edge would make a cycle: log → app → cli → log`.
 - **Reachability:** `Connected` asks that every vertex be reachable from
@@ -346,7 +360,10 @@ The placeholders of a labelled edge are as long along the flow as its
 label, so that the run through one holds it, off the gaps either side
 where the next layers' labels are: left to right, the label is drawn
 above the run; top to bottom, it is turned to read along it, a line
-beside it that the gap between placeholders holds.
+beside it that the gap between placeholders holds. A label of more
+lines makes its placeholders as wide across the flow as its lines
+after the first, either side, so the neighbouring runs stand clear of
+them.
 
 A labelled edge between adjacent layers whose ends are further apart
 across the flow than a line of text would climb across its label. It
@@ -398,13 +415,14 @@ containers nest.
   for a container that doesn't take the vertex's kind (`Contains`), or
   for a vertex going inside itself or something it holds.
 - **Fitting:** a container that holds anything is fitted around it,
-  with 16 units of padding and 20 more at the top for its title. Its
+  with 16 units of padding and 20 more at the top for its title, and 14
+  more for each line of the title after its first. Its
   sides across the flow stand 16 further out (`BandRoom`) when an edge
   from outside runs to a member that another stands wholly before or
   after along the flow, so that the run round that one, along the band
   beside what the container holds, keeps clear of the side. It is
   fitted again after every command that moves, resizes, deletes or
-  re-parents a vertex.
+  re-parents a vertex, or relabels one.
 - **Its own size:** a container that holds nothing is its own size: the
   size it was given when added or last resized (`Vertex.Min`), or its
   kind's when it was given none. A container that holds something is

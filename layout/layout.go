@@ -140,7 +140,8 @@ func (l *Layouter) labelRoom(d *gw.Document) {
 }
 
 // labelCarriers makes the dummies of each labelled edge as long along
-// the flow as its text: the renderer draws the label along the run
+// the flow as its text, and as wide across it as the lines of its label
+// after its first, either side: the renderer draws the label along the run
 // through one of them, which depends on the bends the edge's ends are
 // given, above it left to right and turned to read along it beside it
 // top to bottom, a line that the gap between dummies holds across the
@@ -159,9 +160,12 @@ func (l *Layouter) labelCarriers(d *gw.Document) {
 			continue
 		}
 		room := float64(float64(chars)*labelChar) + 2*labelPad
+		// A label's lines after its first stand further off the run, on
+		// one side or the other, which the dummies keep clear either way.
+		across := float64(2 * gw.MoreLines(d.EdgeLabelLines(e)))
 		// bound: the edge's dummies
 		for k := range l.dN[i] {
-			l.w[l.dFirst[i]+k] = room
+			l.w[l.dFirst[i]+k], l.h[l.dFirst[i]+k] = room, across
 		}
 	}
 }
@@ -817,8 +821,9 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 
 // footHeight is the height vertex i takes in the layout: its own, or,
 // where its kind is a provided shape that draws its label under its box
-// and its keyword over it, a line more above and below, kept about the
-// centre, so that a vertex above or below in its layer clears them.
+// and its keyword over it, a line more above and below, and a line more
+// for each line of the label after its first, kept about the centre, so
+// that a vertex above or below in its layer clears them.
 func footHeight(d *gw.Document, i gw.VertexIndex) float64 {
 	v := d.Vertex(i)
 	h := v.Size().H
@@ -829,7 +834,7 @@ func footHeight(d *gw.Document, i gw.VertexIndex) float64 {
 	if d.VertexLabelRunes(i) == 0 && kind.Keyword() == "" {
 		return h
 	}
-	return h + 2*labelLine
+	return h + float64(2*float64(labelLine+gw.MoreLines(d.VertexLabelLines(i))))
 }
 
 // footWidth is the width vertex i takes in the layout: its own, or,
@@ -889,8 +894,9 @@ func (l *Layouter) box(d *gw.Document, c gw.VertexIndex, opts Options) {
 	} else {
 		x0, y0, x1, y1 = x0-back, y0-band, x1+on, y1+band
 	}
-	w, h := x1-x0+2*gw.ContainerPad, y1-y0+2*gw.ContainerPad+gw.ContainerTitle
-	ex, ey := float64((x0+x1)/2), float64((y0+y1)/2)-gw.ContainerTitle/2
+	title := d.TitleHeight(c)
+	w, h := x1-x0+2*gw.ContainerPad, y1-y0+2*gw.ContainerPad+title
+	ex, ey := float64((x0+x1)/2), float64((y0+y1)/2)-float64(title/2)
 	// Grown to its own size from the top left corner, as the fit does.
 	if own := d.Vertex(c).Min(); w < own.W {
 		ex, w = ex+float64((own.W-w)/2), own.W

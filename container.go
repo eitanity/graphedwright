@@ -6,7 +6,8 @@ import "math"
 // most one container, its Parent, and containers nest. A container that
 // holds a live vertex is sized to the box around what it holds, with
 // ContainerPad on every side and ContainerTitle more above for its
-// label, and grown right and down to its own size, Min, when that is
+// label, a line more for each line of the label after its first
+// (TitleHeight), and grown right and down to its own size, Min, when that is
 // larger; moving it moves what it holds, and deleting it deletes what
 // it holds. A container that holds nothing is its own size, or its
 // kind's when it has none, with its top left corner where it was.
@@ -292,8 +293,9 @@ func (d *Document) fitOne(i VertexIndex) {
 			} else {
 				b[0], b[1], b[2], b[3] = b[0]-back, b[1]-band, b[2]+on, b[3]+band
 			}
-			pos = Point{X: float64((b[0] + b[2]) / 2), Y: float64((b[1]+b[3])/2) - ContainerTitle/2}
-			size = Size{W: b[2] - b[0] + 2*ContainerPad, H: b[3] - b[1] + 2*ContainerPad + ContainerTitle}
+			title := d.TitleHeight(i)
+			pos = Point{X: float64((b[0] + b[2]) / 2), Y: float64((b[1]+b[3])/2) - float64(title/2)}
+			size = Size{W: b[2] - b[0] + 2*ContainerPad, H: b[3] - b[1] + 2*ContainerPad + title}
 			// Grown to its own size, and to its ports' room, from the
 			// top left corner, which stays where what it holds puts it.
 			pos, size = grow(pos, size, v.Min)
