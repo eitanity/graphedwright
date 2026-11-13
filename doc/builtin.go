@@ -93,7 +93,7 @@ func useCase() gw.Schema {
 			{Name: "association", From: []gw.KindIndex{ucActor}, To: []gw.KindIndex{ucUseCase}},
 			{Name: "include", From: []gw.KindIndex{ucUseCase}, To: []gw.KindIndex{ucUseCase}, Arrow: true, Head: gw.OpenHead, Dashed: true, Stereotype: "«include»"},
 			{Name: "extend", From: []gw.KindIndex{ucUseCase}, To: []gw.KindIndex{ucUseCase}, Arrow: true, Head: gw.OpenHead, Dashed: true, Stereotype: "«extend»"},
-			{Name: "generalisation", From: []gw.KindIndex{ucActor, ucUseCase}, To: []gw.KindIndex{ucActor, ucUseCase}, Arrow: true, Head: gw.HollowHead},
+			{Name: "generalisation", From: []gw.KindIndex{ucActor, ucUseCase}, To: []gw.KindIndex{ucActor, ucUseCase}, SameKind: true, Arrow: true, Head: gw.HollowHead},
 		},
 	}
 }

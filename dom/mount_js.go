@@ -80,11 +80,13 @@ func (h *Handle) zoomBar(doc js.Value) {
 		el.Call("setAttribute", "aria-label", b.title)
 		bar.Call("appendChild", el)
 		f := b.f
+		// Through the handle's own calls, so that a click is dropped as
+		// any event is while a Host method runs, and grouped.
 		h.listen(el, "click", func(js.Value, []js.Value) any {
 			if f == 0 {
-				h.report(h.ed.Fit(), nil)
+				_ = h.Fit() // discarded: a refusal drops the click, as any event is dropped while a Host method runs or after destroy
 			} else {
-				h.report(h.ed.Zoom(f), nil)
+				_ = h.Zoom(f) // discarded: as for Fit, and a button's factor is positive
 			}
 			return nil
 		})

@@ -242,6 +242,7 @@ s := gw.Schema{
 |---|---|
 | `Name` | the palette entry, the name in documents, and the SVG class after `kind-` |
 | `From`, `To` | the vertex kinds allowed at each end; empty for any |
+| `SameKind` | both ends must be of one kind, as a generalisation is between actors or between use cases (`sameKind` from JavaScript) |
 | `Route` | `Straight`, `Curve` or `Orthogonal` |
 | `Arrow` | draws an arrowhead at the end |
 | `Head` | `FilledHead` (the default), `OpenHead`, `HollowHead`, `TypedHead` (hollow, two dots inside) or `BarHead` (hollow, a bar across its base) |

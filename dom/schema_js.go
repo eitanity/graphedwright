@@ -15,7 +15,7 @@ import (
 //	  container, contains: [kindName], keyword, compartments: [key], maxWidth,
 //	  labelFormat, editAttr, note, ports: [{name, side, max}],
 //	  attrs: [{key, kind, choices, required, default, min, max}]}],
-//	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
+//	  edgeKinds: [{name, from: [kindName], to: [kindName], sameKind, route, arrow, head,
 //	  tail, dashed, stereotype, weighted, labelFormat, editAttr, attrs}],
 //	  shapes: [{name, w, h, margins, paths, outline, polygon, label, turns}] }
 //
@@ -92,7 +92,7 @@ func vertexKindFromJS(s *gw.Schema, k js.Value) (gw.VertexKind, error) {
 }
 
 func edgeKindFromJS(s gw.Schema, k js.Value) (gw.EdgeKind, error) {
-	ek := gw.EdgeKind{Name: str(k, "name"), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
+	ek := gw.EdgeKind{Name: str(k, "name"), SameKind: get(k, "sameKind").Truthy(), Arrow: get(k, "arrow").Truthy(), Weighted: get(k, "weighted").Truthy(), Dashed: get(k, "dashed").Truthy(), Stereotype: str(k, "stereotype"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
 	var err error
 	if ek.Route, err = routeOf(str(k, "route")); err != nil {
 		return ek, err

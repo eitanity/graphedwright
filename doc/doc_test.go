@@ -786,3 +786,22 @@ func TestBuiltinNotes(t *testing.T) {
 		}
 	}
 }
+
+// TestGeneralisationSameKind: in the use-case schema a generalisation
+// joins two actors or two use cases, and is refused between an actor and
+// a use case either way.
+func TestGeneralisationSameKind(t *testing.T) {
+	for _, c := range []struct {
+		from, to string
+		ok       bool
+	}{{"a", "b", true}, {"u", "w", true}, {"a", "u", false}, {"u", "a", false}} {
+		src := `{"schema": "use-case", "vertices": [
+			{"id": "a", "kind": "actor"}, {"id": "b", "kind": "actor"},
+			{"id": "u", "kind": "use case"}, {"id": "w", "kind": "use case"}],
+			"edges": [{"id": "g", "kind": "generalisation", "from": "` + c.from + `", "to": "` + c.to + `"}]}`
+		_, err := doc.Decode([]byte(src), doc.Options{Schemas: doc.Builtin()})
+		if (err == nil) != c.ok || err != nil && !strings.Contains(err.Error(), "cannot join") {
+			t.Errorf("%s to %s: %v, want accepted %v", c.from, c.to, err, c.ok)
+		}
+	}
+}

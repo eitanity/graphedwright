@@ -126,7 +126,8 @@ const KeywordHeight = 32
 
 // EdgeKind is a palette entry for edges: the vertex kinds it may join at
 // each end (empty is any), how it is routed and drawn, and the
-// attributes it takes. Head says how an arrow ends, and Tail what is
+// attributes it takes; SameKind asks that both ends be of one kind,
+// such as a generalisation between actors or between use cases. Head says how an arrow ends, and Tail what is
 // drawn where the edge starts; a stereotype, such as «include», is
 // drawn on every edge of the kind beside its label. A label format
 // builds the label drawn, and EditAttr names the attribute the text
@@ -134,6 +135,7 @@ const KeywordHeight = 32
 type EdgeKind struct {
 	Name        string
 	From, To    []KindIndex
+	SameKind    bool
 	Route       Route
 	Arrow       bool
 	Head        Head
@@ -440,7 +442,7 @@ func spec(specs []AttrSpec, key string) (AttrSpec, bool) {
 
 // allows reports whether the edge kind may join the two vertex kinds.
 func (k EdgeKind) allows(from, to KindIndex) bool {
-	return kindIn(k.From, from) && kindIn(k.To, to)
+	return kindIn(k.From, from) && kindIn(k.To, to) && (!k.SameKind || from == to)
 }
 
 // kindIn reports whether the kind is in the list, an empty list meaning any.
