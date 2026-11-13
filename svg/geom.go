@@ -90,7 +90,7 @@ func sidePoint(pos gw.Point, size gw.Size, side gw.Side, k, n int) gw.Point {
 func ends(d *gw.Document, i gw.EdgeIndex, through gw.PointList) (a, b gw.Point) {
 	e := d.Edge(i)
 	from, to := d.Vertex(e.From()), d.Vertex(e.To())
-	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight && e.From() != e.To() {
+	if d.Route(i) == gw.Straight && e.From() != e.To() {
 		a, b = from.Pos(), to.Pos()
 		if e.FromPort() != gw.None {
 			a = portOn(d, e.From(), e.FromPort())
@@ -301,11 +301,12 @@ type way struct {
 	a, b     gw.Point
 	through  gw.PointList
 	k, n     int
-	ownLeg   bool    // its label goes on its last leg: an orthogonal edge whose turn another shares
-	away     float64 // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
-	at       float64 // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
-	flip     bool    // its texts go on the other side of its line, a layout's choice
-	enclosed bool    // it joins a container and what it holds (gw.Document.Enclosing)
+	ownLeg   bool     // its label goes on its last leg: an orthogonal edge whose turn another shares
+	away     float64  // the way across the flow, -1 or 1, from the other ends spread along a side with its own; 0 for none
+	at       float64  // where along the route its label goes, a layout's choice (gw.Document.SetLabelAt); 0 for the middle
+	flip     bool     // its texts go on the other side of its line, a layout's choice
+	enclosed bool     // it joins a container and what it holds (gw.Document.Enclosing)
+	route    gw.Route // how it is drawn (gw.Document.Route): its kind's, straight for an anchor
 }
 
 // laneGap is how far apart lanes run: a label's height, so that the
@@ -315,7 +316,7 @@ const laneGap = labelHeight
 // wayOf is the way of edge i; lane holds its lane's point.
 func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	e := d.Edge(i)
-	w := way{f: frameOf(d, e), through: e.Bends(), n: 1, enclosed: d.Enclosing(e.From(), e.To()) != 0}
+	w := way{f: frameOf(d, e), through: e.Bends(), n: 1, enclosed: d.Enclosing(e.From(), e.To()) != 0, route: d.Route(i)}
 	w.a, w.b = ends(d, i, e.Bends())
 	k, n := d.Parallel(i)
 	if n < 2 {
@@ -332,7 +333,7 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 	if run <= 0 {
 		return w // it loops, and its lane would only add a turn
 	}
-	if d.Kinds().Edge(e.Kind()).Route() == gw.Straight {
+	if w.route == gw.Straight {
 		p, q = w.f.t(d.Vertex(e.From()).Pos()), w.f.t(d.Vertex(e.To()).Pos())
 	}
 	off := float64((float64(k) - float64(float64(n-1)/2)) * laneGap)
@@ -529,14 +530,14 @@ func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }
 // beside into the same target.
 func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
 	e := d.Edge(i)
-	if d.Kinds().Edge(e.Kind()).Route() != gw.Orthogonal || w.through.Len() > 0 {
+	if w.route != gw.Orthogonal || w.through.Len() > 0 {
 		return false
 	}
 	turn := turnAt(w.f.t(w.a), w.f.t(w.b))
 	// bound: the out list visits each edge of the vertex once
 	for o := d.FirstOut(e.From()); o != gw.None; o = d.NextOut(o) {
 		x := d.Edge(o)
-		if o == i || d.Kinds().Edge(x.Kind()).Route() != gw.Orthogonal || x.Bends().Len() > 0 {
+		if o == i || d.Route(o) != gw.Orthogonal || x.Bends().Len() > 0 {
 			continue
 		}
 		if _, n := d.Parallel(o); n > 1 {
@@ -604,7 +605,7 @@ func (w *way) started(kind gw.EdgeKindView) gw.Point {
 	}
 	a, b := f.t(w.a), f.t(next)
 	var dx, dy float64
-	switch legRoute(kind.Route(), w.through.Len() > 0, a, b) {
+	switch legRoute(w.route, w.through.Len() > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -633,7 +634,7 @@ func (w *way) shortened(kind gw.EdgeKindView) gw.Point {
 	}
 	a, b := f.t(lastFrom(w.a, w.through)), f.t(w.b)
 	var dx, dy float64
-	switch legRoute(kind.Route(), w.through.Len() > 0, a, b) {
+	switch legRoute(w.route, w.through.Len() > 0, a, b) {
 	case gw.Straight:
 		dx, dy = b.X-a.X, b.Y-a.Y
 	case gw.Curve:
@@ -720,7 +721,7 @@ func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	kind := d.Kinds().Edge(d.Edge(i).Kind())
-	route := kind.Route()
+	route := wy.route
 	f := wy.f
 	// A tail lies between the source and the stroke's start, along the
 	// first leg as it leaves.

@@ -97,7 +97,7 @@ func ContainerAt(d *gw.Document, p gw.Point, v gw.VertexIndex) gw.VertexIndex {
 		if !inBox(d.Vertex(c), p) {
 			continue
 		}
-		if v == gw.None || (!d.Within(c, v) && d.Kinds().Vertex(d.Vertex(c).Kind()).Holds(d.Vertex(v).Kind())) {
+		if v == gw.None || (!d.Within(c, v) && d.Kinds().Holds(d.Vertex(c).Kind(), d.Vertex(v).Kind())) {
 			return c
 		}
 	}

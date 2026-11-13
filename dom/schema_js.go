@@ -13,7 +13,7 @@ import (
 //
 //	{ name, acyclic, vertexKinds: [{name, shape, w, h, root, leaf, max, dashed,
 //	  container, contains: [kindName], keyword, compartments: [key], maxWidth,
-//	  labelFormat, editAttr, ports: [{name, side, max}],
+//	  labelFormat, editAttr, note, ports: [{name, side, max}],
 //	  attrs: [{key, kind, choices, required, default, min, max}]}],
 //	  edgeKinds: [{name, from: [kindName], to: [kindName], route, arrow, head,
 //	  tail, dashed, stereotype, weighted, labelFormat, editAttr, attrs}],
@@ -69,7 +69,7 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(s *gw.Schema, k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr")}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr"), Note: get(k, "note").Truthy()}
 	compartments := get(k, "compartments")
 	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
 		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())

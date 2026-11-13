@@ -6,11 +6,13 @@ import (
 
 // coordinates gives every node a y from its place in the order: a
 // first stacking, then two passes centring each node on the median of
-// its neighbours in the layer before (down) and after (up), overlaps
-// pushed apart by the gap, placed vertices never moved; then each long
-// edge's dummies brought into one row where they fit; then an x from its
-// layer (placeLayers), which needs the ys for the room the label runs
-// take (climbRoom); then everything snapped to the grid.
+// its neighbours in the layer before (down) and after (up), a note on
+// its target's beside it (note.go), overlaps pushed apart by the gap,
+// placed vertices never moved; then each long edge's dummies brought
+// into one row where they fit; then an x from its layer (placeLayers),
+// which needs the ys for the room the label runs take (climbRoom); then
+// everything snapped to the grid, and each note brought back beside its
+// target.
 func (l *Layouter) coordinates(opts Options) {
 	for i := range l.realN {
 		if l.pin[i] {
@@ -48,6 +50,9 @@ func (l *Layouter) coordinates(opts Options) {
 			l.x[i] = math.Round(l.x[i]/opts.Grid) * opts.Grid
 			l.y[i] = math.Round(l.y[i]/opts.Grid) * opts.Grid
 		}
+	}
+	if l.notes {
+		l.besideTargets(opts.Gap, opts.Grid)
 	}
 }
 
@@ -106,6 +111,10 @@ func (l *Layouter) centreLayer(k int, opts Options) {
 		if m, ok := l.medianY(v); ok {
 			l.y[v] = m
 		}
+	}
+	if l.notes {
+		// A note has no neighbours of its own: it follows its target.
+		l.besideNotes(lo, hi, opts.Gap)
 	}
 	// Overlaps: walk the order and push each unfixed node below the one
 	// before it; a fixed node pushes the ones after it instead.

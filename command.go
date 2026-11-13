@@ -470,10 +470,13 @@ func (d *Document) checkEdgeEnds(c Command) error {
 	if !kind.allows(from.Kind, to.Kind) {
 		return refusal("edge kind " + strconv.Quote(kind.Name) + " cannot join " + d.kindName(from.Kind) + " to " + d.kindName(to.Kind))
 	}
-	if d.kinds.vertex[to.Kind].Root {
+	// An anchor explains what it joins rather than leading in or out of
+	// it, so a root or a leaf takes one.
+	anchor := d.isNote(c.From) || d.isNote(c.To)
+	if d.kinds.vertex[to.Kind].Root && !anchor {
 		return refusal("vertex " + d.vertexName(c.To) + " of kind " + d.kindName(to.Kind) + " takes no incoming edge")
 	}
-	if d.kinds.vertex[from.Kind].Leaf {
+	if d.kinds.vertex[from.Kind].Leaf && !anchor {
 		return refusal("vertex " + d.vertexName(c.From) + " of kind " + d.kindName(from.Kind) + " takes no outgoing edge")
 	}
 	if err := d.checkPort(c.From, c.FromPort, true); err != nil {

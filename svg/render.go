@@ -382,7 +382,7 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
 	f := w.f
-	r.path(f, kind, w.started(kind), w.through, w.shortened(kind))
+	r.path(f, w.route, w.started(kind), w.through, w.shortened(kind))
 	width := strokeWidth(d, opts, int(i), maxW)
 	o.numAttr("stroke-width", width)
 	if kind.Tail() != gw.NoTail {
@@ -400,7 +400,7 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 		o.str(`)"`)
 	}
 	o.str(`/>`)
-	mid := w.middle(kind.Route())
+	mid := w.middle(w.route)
 	if c, ok := w.turnedAt(mid, turnedLength(d, i)); ok {
 		r.turnedLabels(kind, e, note, gw.Point{X: mid.X, Y: c}, width, w.side(), opts)
 		o.str(`</g>`)
@@ -505,7 +505,7 @@ func (r *Renderer) turnedLabels(kind gw.EdgeKindView, e gw.EdgeView, note Annota
 // path writes the opening of an edge's path element with its route
 // from a through the bends to b, leg by leg, each worked out in the
 // frame and written back in the document's axes.
-func (r *Renderer) path(f frame, kind gw.EdgeKindView, a gw.Point, bends gw.PointList, b gw.Point) {
+func (r *Renderer) path(f frame, route gw.Route, a gw.Point, bends gw.PointList, b gw.Point) {
 	o := r.o
 	o.str(`<path d="M `)
 	o.point(a.X, a.Y)
@@ -516,7 +516,7 @@ func (r *Renderer) path(f frame, kind gw.EdgeKindView, a gw.Point, bends gw.Poin
 	for k := range bends.Len() + 1 {
 		p, q := leg(a, bends, b, k)
 		p, q = f.t(p), f.t(q)
-		switch legRoute(kind.Route(), bends.Len() > 0, p, q) {
+		switch legRoute(route, bends.Len() > 0, p, q) {
 		case gw.Straight:
 			r.at(f, ` L `, q)
 		case gw.Curve:
@@ -1170,7 +1170,7 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 		kind := d.Kinds().Edge(ed.Kind())
 		var lane [1]gw.Point
 		w := wayOf(d, e, &lane)
-		r.path(w.f, kind, w.a, w.through, w.shortened(kind))
+		r.path(w.f, w.route, w.a, w.through, w.shortened(kind))
 		o.str(` class="selection"`)
 		o.numAttr("stroke-width", strokeWidth(d, opts, int(e), maxW)+6)
 		o.str(`/>`)

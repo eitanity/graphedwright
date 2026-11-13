@@ -23,6 +23,9 @@ import (
 //     choices and final states, bullseyes, joined by transitions that carry their event, guard and
 //     actions; a state carries its entry, exit and internal behaviour.
 //
+// Each also has a note, a folded note, and an anchor from a note to any
+// kind, dashed and without an arrow, that joins it to what it explains.
+//
 // Each is compiled afresh; one that did not compile would have nil
 // Kinds, which Decode refuses by name.
 func Builtin() []Named {
@@ -34,12 +37,25 @@ func Builtin() []Named {
 	}
 }
 
-// named compiles a schema under its name.
+// named compiles a schema under its name, with a note and an anchor
+// added (withNotes).
 func named(name string, s gw.Schema) Named {
 	// discarded: the built-in schemas are the module's own, and
 	// TestBuiltinCompiles compiles each.
-	k, _ := gw.Compile(s)
+	k, _ := gw.Compile(withNotes(s))
 	return Named{Name: name, Kinds: k}
+}
+
+// withNotes adds to a schema a note kind, drawn as a folded note it
+// provides after its own shapes, and an anchor edge kind from a note to
+// any kind.
+func withNotes(s gw.Schema) gw.Schema {
+	folded, _ := shapes.Named(shapes.FoldedNote)
+	note := gw.KindIndex(len(s.VertexKinds)) //nolint:gosec // the module's own few kinds
+	s.Shapes = append(s.Shapes, folded)
+	s.VertexKinds = append(s.VertexKinds, gw.VertexKind{Name: "note", Shape: gw.Provided + gw.Shape(len(s.Shapes)-1), Size: gw.Size{W: 140, H: 50}, Note: true}) //nolint:gosec // the module's own few shapes
+	s.EdgeKinds = append(s.EdgeKinds, gw.EdgeKind{Name: "anchor", From: []gw.KindIndex{note}, Dashed: true})
+	return s
 }
 
 func basic() gw.Schema {

@@ -26,7 +26,8 @@ const MaxEndSlots = 16
 
 // endSide is the side of vertex v that edge e is drawn to: 1 for the
 // side facing on along the flow, -1 for the side facing back, and 0 when
-// the edge is not one whose ends are spread: dead, a loop, straight, or
+// the edge is not one whose ends are spread: dead, a loop, straight (an
+// anchor among them), or
 // with a port at v, or at the container of one between a container and
 // what it holds. An edge leaves its source's on side and arrives at its
 // target's back side, the other way round when it runs backward, to a
@@ -34,7 +35,7 @@ const MaxEndSlots = 16
 // one between a container and what it holds.
 func (d *Document) endSide(e EdgeIndex, v VertexIndex) int {
 	ed := &d.edges[e]
-	if !ed.Live || ed.From == ed.To || d.kinds.edge[ed.Kind].Route == Straight {
+	if !ed.Live || ed.From == ed.To || d.Route(e) == Straight {
 		return 0
 	}
 	if ed.From == v && ed.FromPort != None || ed.To == v && ed.ToPort != None {

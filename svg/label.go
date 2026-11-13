@@ -86,11 +86,9 @@ func EdgeLabelInputBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
 // edgeLabelBox is EdgeLabelBox, the side of its lane it is on, and
 // whether it is turned.
 func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64, bool) {
-	e := d.Edge(i)
-	kind := d.Kinds().Edge(e.Kind())
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
-	b, turned := labelBoxAt(d, i, &wy, wy.middle(kind.Route()))
+	b, turned := labelBoxAt(d, i, &wy, wy.middle(wy.route))
 	return b, wy.side(), turned
 }
 
@@ -254,7 +252,7 @@ func edgeHeads(d *gw.Document, i gw.EdgeIndex, from bool, at gw.Point, reach flo
 	var lane [1]gw.Point
 	wy := wayOf(d, i, &lane)
 	f := wy.f
-	route := d.Kinds().Edge(d.Edge(i).Kind()).Route()
+	route := wy.route
 	legs := wy.through.Len() + 1
 	// bound: the legs, at most the bends per edge and one
 	for n := range legs {

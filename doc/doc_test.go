@@ -769,3 +769,20 @@ func TestLabelAt(t *testing.T) {
 		t.Errorf("label_at 0: %v", err)
 	}
 }
+
+// TestBuiltinNotes: each built-in schema has a note, a folded note any
+// container holds, and an anchor from a note to any kind, straight,
+// dashed and without an arrow.
+func TestBuiltinNotes(t *testing.T) {
+	for _, n := range doc.Builtin() {
+		k := n.Kinds
+		note, anchor := k.VertexNamed("note"), k.EdgeNamed("anchor")
+		v, e := k.Vertex(note), k.Edge(anchor)
+		if !v.Note() || k.ShapeOf(v.Shape()).Name() != "folded-note" || v.Size() != (gw.Size{W: 140, H: 50}) {
+			t.Errorf("%s: note %+v", n.Name, v)
+		}
+		if e.Route() != gw.Straight || !e.Dashed() || e.Arrow() || e.From().Len() != 1 || e.From().At(0) != note || e.To().Len() != 0 {
+			t.Errorf("%s: anchor %+v", n.Name, e)
+		}
+	}
+}

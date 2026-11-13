@@ -73,8 +73,9 @@ func (d *Document) cycleError(from, to VertexIndex) error {
 	return refusal(msg + " → " + string(d.vertices[from].ID))
 }
 
-// Unreachable lists the live vertices no root-kind vertex reaches,
-// which the schema's Connected flag makes a warning for the host. The
+// Unreachable lists the live vertices no root-kind vertex reaches, but
+// for notes, which the schema's Connected flag makes a warning for the
+// host. The
 // result is written into dst, which the caller sizes; the walk is a
 // breadth-first visit from every root along live out-edges, each vertex
 // visited once.
@@ -107,7 +108,7 @@ func (d *Document) Unreachable(dst []VertexIndex) []VertexIndex {
 	}
 	dst = dst[:0]
 	for i := range d.vertices {
-		if d.vertices[i].Live && d.mark[i] != d.gen && len(dst) < cap(dst) {
+		if d.vertices[i].Live && d.mark[i] != d.gen && !d.isNote(VertexIndex(i)) && len(dst) < cap(dst) { //nolint:gosec // bounded by the capacity
 			dst = append(dst, VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		}
 	}

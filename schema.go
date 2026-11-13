@@ -95,6 +95,11 @@ type AttrSpec struct {
 // attributes (see NextLabelPart). EditAttr names an attribute the kind
 // declares that the editor's text input edits in place of the label,
 // for a kind whose label format draws it; empty edits the label.
+// A note kind's vertices explain others: any container may hold one,
+// whatever its Contains lists, and an edge that joins one, an anchor, is
+// drawn straight between the two boxes and left out of the layout, which
+// puts each note beside the vertex its first anchor joins it to. A note
+// kind is not a container.
 type VertexKind struct {
 	Name         string
 	Shape        Shape
@@ -112,6 +117,7 @@ type VertexKind struct {
 	MaxWidth     float64
 	LabelFormat  string
 	EditAttr     string
+	Note         bool
 }
 
 // KeywordHeight is the least height of a vertex kind with a keyword,
@@ -198,13 +204,8 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 	if err := checkEditAttr(k.EditAttr, k.Attrs); err != nil {
 		return schemaError(where, err.Error())
 	}
-	if len(k.Contains) > 0 && !k.Container {
-		return schemaError(where, "holds kinds without being a container")
-	}
-	for _, kind := range k.Contains {
-		if kind < 0 || int(kind) >= len(s.VertexKinds) {
-			return schemaError(where, "contains vertex kind "+itoa(int(kind))+" out of range")
-		}
+	if err := checkHolding(s, k); err != nil {
+		return schemaError(where, err.Error())
 	}
 	if k.Max < 0 {
 		return schemaError(where, "max must not be negative")
@@ -213,6 +214,23 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 		return schemaError(where, sizeRule)
 	}
 	return checkAttrSpecs(where, k.Attrs)
+}
+
+// checkHolding refuses a note kind that is a container, a kind that
+// holds kinds without being a container, and a held kind out of range.
+func checkHolding(s Schema, k VertexKind) error {
+	if k.Note && k.Container {
+		return refusal("is a note and a container")
+	}
+	if len(k.Contains) > 0 && !k.Container {
+		return refusal("holds kinds without being a container")
+	}
+	for _, kind := range k.Contains {
+		if kind < 0 || int(kind) >= len(s.VertexKinds) {
+			return refusal("contains vertex kind " + itoa(int(kind)) + " out of range")
+		}
+	}
+	return nil
 }
 
 // checkLook refuses a keyword that is not text, or that a kind under

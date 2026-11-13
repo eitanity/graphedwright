@@ -84,7 +84,8 @@ func (d *Document) Enclosing(from, to VertexIndex) int {
 // stand for the edges that run in from the one and out to the other
 // (Enclosing): each the room of the widest text among them, its label
 // or its kind's stereotype, at CharWidth a character and 8 either side;
-// 0 where none runs. A straight edge, drawn between centres, has none.
+// 0 where none runs. A straight edge, drawn between centres, has none,
+// nor an anchor.
 func (d *Document) EnclosedRoom(c VertexIndex) (back, on float64) {
 	if c < 0 || int(c) >= len(d.vertices) {
 		return 0, 0
@@ -105,7 +106,7 @@ func (d *Document) EnclosedRoom(c VertexIndex) (back, on float64) {
 func (d *Document) enclosedText(e EdgeIndex, way int) float64 {
 	x := &d.edges[e]
 	k := &d.kinds.edge[x.Kind]
-	if !x.Live || k.Route == Straight || d.Enclosing(x.From, x.To) != way {
+	if !x.Live || d.Route(e) == Straight || d.Enclosing(x.From, x.To) != way {
 		return 0
 	}
 	return float64(float64(max(d.EdgeLabelRunes(e), runes(k.Stereotype)))*CharWidth) + 16
@@ -127,7 +128,8 @@ func (d *Document) hasContainers() bool {
 }
 
 // setParent puts a vertex in a container, or in none with To None,
-// when the container's kind may hold the vertex's and the container is
+// when the container's kind may hold the vertex's (Kinds.Holds), a note
+// whatever it lists, and the container is
 // not the vertex or in it.
 func (d *Document) setParent(c Command) error {
 	if !d.vertexLive(c.Vertex) {
@@ -144,7 +146,7 @@ func (d *Document) setParent(c Command) error {
 		if d.Within(c.To, c.Vertex) {
 			return refusal("vertex " + d.vertexName(c.Vertex) + " cannot go inside itself or what it holds")
 		}
-		if !kindIn(k.Contains, d.vertices[c.Vertex].Kind) {
+		if !d.kinds.Holds(d.vertices[c.To].Kind, d.vertices[c.Vertex].Kind) {
 			return refusal("container kind " + d.kindName(d.vertices[c.To].Kind) + " cannot hold kind " + d.kindName(d.vertices[c.Vertex].Kind))
 		}
 	}
@@ -231,12 +233,13 @@ const fitSlots = 8
 // markCrossing marks each vertex that an edge from outside its container
 // runs to, or into: those on the way from each end of an edge up to the
 // innermost container holding both, but for an edge between a container
-// and what it holds, which runs in from the container's own side.
+// and what it holds, which runs in from the container's own side, and an
+// anchor, drawn straight.
 func (d *Document) markCrossing() {
 	clear(d.crossing)
 	for i := range d.edges {
 		e := &d.edges[i]
-		if !e.Live || e.From == e.To || d.Enclosing(e.From, e.To) != 0 {
+		if !e.Live || e.From == e.To || d.Enclosing(e.From, e.To) != 0 || d.Anchor(EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		level := d.vertices[e.From].Parent

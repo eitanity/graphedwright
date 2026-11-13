@@ -61,7 +61,9 @@ The rules a schema can set:
 - **Which kinds an edge joins:** each edge kind can list the vertex
   kinds allowed at each end.
 - **Root and leaf kinds:** a root kind takes no incoming edge, and a
-  leaf kind no outgoing one.
+  leaf kind no outgoing one; either takes an anchor from a note.
+- **Notes:** a vertex kind can be a note kind, whose vertices explain
+  others ([Notes](#notes)).
 - **Limits:** a vertex kind can set the most vertices of that kind a
   document holds (`Max`), and a port the most edges it takes.
 - **Attributes:** each attribute is free text, a number, or one of a
@@ -413,7 +415,8 @@ containers nest.
 
 - **Putting a vertex in or out:** `SetParent` does it, and is refused
   for a container that doesn't take the vertex's kind (`Contains`), or
-  for a vertex going inside itself or something it holds.
+  for a vertex going inside itself or something it holds. Any
+  container takes a note.
 - **Fitting:** a container that holds anything is fitted around it,
   with 16 units of padding and 20 more at the top for its title, and 14
   more for each line of the title after its first. Its
@@ -437,6 +440,32 @@ containers nest.
   puts it in, dragging it out takes it out, and dragging the container
   carries its contents. Dragging the handle on a selected container's
   corner resizes it, which gives it its own size.
+
+## Notes
+
+A vertex of a **note** kind (`VertexKind.Note`) explains another, as a
+UML or SysML note does: the built-in schemas draw one as a box with a
+folded corner. An edge that joins a note is an **anchor**, and the
+vertex at its other end is what the note explains.
+
+- **Drawing:** an anchor is drawn straight between the two boxes,
+  whatever its kind's route, and takes no place among the ends spread
+  along a side, nor room at a container's side.
+- **Rules:** any container holds a note, whatever its `Contains` lists;
+  a root or leaf kind takes an anchor; and a note is never reported
+  unreachable.
+- **Layout:** anchors are left out of the layering, the ordering and
+  the routing. Each note stands beside what it explains
+  (`Document.NoteTarget`, the other end of its anchor of the lowest
+  index that does not join another note): in its layer, next to it
+  across the flow and a gap from it, below or right of it, or above or
+  left where it is the first of its layer with others after it. A
+  second note on the same vertex goes the other side, and so on
+  outward. A note in a container stands beside the member there that
+  is or holds what it explains, so to stand beside a vertex a note
+  goes in that vertex's container. A placed note stays where it is,
+  as any placed vertex does; one without an anchor, or whose anchor
+  leaves its container, is laid out as a vertex without edges is.
 
 ## Drawing and hit testing
 

@@ -95,7 +95,7 @@ func crossed(d *gw.Document, e gw.EdgeIndex) int {
 		o := gw.EdgeIndex(i) //nolint:gosec // bounded by the capacity
 		var lane [1]gw.Point
 		w := wayOf(d, o, &lane)
-		if o != e && d.Edge(o).Live() && w.crosses(d.Kinds().Edge(d.Edge(o).Kind()).Route(), box) {
+		if o != e && d.Edge(o).Live() && w.crosses(d.Route(o), box) {
 			n++
 		}
 	}

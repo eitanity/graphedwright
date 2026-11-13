@@ -14,6 +14,11 @@ reads a document supplies the schema under that name.
 browser build know without being told. The demo page has an example of
 each in [`web/examples`](../web/examples).
 
+Each also has, after its own kinds, a `note` vertex kind, a folded note
+140 × 50 that any container may hold, and an `anchor` edge kind, from a
+note to any kind, dashed and without an arrow, that joins the note to
+what it explains ([Concepts](concepts.md#notes)).
+
 ### `basic`
 
 General diagrams: any vertex may join any other, with free attributes.
@@ -151,7 +156,7 @@ commands.
 | `Size` | a new vertex's width and height, each positive and at most `gw.MaxCoord` (10⁹); a vertex can be resized |
 | `Ports` | named places on the sides where edges attach: `{Name, Side, Max}`, with `Side` one of `Left`, `Right`, `Top`, `Bottom`, and `Max` the edges it takes, 0 for any. A side's ports are spaced evenly along it |
 | `Attrs` | the attributes the kind takes (below) |
-| `Root`, `Leaf` | a root kind takes no incoming edge; a leaf kind no outgoing one |
+| `Root`, `Leaf` | a root kind takes no incoming edge; a leaf kind no outgoing one; either takes an anchor |
 | `Max` | the most vertices of the kind a document holds; 0 for any number |
 | `Dashed` | the outline is dashed |
 | `Container` | the kind holds other vertices ([Concepts](concepts.md#containers)) |
@@ -161,6 +166,7 @@ commands.
 | `MaxWidth` | how wide compartments may make a vertex; 0 for the kind's width. A longer line is cut with an ellipsis |
 | `LabelFormat` | builds the label drawn from the label as set and the attributes ([Concepts](concepts.md#schemas)); empty draws the label as set |
 | `EditAttr` | an attribute of the kind that the label input edits in place of the label, for a kind whose `LabelFormat` draws it: a double-click, Enter or typing then edits that value, and the text done sets it as a `SetAttr`. Empty edits the label |
+| `Note` | the kind's vertices are notes, which explain others ([Concepts](concepts.md#notes)): any container holds one, whatever its `Contains` lists, and an edge joining one is an anchor. A note kind is not a container |
 
 ### `ShapeDef`
 

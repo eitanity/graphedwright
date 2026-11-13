@@ -144,6 +144,12 @@ func (k *Kinds) Edge(i KindIndex) EdgeKindView {
 	return EdgeKindView{&k.edge[i]}
 }
 
+// Holds reports whether a container of kind c may hold a vertex of the
+// kind given: a note, or one its Contains allows.
+func (k *Kinds) Holds(c, kind KindIndex) bool {
+	return k.Vertex(c).Holds(kind) || k.Vertex(c).Container() && k.Vertex(kind).Note()
+}
+
 // VertexNamed is the index of the vertex kind with the name, or None.
 func (k *Kinds) VertexNamed(name string) KindIndex {
 	// bound: the kinds, at most their number
@@ -250,10 +256,15 @@ func (v VertexKindView) Dashed() bool { return v.k != nil && v.k.Dashed }
 func (v VertexKindView) Container() bool { return v.k != nil && v.k.Container }
 
 // Holds reports whether a container of the kind may hold a vertex of
-// the kind given: any, when it names none.
+// the kind given by its Contains: any, when it names none. A container
+// holds a note whatever it names (see Kinds.Holds).
 func (v VertexKindView) Holds(kind KindIndex) bool {
 	return v.k != nil && v.k.Container && kindIn(v.k.Contains, kind)
 }
+
+// Note reports whether the kind's vertices are notes, which explain
+// others (see VertexKind).
+func (v VertexKindView) Note() bool { return v.k != nil && v.k.Note }
 
 // Keyword is drawn on every vertex of the kind, such as «block».
 func (v VertexKindView) Keyword() string {

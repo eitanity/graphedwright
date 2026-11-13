@@ -267,7 +267,7 @@ func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
 	e := d.Edge(i)
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
-	route := d.Kinds().Edge(e.Kind()).Route()
+	route := d.Route(i)
 	for k := 0; k <= 1000; k++ {
 		p := along(w.f, route, w.a, w.through, w.b, float64(k)/1000)
 		for v := range d.VertexSlots() {
@@ -607,7 +607,7 @@ func TestUprightsUntangled(t *testing.T) {
 func drawnPoints(d *gw.Document, e gw.EdgeIndex) []gw.Point {
 	var lane [1]gw.Point
 	w := wayOf(d, e, &lane)
-	route := d.Kinds().Edge(d.Edge(e).Kind()).Route()
+	route := d.Route(e)
 	pts := make([]gw.Point, 0, apartSamples+1)
 	for k := 0; k <= apartSamples; k++ {
 		pts = append(pts, along(w.f, route, w.a, w.through, w.b, float64(k)/apartSamples))
@@ -741,7 +741,7 @@ func edgeTextsClear(t reporter, name string, d *gw.Document) {
 					}
 					var lane [1]gw.Point
 					w := wayOf(d, gw.EdgeIndex(i), &lane)
-					route := d.Kinds().Edge(d.Edge(gw.EdgeIndex(i)).Kind()).Route() //nolint:gosec // bounded by the capacity
+					route := d.Route(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 					for k := 0; k <= 400; k++ {
 						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
 							t.Errorf("%s: the %s %q of edge %s crosses edge %s at %v", name, m[1], m[6], g[1], d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity

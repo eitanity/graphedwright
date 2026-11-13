@@ -245,6 +245,8 @@ type Layouter struct {
 	down     bool    // the flow is top to bottom: the frame's axes are swapped
 	nested   bool    // the level laid out is a container's, not the top
 	sorted   bool    // the level has no placed vertex, so each layer's order runs down in y
+	noteAt   []int32 // the node a note stands beside in the level, or -1 (note.go)
+	notes    bool    // the level has a note standing beside another
 }
 
 // New makes a layouter for documents with the capacities. A capacity
@@ -272,7 +274,7 @@ func New(caps gw.Caps) *Layouter {
 		route: make([]gw.BendWriter, caps.Edges), rOff: make([]int32, caps.Edges), rLen: make([]int32, caps.Edges),
 		zAt: make([]float64, 2*caps.Edges), zIdx: make([]int32, 2*caps.Edges), zGap: make([]int32, 2*caps.Edges), zY0: make([]float64, 2*caps.Edges), zY1: make([]float64, 2*caps.Edges), zRt: make([]int32, 2*caps.Edges), zHi: make([]bool, 2*caps.Edges),
 		lvl: make([]int32, 2*caps.Edges), sideN: make([]int32, 2*caps.Vertices), spread: make([]float64, 2*caps.Edges),
-		dt: newDetour(caps.Vertices),
+		dt: newDetour(caps.Vertices), noteAt: make([]int32, caps.Vertices),
 	}
 }
 
@@ -798,12 +800,13 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 			continue
 		}
 		a, b := holder(d, e.From(), c), holder(d, e.To(), c)
-		if a >= 0 && b >= 0 && a != b {
+		if a >= 0 && b >= 0 && a != b && !d.Anchor(gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
 			l.eOn[i], l.eFrom[i], l.eTo[i] = true, a, b
 		}
 	}
 	l.topoOrder(d)
 	l.assignLayers(opts)
+	l.notes = l.noteTargets(d, c)
 	if err := l.makeSegments(d); err != nil {
 		return 0, 0, err
 	}
@@ -813,6 +816,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 	l.endSpreads(d)
 	l.initialOrder()
 	cr := l.reduceCrossings(opts.Sweeps)
+	l.noteOrder()
 	l.coordinates(opts)
 	l.markGapRoom()
 	l.shallowEnds(d, opts)

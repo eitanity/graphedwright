@@ -350,8 +350,8 @@ func (l *Layouter) insideRuns(d *gw.Document, e gw.EdgeIndex, v gw.VertexIndex, 
 func (l *Layouter) markCrossing(d *gw.Document) {
 	clear(l.crossing)
 	for i := range d.EdgeSlots() {
-		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
-		if !e.Live() || e.From() == e.To() || d.Enclosing(e.From(), e.To()) != 0 {
+		e := d.Edge(gw.EdgeIndex(i))                                                                            //nolint:gosec // bounded by the capacity
+		if !e.Live() || e.From() == e.To() || d.Enclosing(e.From(), e.To()) != 0 || d.Anchor(gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		level := eLevelOf(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity

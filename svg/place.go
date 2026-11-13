@@ -61,7 +61,7 @@ func PlaceLabels(d *gw.Document) {
 		}
 		var lane [1]gw.Point
 		w := wayOf(d, e, &lane)
-		move(d, e, crossings(d, e, drawnLabel(d, e, &w, w.middle(d.Kinds().Edge(d.Edge(e).Kind()).Route()))))
+		move(d, e, crossings(d, e, drawnLabel(d, e, &w, w.middle(w.route))))
 	}
 }
 
@@ -77,7 +77,7 @@ func move(d *gw.Document, e gw.EdgeIndex, c int) {
 	if w.n > 1 || w.ownLeg {
 		return
 	}
-	route := d.Kinds().Edge(d.Edge(e).Kind()).Route()
+	route := w.route
 	t0 := middleT(w.f, w.through)
 	best, bestT := c, 0.0
 	// bound: placeSteps places either side and the middle, which the
@@ -153,7 +153,7 @@ func crossings(d *gw.Document, e gw.EdgeIndex, box gw.Viewport) int {
 		}
 		var lane [1]gw.Point
 		w := wayOf(d, o, &lane)
-		route := d.Kinds().Edge(d.Edge(o).Kind()).Route()
+		route := w.route
 		if d.EdgeLabelRunes(o) > 0 {
 			if boxesMeet(box, drawnLabel(d, o, &w, w.middle(route))) {
 				n++

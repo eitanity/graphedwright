@@ -122,7 +122,8 @@ func (dt *detour) nearer(a, b int32) int {
 }
 
 // detours gives each edge whose drawn route passes through a vertex or
-// container that holds neither end a detour round them. A document with
+// container that holds neither end a detour round them; an anchor, which
+// joins a note to what stands beside it, is drawn straight. A document with
 // no container is left as it is: its layers keep its routes clear.
 func (l *Layouter) detours(d *gw.Document) {
 	if !hasContainer(d) {
@@ -132,7 +133,7 @@ func (l *Layouter) detours(d *gw.Document) {
 	for i := range d.EdgeSlots() {
 		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 		ei := gw.EdgeIndex(i)        //nolint:gosec // bounded by the capacity
-		if !e.Live() || e.From() == e.To() || e.FromPort() != gw.None || e.ToPort() != gw.None {
+		if !e.Live() || e.From() == e.To() || e.FromPort() != gw.None || e.ToPort() != gw.None || d.Anchor(ei) {
 			continue
 		}
 		if k, n := d.Parallel(ei); n > 1 {
