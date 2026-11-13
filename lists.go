@@ -55,6 +55,10 @@ func PointsOf(s []Point) PointList { return PointList{s} }
 // Len is the number of points.
 func (l PointList) Len() int { return len(l.s) }
 
+// Prefix is the first n points, all of them when n is past the end and
+// none when it is below 1.
+func (l PointList) Prefix(n int) PointList { return PointList{l.s[:max(0, min(n, len(l.s)))]} }
+
 // At is the ith point; out of range, the zero Point.
 func (l PointList) At(i int) Point {
 	if i < 0 || i >= len(l.s) {

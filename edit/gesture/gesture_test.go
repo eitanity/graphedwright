@@ -13,8 +13,8 @@ import (
 // merilo's fsm, which the machine imports.
 func TestPressWithoutAHit(t *testing.T) {
 	for _, k := range []EventKind{EvPress, EvDoubleClick, EvContext} {
-		if _, _, out := New().Fire(Event{Kind: k}); out != fsm.Invalid {
-			t.Errorf("kind %d with no hit: outcome %d, want Invalid", k, out)
+		if _, acts, out := New().Fire(Event{Kind: k}); out != fsm.Invalid || acts != 0 {
+			t.Errorf("kind %d with no hit: outcome %d acts %b, want Invalid and none", k, out, acts)
 		}
 	}
 }
@@ -25,9 +25,9 @@ func TestPressWithoutAHit(t *testing.T) {
 // rejected, a pan's press is not, and the release leaves the mode as it
 // was.
 func TestHoldOutcomes(t *testing.T) {
-	m, _, _ := New().Fire(Event{Kind: EvPress, Hit: HitVertex})
-	if m.State() != Dragging {
-		t.Fatalf("state %s, want Dragging", m.State())
+	m, acts, out := New().Fire(Event{Kind: EvPress, Hit: HitVertex})
+	if out != fsm.Moved || m.State() != Dragging || acts&ActStartDrag == 0 {
+		t.Fatalf("press on a vertex: %v state %s acts %b, want Dragging", out, m.State(), acts)
 	}
 	held, acts, out := m.Fire(Event{Kind: EvHold})
 	if out != fsm.Moved || !held.Held() || held.State() != HeldIdle || held.Activity() != Idle || acts&ActRestoreDrag == 0 || acts&ActReset == 0 {
@@ -36,8 +36,8 @@ func TestHoldOutcomes(t *testing.T) {
 	if _, acts, out := held.Fire(Event{Kind: EvHold}); out != fsm.Ignored || acts != 0 {
 		t.Errorf("a second hold: %v acts %b", out, acts)
 	}
-	if _, _, out := New().Fire(Event{Kind: EvUnhold}); out != fsm.Ignored {
-		t.Errorf("a release not held: %v", out)
+	if _, acts, out := New().Fire(Event{Kind: EvUnhold}); out != fsm.Ignored || acts != 0 {
+		t.Errorf("a release not held: %v acts %b", out, acts)
 	}
 	for _, e := range []Event{
 		{Kind: EvPress, Hit: HitVertex}, {Kind: EvPress, Hit: HitBackground}, {Kind: EvPress, Hit: HitPort},
@@ -48,27 +48,29 @@ func TestHoldOutcomes(t *testing.T) {
 			t.Errorf("held, %s: %v acts %b", e.Kind, out, acts)
 		}
 	}
-	if next, _, out := held.Fire(Event{Kind: EvPress, Hit: HitVertex, Pan: true}); out != fsm.Moved || next.State() != HeldPanning || next.Activity() != Panning {
-		t.Errorf("held, a pan's press: %v state %s", out, next.State())
+	if next, acts, out := held.Fire(Event{Kind: EvPress, Hit: HitVertex, Pan: true}); out != fsm.Moved || next.State() != HeldPanning || next.Activity() != Panning || acts&editWork != 0 {
+		t.Errorf("held, a pan's press: %v state %s acts %b", out, next.State(), acts)
 	}
 	for _, e := range []Event{{Kind: EvTab}, {Kind: EvContext, Hit: HitVertex}, {Kind: EvEscape}} {
-		if _, _, out := held.Fire(e); out != fsm.Moved {
-			t.Errorf("held, %s: %v", e.Kind, out)
+		if _, acts, out := held.Fire(e); out != fsm.Moved || acts&editWork != 0 {
+			t.Errorf("held, %s: %v acts %b", e.Kind, out, acts)
 		}
 	}
-	view, _, _ := held.Fire(Event{Kind: EvView})
-	if !view.Held() || !view.View() || view.State() != ViewHeldIdle {
-		t.Errorf("view while held: held %v view %v", view.Held(), view.View())
+	view, acts, out := held.Fire(Event{Kind: EvView})
+	if out != fsm.Moved || !view.Held() || !view.View() || view.State() != ViewHeldIdle || acts&editWork != 0 {
+		t.Errorf("view while held: %v held %v view %v acts %b", out, view.Held(), view.View(), acts)
 	}
-	free, _, out := view.Fire(Event{Kind: EvUnhold})
-	if out != fsm.Moved || free.Held() || !free.View() || free.State() != ViewIdle {
-		t.Errorf("released in view: %v held %v view %v", out, free.Held(), free.View())
+	free, acts, out := view.Fire(Event{Kind: EvUnhold})
+	if out != fsm.Moved || free.Held() || !free.View() || free.State() != ViewIdle || acts&editWork != 0 {
+		t.Errorf("released in view: %v held %v view %v acts %b", out, free.Held(), free.View(), acts)
 	}
 }
 
 // table is every event with a named kind and hit, under every flag, and
-// every machine Fire reaches from New with them.
-func table() ([]Event, []Machine) {
+// every machine Fire reaches from New with them; a Fire that does not
+// move does nothing.
+func table(t *testing.T) ([]Event, []Machine) {
+	t.Helper()
 	var evs []Event
 	for k := 1; k < 256; k++ {
 		for h := 1; h < 256; h++ {
@@ -85,7 +87,11 @@ func table() ([]Event, []Machine) {
 	// bound: each machine is listed once, and there are few: three fields
 	for i := 0; i < len(ms); i++ {
 		for _, e := range evs {
-			if next, _, out := ms[i].Fire(e); out == fsm.Moved && !seen[next] {
+			next, acts, out := ms[i].Fire(e)
+			if out != fsm.Moved && acts != 0 {
+				t.Errorf("%s on %s: %v with acts %b", e.Kind, ms[i].state, out, acts)
+			}
+			if out == fsm.Moved && !seen[next] {
 				seen[next] = true
 				ms = append(ms, next)
 			}
@@ -110,7 +116,7 @@ func mode(m Machine) [2]bool { return [2]bool{m.View(), m.Held()} }
 // only what view mode keeps, and a refusal only where the counterpart
 // would edit or, held, the press is not a pan.
 func TestModesAreStates(t *testing.T) {
-	evs, ms := table()
+	evs, ms := table(t)
 	states := map[State]bool{}
 	for _, m := range ms {
 		states[m.state] = true

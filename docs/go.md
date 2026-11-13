@@ -58,7 +58,8 @@ d.Redo()
   `vmap.At(int(v))` is the new index, or `None` for one dropped.
 - **Lists** an element or a kind holds, its ports, attributes and
   bends, are read-only lists: `Len()` and `At(i)`, and `Value(key)` for
-  attributes, such as `d.Edge(e).Bends().At(0)`. They copy nothing and
+  attributes, and `Prefix(n)`, the first n, for points, such as
+  `d.Edge(e).Bends().At(0)`. They copy nothing and
   give no way to change the document. Out of range, a read is the zero
   value, or `None` for an index. `gw.PortsOf`, `gw.AttrsOf`,
   `gw.PointsOf` and `gw.EdgesOf` read a caller's own slice the same way, for the

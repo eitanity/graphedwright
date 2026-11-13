@@ -623,15 +623,73 @@ func (w *way) started(kind gw.EdgeKindView) gw.Point {
 }
 
 // shortened is where an edge's stroke ends when its kind has a closed
-// arrowhead: the head's length back from the end along the last leg, as
-// it is drawn, so that a thick stroke never shows past the head's tip.
-// An open head is two strokes the edge runs up to; a leg shorter than
-// the head is left as it is.
-func (w *way) shortened(kind gw.EdgeKindView) gw.Point {
-	f := w.f
+// arrowhead: the head's length back from the end, as it is drawn, so
+// that the head is drawn outside the target and a thick stroke never
+// shows past its tip. An open head is two strokes the edge runs up to.
+// The length is measured back along the straight legs that run in line
+// at the end, past any bends nearer the end than the head's length, and
+// drop is how many of those bends are left undrawn. When that run is
+// shorter than the head but follows a turn, the stroke ends a step into
+// it (headStep), so the head points along it with as little of it as
+// can be hidden; when the edge has no straight leg at its end, the last
+// leg is shortened as a whole leg is (shortenedLeg).
+func (w *way) shortened(kind gw.EdgeKindView) (end gw.Point, drop int) {
 	if !kind.Arrow() || kind.Head() == gw.OpenHead {
-		return w.b
+		return w.b, 0
 	}
+	f := w.f
+	n := w.through.Len()
+	b := f.t(w.b)
+	q := b
+	var ux, uy, run float64
+	// bound: the legs, from the last back
+	for j := n; j >= 0; j-- {
+		p := f.t(w.a)
+		if j > 0 {
+			p = f.t(w.through.At(j - 1))
+		}
+		l := math.Hypot(q.X-p.X, q.Y-p.Y)
+		if l == 0 {
+			continue // a bend on the next, which the stroke goes through
+		}
+		if legRoute(w.route, n > 0, p, q) != gw.Straight {
+			break
+		}
+		vx, vy := (q.X-p.X)/l, (q.Y-p.Y)/l
+		if run > 0 && float64(vx*ux)+float64(vy*uy) < 1-inLine {
+			// A turn: the run is shorter than the head.
+			step := math.Min(headStep, run)
+			return f.t(gw.Point{X: q.X + float64(ux*step), Y: q.Y + float64(uy*step)}), n - j - 1
+		}
+		ux, uy = vx, vy
+		if run+l > headLength {
+			back := headLength - run
+			return f.t(gw.Point{X: q.X - float64(ux*back), Y: q.Y - float64(uy*back)}), n - j
+		}
+		run += l
+		q = p
+	}
+	return w.shortenedLeg(), 0
+}
+
+// inLine is how far below 1 the product of two legs' unit directions
+// may be and the legs still be in line.
+const inLine = 1e-9
+
+// headStep is how far a stroke runs on past a turn into a run at its
+// end shorter than the head, so that the head points along the run.
+const headStep = 1
+
+// drawn is the bends the stroke is drawn through: all but the last drop
+// of them, which the stroke ends before (shortened).
+func (w *way) drawn(drop int) gw.PointList {
+	return w.through.Prefix(w.through.Len() - drop)
+}
+
+// shortenedLeg is the head's length back from the end along the last
+// leg, or the end when the leg is no longer than the head.
+func (w *way) shortenedLeg() gw.Point {
+	f := w.f
 	a, b := f.t(lastFrom(w.a, w.through)), f.t(w.b)
 	var dx, dy float64
 	switch legRoute(w.route, w.through.Len() > 0, a, b) {

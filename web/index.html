@@ -5,18 +5,22 @@
 <title>graphedwright</title>
 <link rel="stylesheet" href="graphedwright.css">
 <style>
-  body { font-family: system-ui, sans-serif; margin: 0; color: #1a202c; }
+  /* The page is the window's height, and the drawing takes what the
+     header, toolbar, palette and status leave of it. */
+  body { font-family: system-ui, sans-serif; margin: 0; color: #1a202c; height: 100vh; display: flex; flex-direction: column; }
   header { padding: 10px 16px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 16px; align-items: baseline; }
   header h1 { font-size: 18px; margin: 0; }
   header span { color: #718096; font-size: 13px; }
-  main { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px; }
+  main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 360px; grid-template-rows: minmax(0, 1fr); gap: 16px; padding: 16px; }
+  main > section:first-child { display: flex; flex-direction: column; min-height: 0; }
+  main > section:last-child { overflow: auto; }
+  #host { flex: 1 1 auto; min-height: 0; }
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   button, select { font: inherit; font-size: 13px; padding: 4px 10px; }
   .graphedwright-host { border: 1px solid #cbd5e0; border-radius: 4px; outline: none; }
   .graphedwright-host:focus { border-color: #3182ce; }
   .graphedwright-item { cursor: grab; }
   .graphedwright-edge { cursor: pointer; }
-  .graphedwright-drawing { height: 480px; }
   #props { margin-bottom: 16px; font-size: 13px; }
   #props table { width: 100%; border-collapse: collapse; }
   #props th { text-align: left; font-weight: normal; color: #4a5568; padding: 3px 8px 3px 0; width: 35%; vertical-align: middle; }

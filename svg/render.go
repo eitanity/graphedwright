@@ -382,7 +382,8 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	var lane [1]gw.Point
 	w := wayOf(d, i, &lane)
 	f := w.f
-	r.path(f, w.route, w.started(kind), w.through, w.shortened(kind))
+	end, drop := w.shortened(kind)
+	r.path(f, w.route, w.started(kind), w.drawn(drop), end)
 	width := strokeWidth(d, opts, int(i), maxW)
 	o.numAttr("stroke-width", width)
 	if kind.Tail() != gw.NoTail {
@@ -1170,7 +1171,8 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 		kind := d.Kinds().Edge(ed.Kind())
 		var lane [1]gw.Point
 		w := wayOf(d, e, &lane)
-		r.path(w.f, w.route, w.a, w.through, w.shortened(kind))
+		end, drop := w.shortened(kind)
+		r.path(w.f, w.route, w.a, w.drawn(drop), end)
 		o.str(` class="selection"`)
 		o.numAttr("stroke-width", strokeWidth(d, opts, int(e), maxW)+6)
 		o.str(`/>`)
