@@ -4,7 +4,7 @@ module code.eitanity.com/graphedwright/internal/verify
 
 go 1.27
 
-toolchain go1.27.2
+toolchain go1.27.4
 
 replace code.eitanity.com/graphedwright => ../..
 
