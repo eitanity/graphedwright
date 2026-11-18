@@ -20,3 +20,14 @@ func TestQuoteControls(t *testing.T) {
 		t.Errorf("quoted %s, want %s", got, want)
 	}
 }
+
+// TestMaxEscaped: a string's body may run to six times its text's
+// limit, and no further than the input may for a limit that large.
+func TestMaxEscaped(t *testing.T) {
+	if got := maxEscaped(256); got != 256*escapeGrowth {
+		t.Errorf("maxEscaped(256) = %d", got)
+	}
+	if got := maxEscaped(MaxInput); got != MaxInput {
+		t.Errorf("maxEscaped(MaxInput) = %d", got)
+	}
+}

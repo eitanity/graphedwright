@@ -130,6 +130,43 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestTextAtTheLimitRoundTrips: a label, an ID and an attribute value of
+// as many bytes as the capacity allows, made of the characters the
+// writer escapes, are written and read back under the same capacities;
+// one byte more is refused by the edit, as by the reader.
+func TestTextAtTheLimitRoundTrips(t *testing.T) {
+	d, _, err := doc.DecodeNamed([]byte(`{"schema":"basic"}`), doc.Options{Schemas: doc.Builtin()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := d.Caps().LabelBytes
+	label := strings.Repeat("\"\n\\\t\r", limit/5) + strings.Repeat("\n", limit%5)
+	id := gw.ID(strings.Repeat(`"\`, limit/2))
+	added, err := d.Apply(gw.Command{Op: gw.AddVertex, Kind: 1, ID: id, Text: label})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := added.Vertices[0]
+	if _, err := d.Apply(gw.Command{Op: gw.SetAttr, Vertex: v, Edge: gw.None, Key: "k", Value: label}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Apply(gw.Command{Op: gw.Relabel, Vertex: v, Text: label + "x"}); err == nil {
+		t.Fatal("a label over the limit taken")
+	}
+	var b bytes.Buffer
+	if err := doc.Encode(d, "basic", &b); err != nil {
+		t.Fatal(err)
+	}
+	back, err := doc.Decode(b.Bytes(), doc.Options{Schemas: doc.Builtin(), Caps: d.Caps()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := back.Vertex(back.VertexByID(id))
+	if w.Label() != label || w.Attrs().Len() != 1 || w.Attrs().At(0).Value != label {
+		t.Fatalf("read back %q %+v", w.Label(), w.Attrs())
+	}
+}
+
 // TestContainersRoundTrip: a vertex names its container by id, which
 // may come later in the array; the container is fitted around what it
 // holds on load, and the parent is written back, but not the size it
@@ -260,6 +297,10 @@ func TestDecodeRefusals(t *testing.T) {
 		{"too many attrs", v(`{"kind":"node","attrs":{"a":"1","b":"2","c":"3","d":"4","e":"5","f":"6","g":"7","h":"8","i":"9","j":"10","k":"11","l":"12","m":"13","n":"14","o":"15","p":"16","q":"17"}}`), "more than 16 attributes"},
 		{"duplicate id", v(`{"id":"a","kind":"node"},{"id":"a","kind":"node"}`), `document.vertices[1]: id "a" already used`},
 		{"long string", v(`{"kind":"node","label":"` + strings.Repeat("x", 300) + `"}`), "string of 300 bytes exceeds the limit of 256"},
+		{"escapes to the limit", v(`{"kind":"node","label":"` + strings.Repeat(`\n`, 256) + `"}`), ""},
+		{"\\u escapes to the limit", v(`{"kind":"node","label":"` + strings.Repeat(`\u0041`, 256) + `"}`), ""},
+		{"escapes past the limit", v(`{"kind":"node","label":"` + strings.Repeat(`\"`, 257) + `"}`), "string of 257 bytes exceeds the limit of 256"},
+		{"\\u escapes past the limit", v(`{"kind":"node","label":"` + strings.Repeat(`\u0041`, 257) + `"}`), "string exceeds the limit of 256 bytes"},
 		{"control char", v(`{"kind":"node","label":"a` + "\x01" + `"}`), "control character in string"},
 		{"bad escape", v(`{"kind":"node","label":"\q"}`), "bad escape"},
 		{"bad unicode escape", v(`{"kind":"node","label":"\u12"}`), "bad unicode escape"},
@@ -533,6 +574,7 @@ func FuzzDecode(f *testing.F) {
 		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box","label":"` + hostile + `"}]}`))
 		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"group","label":"` + hostile + `"}]}`))
 		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box","attrs":{"k":"` + hostile + `"}}]}`))
+		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box","label":"` + strings.Repeat(hostile, 256/len(hostile)) + `"}]}`))
 		f.Add([]byte(`{"schema":"basic","vertices":[{"id":"a","kind":"box"},{"id":"b","kind":"box"}],"edges":[{"kind":"arrow","from":"a","to":"b","label":"` + hostile + `"}]}`))
 	}
 	f.Add([]byte(`{"schema":"basic","vertices":[{"kind":"box","attrs":{"a b":"1","a_b":"2","A":"3","a":"4"}}]}`))
@@ -541,7 +583,7 @@ func FuzzDecode(f *testing.F) {
 	r := svg.New()
 	var buf bytes.Buffer
 	f.Fuzz(func(t *testing.T, data []byte) {
-		d, err := doc.Decode(data, doc.Options{Schemas: schemas(), Caps: gw.Caps{Vertices: 64, Edges: 64}, NoLayout: true})
+		d, name, err := doc.DecodeNamed(data, doc.Options{Schemas: schemas(), Caps: gw.Caps{Vertices: 64, Edges: 64}, NoLayout: true})
 		if err != nil {
 			return
 		}
@@ -554,6 +596,15 @@ func FuzzDecode(f *testing.F) {
 		}
 		if err := wellFormed(buf.Bytes()); err != nil {
 			t.Fatalf("%v\n%s", err, buf.Bytes())
+		}
+		// What the decoder took, written again, it takes again under the
+		// same capacities.
+		var again strings.Builder
+		if err := doc.Encode(d, name, &again); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := doc.Decode([]byte(again.String()), doc.Options{Schemas: schemas(), Caps: d.Caps(), NoLayout: true}); err != nil {
+			t.Fatalf("written and read again: %v\n%s", err, again.String())
 		}
 	})
 }

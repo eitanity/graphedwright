@@ -78,7 +78,9 @@ capacities. The reader is strict and bounded:
   JavaScript APIs, and for a schema's names and text.
 - **Sizes are checked before anything is allocated.** A file over 16 MB
   is refused unread, and strings, attribute counts and bend counts are
-  checked against the document's capacities.
+  checked against the document's capacities. A string's limit is on its
+  text, once its escapes are resolved, as an edit counts it, so whatever
+  the writer writes reads back under the same capacities.
 - **No input can make the reader panic, recurse, or go past a capacity.**
   It is fuzzed to keep it that way.
 - **Positions:** a document without them is laid out on load. Turn that

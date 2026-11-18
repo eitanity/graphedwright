@@ -84,7 +84,8 @@ func (s *scanner) more(closing byte) (bool, error) {
 	return false, s.errorf("expected ',' or " + strconv.QuoteRune(rune(closing)) + ", found " + strconv.QuoteRune(rune(s.data[s.pos])))
 }
 
-// str reads a string, with escapes, up to maxS bytes.
+// str reads a string, with escapes, of up to maxS bytes once they are
+// resolved.
 func (s *scanner) str() (string, error) {
 	if err := s.expect('"'); err != nil {
 		return "", err
@@ -97,16 +98,7 @@ func (s *scanner) str() (string, error) {
 		if c == '"' {
 			raw := s.data[start:s.pos]
 			s.pos++
-			if len(raw) > s.maxS {
-				return "", s.errorf("string of " + strconv.Itoa(len(raw)) + " bytes exceeds the limit of " + strconv.Itoa(s.maxS))
-			}
-			if plain {
-				if !utf8.Valid(raw) {
-					return "", s.errorf("string is not valid UTF-8")
-				}
-				return string(raw), nil
-			}
-			return unescape(raw, s)
+			return s.text(raw, plain)
 		}
 		if c < 0x20 {
 			return "", s.errorf("control character in string")
@@ -118,6 +110,51 @@ func (s *scanner) str() (string, error) {
 		s.pos++
 	}
 	return "", s.errorf("unterminated string")
+}
+
+// text is a string's text from its body, raw, which holds an escape
+// unless plain.
+func (s *scanner) text(raw []byte, plain bool) (string, error) {
+	if plain {
+		if len(raw) > s.maxS {
+			return "", s.tooLong(len(raw))
+		}
+		if !utf8.Valid(raw) {
+			return "", s.errorf("string is not valid UTF-8")
+		}
+		return string(raw), nil
+	}
+	// The limit is on the text, as an edit counts it, not on the text as
+	// written: an escape writes a byte in two or more. Six is the most
+	// (\u0041), so a body longer than six times the limit holds too much
+	// text and is refused unread.
+	if len(raw) > maxEscaped(s.maxS) {
+		return "", s.errorf("string exceeds the limit of " + strconv.Itoa(s.maxS) + " bytes")
+	}
+	text, err := unescape(raw, s)
+	if err == nil && len(text) > s.maxS {
+		return "", s.tooLong(len(text))
+	}
+	return text, err
+}
+
+// tooLong refuses a string of n bytes of text.
+func (s *scanner) tooLong(n int) error {
+	return s.errorf("string of " + strconv.Itoa(n) + " bytes exceeds the limit of " + strconv.Itoa(s.maxS))
+}
+
+// escapeGrowth is the most bytes a string's body takes, written with
+// escapes, for one byte of its text: \u0041 is six for one. A surrogate
+// pair is twelve for four, and every other escape two for one.
+const escapeGrowth = 6
+
+// maxEscaped is the longest body a string of at most limit bytes of text
+// can be written in; the input's own limit beyond that.
+func maxEscaped(limit int) int {
+	if limit > MaxInput/escapeGrowth {
+		return MaxInput
+	}
+	return limit * escapeGrowth
 }
 
 // unescape resolves the escapes of a raw string body.
