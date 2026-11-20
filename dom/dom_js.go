@@ -44,7 +44,7 @@ type jsHost struct {
 
 // binding is the graphedwright object's state: the editors created and
 // the schemas known. Install makes one, and only the object's functions
-// reach it, so the package holds none.
+// reach it; the package's own state is its event listeners alone.
 type binding struct {
 	handles map[int]*jsHost
 	next    int
@@ -97,7 +97,7 @@ func Install(schemas ...doc.Named) {
 	}
 	obj := js.Global().Get("Object").New()
 	for op, name := range names {
-		obj.Set(name, js.FuncOf((&call{b: b, op: op}).invoke))
+		obj.Set(name, funcOf((&call{b: b, op: op}).invoke))
 	}
 	js.Global().Set("graphedwright", obj)
 }

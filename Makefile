@@ -188,8 +188,11 @@ wasm-smoke: wasm
 # The core packages' tests as wasm under the wazero runtime, so that the
 # golden drawings and the editor's behaviour are the same there. wazero
 # is a tool, not a dependency, installed into bin/ like the linters.
+# A wasm module's memory only grows, so without a soft limit the Go
+# collector lets each package's heap run to gigabytes, and the packages
+# run side by side past a CI runner's 16 GB; with it they stay near 2 GB.
 wasm-test: $(BIN)/wazero
-	PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit ./shapes
+	GOMEMLIMIT=1GiB PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit ./shapes
 
 # Every package's tests on the other Linux architectures under qemu-user,
 # the big-endian and 32-bit ones among them, so that a result that

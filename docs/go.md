@@ -315,6 +315,9 @@ without pauses, and that keep each package's state its own:
 - **No `fmt`, `reflect` or `unsafe`.**
 - **Allocation-free hot paths:** the render path and the editor's event
   path don't allocate.
+- **JavaScript functions at start-up alone:** the browser binding makes
+  each `js.Func` in one function, once, and routes every event through
+  them by where it happened.
 - **Sealed state:** a document, its kinds, an editor, a handle, a
   layouter and a renderer have no exported field, and no exported
   method returns a slice, a map or an open pointer into its state; reads

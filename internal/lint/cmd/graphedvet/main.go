@@ -17,5 +17,6 @@ func main() {
 		analyzers.Unordered,
 		analyzers.Sealed,
 		analyzers.Discarded,
+		analyzers.FuncOf,
 	)
 }

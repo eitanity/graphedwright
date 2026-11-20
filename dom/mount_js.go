@@ -10,9 +10,10 @@ import (
 	"code.eitanity.com/graphedwright/svg"
 )
 
-// mount builds the host element's content: the drawing, the palette
-// in edit mode, the zoom buttons, the hidden label input, a textarea so
-// that a label keeps its lines, and the listeners.
+// mount builds the host element's content: the palette, the drawing,
+// the zoom buttons, the hidden label input, a textarea so that a label
+// keeps its lines, and starts routing the page's events to the handle.
+// Mount draws it, and the palette with it.
 func (h *Handle) mount() {
 	doc := js.Global().Get("document")
 	h.el.Set("tabIndex", 0)
@@ -21,85 +22,86 @@ func (h *Handle) mount() {
 	h.palette = doc.Call("createElement", "div")
 	h.palette.Set("className", "graphedwright-palette")
 	h.el.Call("appendChild", h.palette)
-	drawing := doc.Call("createElement", "div")
-	drawing.Set("className", "graphedwright-drawing")
-	h.el.Call("appendChild", drawing)
+	h.drawEl = doc.Call("createElement", "div")
+	h.drawEl.Set("className", "graphedwright-drawing")
+	h.el.Call("appendChild", h.drawEl)
 	h.zoomBar(doc)
 	h.input = doc.Call("createElement", "textarea")
 	h.input.Set("className", "graphedwright-label")
 	h.input.Set("wrap", "off")
 	h.input.Get("style").Set("display", "none")
 	h.el.Call("appendChild", h.input)
-	h.buildPalette()
-	h.renderAll()
-	// Moves and releases are taken from the window, so that a drag goes
-	// on outside the drawing and ends wherever the button comes up.
-	h.listen(drawing, "pointerdown", h.pointer(edit.PointerDown))
-	h.listen(js.Global(), "pointermove", h.pointer(edit.PointerMove))
-	h.listen(js.Global(), "pointerup", h.pointer(edit.PointerUp))
-	h.listen(js.Global(), "pointercancel", h.pointerCancel)
-	h.listen(drawing, "wheel", h.wheel)
-	h.listen(drawing, "dblclick", h.doubleClick)
-	h.listen(drawing, "contextmenu", h.contextMenu)
-	h.listen(h.el, "keydown", h.keydown)
-	h.listen(h.input, "keydown", h.inputKey)
-	h.listen(h.input, "input", h.inputGrow)
-	h.listen(h.input, "blur", h.inputBlur)
+	listeners.add(h)
 }
 
-// unmount removes the listeners, the content and the functions.
+// unmount stops the page's events reaching the handle and removes the
+// content.
 func (h *Handle) unmount() {
-	for _, f := range h.funcs {
-		f.Release()
-	}
-	h.funcs = nil
+	listeners.remove(h)
 	h.el.Set("innerHTML", "")
 }
 
-// listen adds an event listener whose function is released on unmount.
-func (h *Handle) listen(target js.Value, event string, fn func(js.Value, []js.Value) any) {
-	f := js.FuncOf(fn)
-	h.funcs = append(h.funcs, f)
-	target.Call("addEventListener", event, f)
-}
-
 // zoomBar makes the buttons that zoom in, out and to the drawing, in
-// either mode.
+// either mode, each naming what it does as data-zoom.
 func (h *Handle) zoomBar(doc js.Value) {
-	bar := doc.Call("createElement", "div")
-	bar.Set("className", "graphedwright-zoom")
-	h.el.Call("appendChild", bar)
-	for _, b := range []struct {
-		text, title string
-		f           float64 // the zoom factor, or 0 to fit
-	}{{"+", "zoom in (Ctrl+=)", zoomFactor}, {"\u2212", "zoom out (Ctrl+-)", 1 / zoomFactor}, {"Fit", "fit the drawing (Ctrl+0)", 0}} {
+	h.zoom = doc.Call("createElement", "div")
+	h.zoom.Set("className", "graphedwright-zoom")
+	h.el.Call("appendChild", h.zoom)
+	for _, b := range [...]struct{ text, title, zoom string }{
+		{"+", "zoom in (Ctrl+=)", zoomIn}, {"\u2212", "zoom out (Ctrl+-)", zoomOut}, {"Fit", "fit the drawing (Ctrl+0)", zoomFit},
+	} {
 		el := doc.Call("createElement", "button")
 		el.Set("type", "button")
 		el.Set("textContent", b.text)
 		el.Set("title", b.title)
 		el.Call("setAttribute", "aria-label", b.title)
-		bar.Call("appendChild", el)
-		f := b.f
-		// Through the handle's own calls, so that a click is dropped as
-		// any event is while a Host method runs, and grouped.
-		h.listen(el, "click", func(js.Value, []js.Value) any {
-			if f == 0 {
-				_ = h.Fit() // discarded: a refusal drops the click, as any event is dropped while a Host method runs or after destroy
-			} else {
-				_ = h.Zoom(f) // discarded: as for Fit, and a button's factor is positive
-			}
-			return nil
-		})
+		el.Call("setAttribute", "data-zoom", b.zoom)
+		h.zoom.Call("appendChild", el)
 	}
 }
 
 // zoomFactor is what one press of a zoom button zooms by.
 const zoomFactor = 1.25
 
+// syncPalette makes the palette again when the mode or the kinds' names
+// have changed since it was made, and shows the edge kind chosen.
+func (h *Handle) syncPalette() {
+	if !h.palBuilt || h.palMode != h.ed.Mode() || !sameNames(h.palKinds, h.d.Kinds()) {
+		h.buildPalette()
+	}
+	h.markChosen()
+}
+
+// sameNames reports whether two schemas' kinds have the same names in
+// the same order, all the palette shows of them.
+func sameNames(a, b *gw.Kinds) bool {
+	if a == b {
+		return true
+	}
+	if a.VertexKinds() != b.VertexKinds() || a.EdgeKinds() != b.EdgeKinds() {
+		return false
+	}
+	// bound: the vertex kinds
+	for i := range a.VertexKinds() {
+		if a.Vertex(gw.KindIndex(i)).Name() != b.Vertex(gw.KindIndex(i)).Name() { //nolint:gosec // bounded by the kinds
+			return false
+		}
+	}
+	// bound: the edge kinds
+	for i := range a.EdgeKinds() {
+		if a.Edge(gw.KindIndex(i)).Name() != b.Edge(gw.KindIndex(i)).Name() { //nolint:gosec // bounded by the kinds
+			return false
+		}
+	}
+	return true
+}
+
 // buildPalette makes a button per vertex kind, which a press starts
 // placing, and per edge kind, which a press chooses for the edges drawn
-// from then on, or unchooses.
+// from then on, or unchooses. A button carries its kind as data-kind,
+// and an edge kind's data-edge, for the element's one listener.
 func (h *Handle) buildPalette() {
+	h.palBuilt, h.palMode, h.palKinds = true, h.ed.Mode(), h.d.Kinds()
 	doc := js.Global().Get("document")
 	h.palette.Set("innerHTML", "")
 	h.edgeItems = h.edgeItems[:0]
@@ -109,42 +111,26 @@ func (h *Handle) buildPalette() {
 	kinds := h.d.Kinds()
 	// bound: the vertex kinds
 	for i := range kinds.VertexKinds() {
-		h.paletteButton(doc, kinds.Vertex(gw.KindIndex(i)).Name(), "vertex", gw.KindIndex(i), false) //nolint:gosec // bounded by the kinds
+		h.paletteButton(doc, kinds.Vertex(gw.KindIndex(i)).Name(), "vertex", i, false) //nolint:gosec // bounded by the kinds
 	}
 	// bound: the edge kinds
 	for i := range kinds.EdgeKinds() {
-		h.edgeItems = append(h.edgeItems, h.paletteButton(doc, kinds.Edge(gw.KindIndex(i)).Name(), "edge", gw.KindIndex(i), true)) //nolint:gosec // bounded by the kinds
+		h.edgeItems = append(h.edgeItems, h.paletteButton(doc, kinds.Edge(gw.KindIndex(i)).Name(), "edge", i, true)) //nolint:gosec // bounded by the kinds
 	}
-	h.markChosen()
 }
 
-func (h *Handle) paletteButton(doc js.Value, name, class string, kind gw.KindIndex, isEdge bool) js.Value {
+func (h *Handle) paletteButton(doc js.Value, name, class string, kind int, isEdge bool) js.Value {
 	b := doc.Call("createElement", "button")
 	b.Set("type", "button")
 	b.Set("className", "graphedwright-item graphedwright-"+class)
 	b.Set("textContent", name)
 	b.Set("title", "drag onto the drawing")
+	b.Call("setAttribute", "data-kind", strconv.Itoa(kind))
 	if isEdge {
 		b.Set("title", "draw new edges as "+name+"; press again to let the shapes choose")
+		b.Call("setAttribute", "data-edge", "")
 	}
 	h.palette.Call("appendChild", b)
-	h.listen(b, "pointerdown", func(_ js.Value, args []js.Value) any {
-		if len(args) == 0 {
-			return nil
-		}
-		args[0].Call("preventDefault")
-		// The palette press is the pointer whose release drops the item.
-		if !h.ptr.track(edit.PointerDown, args[0].Get("pointerId").Int()) {
-			return nil
-		}
-		// preventDefault keeps the focus where it was, so the label
-		// input gets no blur.
-		h.commitInput()
-		ch, err := h.ed.Handle(edit.Event{Kind: edit.PaletteStart, Item: kind, IsEdge: isEdge})
-		h.markChosen()
-		h.report(ch, err)
-		return nil
-	})
 	return b
 }
 
@@ -160,30 +146,24 @@ func (h *Handle) markChosen() {
 }
 
 // drawing is the element the SVG lives in.
-func (h *Handle) drawing() js.Value { return h.el.Call("querySelector", ".graphedwright-drawing") }
+func (h *Handle) drawing() js.Value { return h.drawEl }
 
 // pointer converts a pointer event to the editor's. The point is mapped
 // into document units here, through the SVG's own screen matrix, which
 // knows the viewport and the letterboxing the browser applied; the
 // editor therefore sees document units and applies no viewport.
-func (h *Handle) pointer(kind edit.EventKind) func(js.Value, []js.Value) any {
-	return func(_ js.Value, args []js.Value) any {
-		if len(args) == 0 {
-			return nil
-		}
-		ev := args[0]
-		if !h.ptr.track(kind, ev.Get("pointerId").Int()) {
-			return nil
-		}
-		p := h.toDoc(ev.Get("clientX").Float(), ev.Get("clientY").Float())
-		e := edit.Event{Kind: kind, Point: p, Button: ev.Get("button").Int(), Modifiers: modifiers(ev)}
-		if kind == edit.PointerDown {
-			h.el.Call("focus")
-			ev.Call("preventDefault")
-		}
-		h.handle(e)
+func (h *Handle) pointer(kind edit.EventKind, ev js.Value) any {
+	if !h.ptr.track(kind, ev.Get("pointerId").Int()) {
 		return nil
 	}
+	p := h.toDoc(ev.Get("clientX").Float(), ev.Get("clientY").Float())
+	e := edit.Event{Kind: kind, Point: p, Button: ev.Get("button").Int(), Modifiers: modifiers(ev)}
+	if kind == edit.PointerDown {
+		h.el.Call("focus")
+		ev.Call("preventDefault")
+	}
+	h.handle(e)
+	return nil
 }
 
 // commitInput commits the label input's text, as Enter in it does, when
@@ -204,11 +184,10 @@ func (h *Handle) commitInput() {
 // takes the request, since the browser's menu may swallow the release.
 // When the host takes it, the browser's menu is not shown and the host
 // hears of it once the selection is drawn.
-func (h *Handle) contextMenu(_ js.Value, args []js.Value) any {
-	if len(args) == 0 || h.inHost || h.destroyed {
+func (h *Handle) contextMenu(ev js.Value) any {
+	if h.inHost || h.destroyed {
 		return nil
 	}
-	ev := args[0]
 	if h.context {
 		ev.Call("preventDefault")
 	}
@@ -250,8 +229,8 @@ const escapeKey = "Escape"
 // pointerCancel ends the gesture of the pointer that is down when the
 // browser takes it, for a scroll or a system gesture: the editor cancels
 // it as it does for Escape, so a drag goes back to where it began.
-func (h *Handle) pointerCancel(_ js.Value, args []js.Value) any {
-	if len(args) == 0 || !h.ptr.cancel(args[0].Get("pointerId").Int()) {
+func (h *Handle) pointerCancel(ev js.Value) any {
+	if !h.ptr.cancel(ev.Get("pointerId").Int()) {
 		return nil
 	}
 	h.handle(edit.Event{Kind: edit.Key, Key: escapeKey})
@@ -294,11 +273,7 @@ func (h *Handle) toDoc(x, y float64) gw.Point {
 // wheel forwards a scroll, in pixels: as document units through the
 // SVG's scale to pan, so that the drawing moves as far as the scroll on
 // screen at any zoom, or as they are with Ctrl to zoom.
-func (h *Handle) wheel(_ js.Value, args []js.Value) any {
-	if len(args) == 0 {
-		return nil
-	}
-	ev := args[0]
+func (h *Handle) wheel(ev js.Value) any {
 	ev.Call("preventDefault")
 	// The deltas are read before the mode: Firefox gives a mouse wheel's
 	// in lines only to a page that asks for the mode first.
@@ -324,11 +299,7 @@ func (h *Handle) wheel(_ js.Value, args []js.Value) any {
 // lineHeight is the pixels a wheel scroll counted in lines moves by.
 const lineHeight = 16
 
-func (h *Handle) keydown(_ js.Value, args []js.Value) any {
-	if len(args) == 0 {
-		return nil
-	}
-	ev := args[0]
+func (h *Handle) keydown(ev js.Value) any {
 	key := ev.Get("key").String()
 	switch key {
 	case "Delete", "Backspace", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter", escapeKey:
@@ -350,11 +321,7 @@ func (h *Handle) keydown(_ js.Value, args []js.Value) any {
 }
 
 // doubleClick edits the label of what is under the pointer.
-func (h *Handle) doubleClick(_ js.Value, args []js.Value) any {
-	if len(args) == 0 {
-		return nil
-	}
-	ev := args[0]
+func (h *Handle) doubleClick(ev js.Value) any {
 	ev.Call("preventDefault")
 	p := h.toDoc(ev.Get("clientX").Float(), ev.Get("clientY").Float())
 	h.handle(edit.Event{Kind: edit.DoubleClick, Point: p})
@@ -452,11 +419,7 @@ func (h *Handle) hideInput() {
 
 // inputKey keeps the text on Enter and drops it on Escape; Shift-Enter
 // starts a new line, as the textarea does by itself.
-func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
-	if len(args) == 0 {
-		return nil
-	}
-	ev := args[0]
+func (h *Handle) inputKey(ev js.Value) any {
 	// The editor hears first: hiding the input blurs it, and a blur
 	// while still editing keeps the text.
 	switch ev.Get("key").String() {
@@ -478,7 +441,7 @@ func (h *Handle) inputKey(_ js.Value, args []js.Value) any {
 
 // inputGrow makes the input tall enough for the lines typed into it,
 // never less than the label's box it was put over.
-func (h *Handle) inputGrow(js.Value, []js.Value) any {
+func (h *Handle) inputGrow() any {
 	h.input.Get("style").Set("height", px(math.Max(h.inputH, h.input.Get("scrollHeight").Float())))
 	return nil
 }
@@ -489,7 +452,7 @@ const labelFont = 12
 
 // inputBlur keeps the text when the input loses the focus while still
 // editing, as a click elsewhere does.
-func (h *Handle) inputBlur(js.Value, []js.Value) any {
+func (h *Handle) inputBlur() any {
 	if h.ed.State() == edit.EditingText {
 		h.input.Get("style").Set("display", "none")
 		h.handle(edit.Event{Kind: edit.TextDone, Text: h.input.Get("value").String()})
@@ -507,7 +470,7 @@ func (h *Handle) renderAll() {
 	}
 	h.drawing().Set("innerHTML", h.buf.String())
 	h.svgEl = h.drawing().Call("querySelector", "svg")
-	h.buildPalette()
+	h.syncPalette()
 }
 
 // renderOverlay replaces the overlay group alone. The groups are found

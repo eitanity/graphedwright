@@ -1,6 +1,7 @@
 package analyzers_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"code.eitanity.com/graphedwright/internal/lint/analyzers"
@@ -35,4 +36,12 @@ func TestSealed(t *testing.T) {
 
 func TestStmts(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), analyzers.Stmts, mod+"/st", mod+"/dom")
+}
+
+// TestFuncOf loads the binding's fixture, a tree of its own, as the
+// browser build, where syscall/js is.
+func TestFuncOf(t *testing.T) {
+	t.Setenv("GOOS", "js")
+	t.Setenv("GOARCH", "wasm")
+	analysistest.Run(t, filepath.Join(analysistest.TestData(), "js"), analyzers.FuncOf, mod+"/dom")
 }

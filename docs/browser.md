@@ -263,6 +263,13 @@ func main() {
   leave out the ones it doesn't need. Each method runs after the change
   it reports is drawn. The selection `Selected` is given is a copy,
   valid only for the call.
+- **The binding makes its JavaScript functions once:** the object's at
+  `Install`, and one listener per event the first time a handle is
+  mounted, shared by every handle in the page and routed by where the
+  event happened. A drag goes to the handle it began in alone, and a
+  hover to the one under the pointer. `Mount`, `Load`, `Annotate`,
+  `SetMode`, the redraws and `Destroy` make none, so there is nothing
+  to release; `dom.FuncsMade` counts them for a test.
 - **Context requests** reach `Context(req, client)` when
   `Options.Context` is set, and only then is the browser's menu not
   shown: `req` is the editor's `ContextRequest` (the hit by index, the
@@ -388,7 +395,10 @@ restyle it with CSS or script it.
 - **Around the drawing:** the binding makes `.graphedwright-host`,
   `.graphedwright-palette` with `.graphedwright-item` buttons
   (`.graphedwright-vertex` and `.graphedwright-edge`, the chosen one
-  `.graphedwright-chosen`), `.graphedwright-drawing` and the
+  `.graphedwright-chosen`), which carry their kind as `data-kind`, and
+  `data-edge` for an edge kind, `.graphedwright-drawing`, the
+  `.graphedwright-zoom` buttons, each naming what it does as
+  `data-zoom` (`in`, `out` or `fit`), and the
   `.graphedwright-label` textarea, which keeps a label's lines. The host element carries `data-held`
   while the page holds the editor.
 

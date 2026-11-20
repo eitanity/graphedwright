@@ -56,8 +56,10 @@ type host struct {
 	selected  string // the last selection Selected was given, as the IDs it names
 	contexts  []edit.ContextRequest
 	client    gw.Point
-	ctxSel    string // the selection when Context was called
-	ctxApply  error  // h.Apply from inside Context
+	ctxSel    string         // the selection when Context was called
+	ctxApply  error          // h.Apply from inside Context
+	click     js.Value       // a button Changed clicks, if any
+	clicked   [2]gw.Viewport // the view before and after that click
 }
 
 // Context records the request and the selection, and tries to act from
@@ -71,6 +73,12 @@ func (t *host) Context(req edit.ContextRequest, client gw.Point) {
 // Changed records the change and does what the mode says.
 func (t *host) Changed(ch gw.Change) (gw.Command, bool) {
 	t.changed++
+	if t.click.Truthy() {
+		t.clicked[0] = t.h.Document().View()
+		t.click.Call("click")
+		t.clicked[1] = t.h.Document().View()
+		t.click = js.Undefined()
+	}
 	switch t.mode {
 	case followOnce:
 		if t.h.Editor().State() != edit.Idle {
@@ -194,6 +202,7 @@ func run(page js.Value, r *report) {
 	contexts(page, r)
 	holds(page, r)
 	lifecycle(el, h, t, r)
+	once(page, r)
 }
 
 // chains checks follow-ups that cannot be completed: past the bound, or
@@ -468,4 +477,137 @@ func errText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// long is a document of one box whose label is cut, which a hover over
+// it draws in full in the overlay.
+const long = `{"schema":"basic","vertices":[
+ {"id":"l","kind":"box","label":"a label far too long to fit in its box","x":120,"y":100,"placed":true}]}`
+
+// once checks that the binding makes its functions at start-up alone:
+// after a mount, none through Annotate, Load, SetMode both ways, a second
+// handle mounted, and both destroyed; and that, with two handles
+// mounted, a drag in one reaches only it, while a hover still reaches
+// the one under the pointer.
+func once(page js.Value, r *report) {
+	elA, elB := page.Call("createElement", "div"), page.Call("createElement", "div")
+	for _, el := range []js.Value{elA, elB} {
+		el.Get("style").Set("cssText", "width:500px;height:200px")
+		page.Get("body").Call("appendChild", el)
+	}
+	defer func() {
+		page.Get("body").Call("removeChild", elA)
+		page.Get("body").Call("removeChild", elB)
+	}()
+	da, errA := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+	db, errB := doc.Decode([]byte(long), doc.Options{Schemas: doc.Builtin()})
+	if err := errors.Join(errA, errB); err != nil {
+		r.check("decode", false, err.Error())
+		return
+	}
+	ta, tb := &host{first: gw.None}, &host{first: gw.None}
+	ha, err := dom.Mount(elA, da, dom.Options{IDPrefix: "goa-"}, ta)
+	if err != nil {
+		r.check("mount for the functions made", false, err.Error())
+		return
+	}
+	ta.h = ha
+	made := dom.FuncsMade()
+	item := elA.Call("querySelector", ".graphedwright-palette .graphedwright-item")
+	var errs []error
+	notes := make([]svg.Annotation, da.VertexSlots())
+	for i := range 100 {
+		notes[0] = svg.Annotation{Text: strconv.Itoa(i)}
+		errs = append(errs, ha.Annotate(notes, nil))
+	}
+	for range 100 {
+		d, err := doc.Decode([]byte(example), doc.Options{Schemas: doc.Builtin()})
+		if err == nil {
+			err = ha.Load(d)
+		}
+		errs = append(errs, err)
+	}
+	kept := item.Get("isConnected").Bool()
+	errs = append(errs, ha.SetMode(edit.View), ha.SetMode(edit.Edit))
+	r.check("the palette is kept through Annotate and Load, and made again for a mode", kept && !item.Get("isConnected").Bool() && elA.Call("querySelector", ".graphedwright-palette .graphedwright-item").Truthy(), "kept "+strconv.FormatBool(kept))
+	controls(elA, ha, ta, r)
+	hb, err := dom.Mount(elB, db, dom.Options{IDPrefix: "gob-"}, tb)
+	errs = append(errs, err)
+	if err != nil {
+		r.check("mount a second handle", false, err.Error())
+		return
+	}
+	tb.h = hb
+	mounted := dom.FuncsMade()
+
+	isolated(elA, elB, ha, r)
+
+	errs = append(errs, ha.Destroy(), hb.Destroy())
+	err = errors.Join(errs...)
+	r.check("no function is made after the first mount", err == nil && mounted == made && dom.FuncsMade() == made, "made "+strconv.Itoa(made)+" at the mount, "+strconv.Itoa(mounted)+" after the second, "+strconv.Itoa(dom.FuncsMade())+" after destroy "+errText(err))
+}
+
+// expanded reports whether the element's overlay draws a cut text in
+// full.
+func expanded(el js.Value) bool {
+	return el.Call("querySelector", "svg > g.overlay .expanded").Truthy()
+}
+
+// controls checks the palette's edge kinds and the zoom buttons: a
+// press chooses an edge kind, shown pressed, and another unchooses it;
+// the buttons zoom in, out and fit; and a click while a Host method
+// runs is dropped.
+func controls(el js.Value, h *dom.Handle, t *host, r *report) {
+	ed := h.Editor()
+	b := el.Call("querySelector", ".graphedwright-palette .graphedwright-edge")
+	x, y := 0.0, 0.0
+	if b.Truthy() {
+		box := b.Call("getBoundingClientRect")
+		x, y = box.Get("left").Float()+2, box.Get("top").Float()+2
+	}
+	press := func() {
+		b.Call("dispatchEvent", pointerAt("pointerdown", x, y, 13))
+		js.Global().Call("dispatchEvent", pointerAt("pointerup", x, y, 13))
+	}
+	press()
+	chosen, pressed := ed.EdgeKind(), b.Call("getAttribute", "aria-pressed").String()
+	press()
+	r.check("an edge kind's button chooses it, shown pressed, and unchooses it", b.Truthy() && chosen == 0 && pressed == "true" && ed.EdgeKind() != 0 && b.Call("getAttribute", "aria-pressed").String() == "false", "chosen "+strconv.Itoa(int(chosen))+" pressed "+pressed+", then "+strconv.Itoa(int(ed.EdgeKind())))
+
+	zoom := func(which string) js.Value {
+		return el.Call("querySelector", `.graphedwright-zoom [data-zoom="`+which+`"]`)
+	}
+	d := h.Document()
+	zoom("fit").Call("click")
+	fitted := d.View()
+	zoom("in").Call("click")
+	in := d.View()
+	zoom("out").Call("click")
+	zoom("out").Call("click")
+	out := d.View()
+	zoom("fit").Call("click")
+	r.check("the zoom buttons zoom in, out and fit", in.W < fitted.W && out.W > fitted.W && d.View() == fitted, "fitted "+num(fitted.W)+", in "+num(in.W)+", out "+num(out.W)+", fitted again "+num(d.View().W))
+
+	t.click = zoom("in")
+	_, err := h.Apply(gw.Command{Op: gw.Relabel, Vertex: d.VertexByID("a"), Text: "zoomed?"})
+	r.check("a zoom button clicked while a Host method runs is dropped", err == nil && t.clicked[0].W > 0 && t.clicked[1] == t.clicked[0] && d.View() == fitted, "view "+num(t.clicked[0].W)+" then "+num(t.clicked[1].W)+" "+errText(err))
+}
+
+// isolated checks that, with two handles mounted, a drag from a vertex
+// of A's over B's cut label moves A's vertex, and B, which a hover there
+// expands, hears none of it.
+func isolated(elA, elB js.Value, ha *dom.Handle, r *report) {
+	a := ha.Document().VertexByID("a")
+	x0 := ha.Document().Vertex(a).Pos().X
+	ax, ay := centre(elA, "a")
+	bx, by := centre(elB, "l")
+	elA.Call("querySelector", "#a").Call("dispatchEvent", pointerAt("pointerdown", ax, ay, 11))
+	elB.Call("querySelector", "#l").Call("dispatchEvent", pointerAt("pointermove", bx, by, 11))
+	dragExpanded := expanded(elB)
+	elB.Call("querySelector", "#l").Call("dispatchEvent", pointerAt("pointerup", bx, by, 11))
+	dragged := ha.Document().Vertex(a).Pos().X != x0
+	elB.Call("querySelector", "#l").Call("dispatchEvent", pointerAt("pointermove", bx, by, 12))
+	hoverExpanded := expanded(elB)
+	r.check("a drag in one handle reaches it alone, a hover the one under the pointer", dragged && !dragExpanded && hoverExpanded, "dragged "+strconv.FormatBool(dragged)+", B expanded during the drag "+strconv.FormatBool(dragExpanded)+", on a hover "+strconv.FormatBool(hoverExpanded))
+
 }

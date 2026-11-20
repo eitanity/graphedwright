@@ -114,8 +114,13 @@ var (
 type Handle struct {
 	el        js.Value // the host element
 	svgEl     js.Value // the SVG inside it
+	drawEl    js.Value // the element the SVG lives in
 	palette   js.Value
+	zoom      js.Value   // the zoom buttons' bar
 	edgeItems []js.Value // the palette's edge kind buttons, by kind
+	palBuilt  bool       // the palette was made, for palMode and palKinds
+	palMode   edit.Mode  // the mode the palette was made for
+	palKinds  *gw.Kinds  // the kinds it was made for, by name
 	grid      float64    // the grid Mount was given, for each editor Load makes
 	noExpand  bool       // no overlay expansion of cut texts, for each editor Load makes
 	maxFollow int        // Options.MaxFollow, or its default
@@ -133,7 +138,6 @@ type Handle struct {
 	selE      []gw.EdgeIndex
 	opts      svg.Options
 	buf       bytes.Buffer
-	funcs     []js.Func
 	patch     bool     // patch the DOM by element, else re-render the whole drawing
 	context   bool     // the host takes context requests
 	lastSel   int      // the selection's size at the last report, to notice a change
@@ -430,8 +434,8 @@ func (h *Handle) SVG(w io.Writer) error {
 	return h.r.Render(h.d, opts, w)
 }
 
-// Destroy removes the editor from the element and releases every
-// function it made; every later call is refused.
+// Destroy removes the editor from the element and stops the page's
+// events reaching it; every later call is refused.
 func (h *Handle) Destroy() error {
 	if err := h.refuse(); err != nil {
 		return err
