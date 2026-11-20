@@ -8,6 +8,7 @@ package main
 import (
 	"errors"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -203,6 +204,8 @@ func run(page js.Value, r *report) {
 	holds(page, r)
 	lifecycle(el, h, t, r)
 	once(page, r)
+	reuse(page, r)
+	grown(page, r)
 }
 
 // chains checks follow-ups that cannot be completed: past the bound, or
@@ -610,4 +613,109 @@ func isolated(elA, elB js.Value, ha *dom.Handle, r *report) {
 	hoverExpanded := expanded(elB)
 	r.check("a drag in one handle reaches it alone, a hover the one under the pointer", dragged && !dragExpanded && hoverExpanded, "dragged "+strconv.FormatBool(dragged)+", B expanded during the drag "+strconv.FormatBool(dragExpanded)+", on a hover "+strconv.FormatBool(hoverExpanded))
 
+}
+
+// reuse checks a document read into the handle's own and loaded: it is
+// drawn, its vertices take a drag and its edits undo; and doing so
+// allocates nothing for the capacities, no more at the default ones
+// than at 64 vertices, and a small part of what a document made at the
+// default capacities takes.
+func reuse(page js.Value, r *report) {
+	el := page.Call("createElement", "div")
+	el.Get("style").Set("cssText", "width:500px;height:200px")
+	page.Get("body").Call("appendChild", el)
+	defer page.Get("body").Call("removeChild", el)
+	opts := doc.Options{Schemas: doc.Builtin()}
+	small, msg := loadCost(el, gw.Caps{Vertices: 64, Edges: 256}, r)
+	full, msgFull := loadCost(el, gw.Caps{}, r)
+	var m0, m1 runtime.MemStats
+	runtime.ReadMemStats(&m0)
+	_, err := doc.Decode([]byte(three), opts)
+	runtime.ReadMemStats(&m1)
+	made := m1.TotalAlloc - m0.TotalAlloc
+	r.check("a document read into the handle's own and loaded is drawn, dragged and undone, and allocates nothing for the capacities",
+		msg == "" && msgFull == "" && err == nil && full <= small+small/8 && full*100 < made,
+		"bytes per read and load: "+strconv.FormatUint(small, 10)+" at 64 vertices, "+strconv.FormatUint(full, 10)+" at the default capacities, against "+strconv.FormatUint(made, 10)+" for a document made at them "+msg+msgFull+errText(err))
+}
+
+// grown drags a vertex in a small drawing, grows its document and
+// loads the larger one: the drag is undone in it.
+func grown(page js.Value, r *report) {
+	el := page.Call("createElement", "div")
+	el.Get("style").Set("cssText", "width:500px;height:200px")
+	page.Get("body").Call("appendChild", el)
+	defer page.Get("body").Call("removeChild", el)
+	d, err := doc.Decode([]byte(three), doc.Options{Schemas: doc.Builtin(), Caps: gw.Caps{Vertices: 4, Edges: 4}})
+	if err != nil {
+		r.check("a document grown and loaded keeps its undo", false, err.Error())
+		return
+	}
+	t := &host{first: gw.None}
+	h, err := dom.Mount(el, d, dom.Options{IDPrefix: "gog-"}, t)
+	if err != nil {
+		r.check("a document grown and loaded keeps its undo", false, err.Error())
+		return
+	}
+	t.h = h
+	defer r.destroy(h)
+	c := d.VertexByID("c")
+	x0 := d.Vertex(c).Pos().X
+	drag(el, "c", 80)
+	moved := d.Vertex(c).Pos().X != x0
+	g, err := d.Grow(gw.Caps{Vertices: 64, Edges: 256})
+	if err == nil {
+		err = h.Load(g)
+	}
+	undone := err == nil && h.Undo() && g.Vertex(c).Pos().X == x0
+	n := el.Call("querySelectorAll", "svg g.vertex").Length()
+	r.check("a document grown and loaded keeps its undo: a drag made before is undone after",
+		moved && undone && n == 3 && g.Caps().Vertices == 64,
+		"moved "+strconv.FormatBool(moved)+", undone "+strconv.FormatBool(undone)+", drawn "+strconv.Itoa(n)+errText(err))
+}
+
+// loadCost mounts the example at the capacities, reads documents into
+// the handle's own and loads them, and returns the bytes allocated per
+// read and load, or what went wrong: a drag and its undo must work on
+// the document loaded last.
+func loadCost(el js.Value, caps gw.Caps, r *report) (uint64, string) {
+	opts := doc.Options{Schemas: doc.Builtin()}
+	d, err := doc.Decode([]byte(example), doc.Options{Schemas: opts.Schemas, Caps: caps})
+	if err != nil {
+		return 0, err.Error()
+	}
+	t := &host{first: gw.None}
+	h, err := dom.Mount(el, d, dom.Options{IDPrefix: "gor-"}, t)
+	if err != nil {
+		return 0, err.Error()
+	}
+	t.h = h
+	defer r.destroy(h)
+	// Once, so that what is made at the first load is not counted.
+	if _, err := doc.DecodeInto(h.Document(), []byte(three), opts); err != nil {
+		return 0, err.Error()
+	}
+	if err := h.Load(h.Document()); err != nil {
+		return 0, err.Error()
+	}
+	var m0, m1 runtime.MemStats
+	runtime.ReadMemStats(&m0)
+	for _, text := range []string{example, three} {
+		if _, err := doc.DecodeInto(h.Document(), []byte(text), opts); err != nil {
+			return 0, err.Error()
+		}
+		if err := h.Load(h.Document()); err != nil {
+			return 0, err.Error()
+		}
+	}
+	runtime.ReadMemStats(&m1)
+	d = h.Document()
+	c := d.VertexByID("c")
+	x0 := d.Vertex(c).Pos().X
+	drag(el, "c", 80)
+	moved := d.Vertex(c).Pos().X != x0
+	undone := h.Undo() && d.Vertex(c).Pos().X == x0
+	if n := el.Call("querySelectorAll", "svg g.vertex").Length(); n != 3 || !moved || !undone {
+		return 0, "drawn " + strconv.Itoa(n) + ", moved " + strconv.FormatBool(moved) + ", undone " + strconv.FormatBool(undone)
+	}
+	return (m1.TotalAlloc - m0.TotalAlloc) / 2, ""
 }

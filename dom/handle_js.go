@@ -131,6 +131,7 @@ type Handle struct {
 	ed        *edit.Editor
 	r         *svg.Renderer
 	lay       *layout.Layouter
+	layCaps   gw.Caps // the capacities lay was made for
 	host      Host
 	notesV    []svg.Annotation
 	notesE    []svg.Annotation
@@ -166,7 +167,7 @@ func Mount(el js.Value, d *gw.Document, opts Options, host Host) (*Handle, error
 	if opts.View {
 		mode = edit.View
 	}
-	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), host: host, patch: !opts.NoPatch, context: opts.Context, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
+	h := &Handle{el: el, d: d, r: svg.New(), lay: layout.New(d.Caps()), layCaps: d.Caps(), host: host, patch: !opts.NoPatch, context: opts.Context, grid: opts.Grid, noExpand: opts.NoExpand, maxFollow: maxFollow, follow: opts.MaxFollow}
 	h.opts.IDPrefix, h.opts.DocIDPrefix, h.opts.NoFullText = opts.IDPrefix, opts.DocIDPrefix, opts.NoFullText
 	h.ed = edit.New(d, mode, h.grid)
 	h.ed.SetExpand(!h.noExpand)
@@ -240,7 +241,12 @@ func (h *Handle) Redo() bool {
 
 // Load shows another document in place of the one shown, in a new
 // editor with the handle's options, mode and hold, its annotations
-// cleared.
+// cleared. A document of the capacities of the one shown is shown in
+// the editor, layouter and arrays the handle already has, so that
+// nothing is allocated for them: with doc.DecodeInto, a host shows one
+// document after another in the same room, reading each into the
+// handle's own Document, or into a second one of its capacities that it
+// swaps with it.
 func (h *Handle) Load(d *gw.Document) error {
 	if err := h.refuse(); err != nil {
 		return err
@@ -253,13 +259,17 @@ func (h *Handle) Load(d *gw.Document) error {
 		return err
 	}
 	h.d, h.maxFollow = d, maxFollow
-	held := h.ed.Held()
-	h.ed = edit.New(d, h.ed.Mode(), h.grid)
+	held, mode := h.ed.Held(), h.ed.Mode()
+	if !h.ed.Reset(d, mode, h.grid) {
+		h.ed = edit.New(d, mode, h.grid)
+	}
 	h.ed.SetExpand(!h.noExpand)
 	if held {
 		h.ed.Hold()
 	}
-	h.lay = layout.New(d.Caps())
+	if c := d.Caps(); c != h.layCaps {
+		h.lay, h.layCaps = layout.New(c), c
+	}
 	if c := d.Caps(); c.Vertices != len(h.notesV) || c.Edges != len(h.notesE) {
 		h.notesV, h.notesE = make([]svg.Annotation, c.Vertices), make([]svg.Annotation, c.Edges)
 		h.selV, h.selE = make([]gw.VertexIndex, 0, c.Vertices), make([]gw.EdgeIndex, 0, c.Edges)

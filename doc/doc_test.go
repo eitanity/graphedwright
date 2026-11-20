@@ -582,8 +582,12 @@ func FuzzDecode(f *testing.F) {
 	f.Add([]byte(`{"schema":"state-machine","vertices":[{"id":"i","kind":"initial","label":"<&>"},{"id":"s","kind":"state"},{"id":"f","kind":"final","label":"\"/><script>"}],"edges":[{"kind":"transition","from":"i","to":"s"},{"kind":"transition","from":"s","to":"f"}]}`))
 	r := svg.New()
 	var buf bytes.Buffer
+	ss := schemas()
+	caps := gw.Caps{Vertices: 64, Edges: 64}
+	held := heldFor(f, ss, caps)
 	f.Fuzz(func(t *testing.T, data []byte) {
-		d, name, err := doc.DecodeNamed(data, doc.Options{Schemas: schemas(), Caps: gw.Caps{Vertices: 64, Edges: 64}, NoLayout: true})
+		d, name, err := doc.DecodeNamed(data, doc.Options{Schemas: ss, Caps: caps, NoLayout: true})
+		into(t, held, ss, data, err)
 		if err != nil {
 			return
 		}
@@ -855,4 +859,56 @@ func TestGeneralisationSameKind(t *testing.T) {
 			t.Errorf("%s to %s: %v, want accepted %v", c.from, c.to, err, c.ok)
 		}
 	}
+}
+
+// heldFor is a document at the capacities that any of the schemas can
+// be read into: made with the one of the most vertex kinds.
+func heldFor(tb testing.TB, ss []doc.Named, caps gw.Caps) *gw.Document {
+	tb.Helper()
+	k := ss[0].Kinds
+	for _, n := range ss {
+		if n.Kinds.VertexKinds() > k.VertexKinds() {
+			k = n.Kinds
+		}
+	}
+	d, err := gw.New(k, caps)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return d
+}
+
+// into reads the example into the held document, then the data, which
+// Decode took or refused as decodeErr: DecodeInto takes what Decode
+// takes, writing the same, and refuses what it refuses, a document over
+// the capacities with the example left as it was and any other empty.
+func into(t *testing.T, held *gw.Document, ss []doc.Named, data []byte, decodeErr error) {
+	t.Helper()
+	opts := doc.Options{Schemas: ss, NoLayout: true}
+	if _, err := doc.DecodeInto(held, []byte(example), opts); err != nil {
+		t.Fatal(err)
+	}
+	before := encoded(t, held, "model")
+	name, err := doc.DecodeInto(held, data, opts)
+	switch {
+	case (err == nil) != (decodeErr == nil):
+		t.Fatalf("DecodeInto: %v, Decode: %v", err, decodeErr)
+	case err == nil:
+		want, _, _ := doc.DecodeNamed(data, doc.Options{Schemas: ss, Caps: held.Caps(), NoLayout: true})
+		if got := encoded(t, held, name); got != encoded(t, want, name) {
+			t.Fatalf("DecodeInto wrote\n%s\nDecode\n%s", got, encoded(t, want, name))
+		}
+	case held.LiveVertices() != 0 && encoded(t, held, "model") != before:
+		t.Fatalf("refused (%v), and the held document is neither as it was nor empty:\n%s", err, encoded(t, held, "model"))
+	}
+}
+
+// encoded is the document as Encode writes it under the schema name.
+func encoded(t *testing.T, d *gw.Document, name string) string {
+	t.Helper()
+	var b strings.Builder
+	if err := doc.Encode(d, name, &b); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
 }

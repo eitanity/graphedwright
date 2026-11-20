@@ -23,14 +23,15 @@ type Named struct {
 
 // Options shape a decode: the schemas known, the capacities of the
 // document made, whether to lay out a document whose vertices lack
-// positions (on by default; NoLayout turns it off), and the Codec that
-// reads the host's data, with the longest "data" member it takes. A
-// document with "data" and no codec is refused. EncodeWith takes the
-// Codec and DataBytes too.
+// positions (on by default; NoLayout turns it off) and the layouter to
+// do it with, and the Codec that reads the host's data, with the longest
+// "data" member it takes. A document with "data" and no codec is
+// refused. EncodeWith takes the Codec and DataBytes too.
 type Options struct {
 	Schemas   []Named
-	Caps      gw.Caps
+	Caps      gw.Caps // the document's; DecodeInto reads into one that has its own
 	NoLayout  bool
+	Layouter  *layout.Layouter // made for at least the document's capacities, or nil to make one for it
 	Codec     Codec
 	DataBytes int // DefaultDataBytes if 0; at most MaxInput
 }
@@ -47,37 +48,101 @@ func Decode(data []byte, opts Options) (*gw.Document, error) {
 // DecodeNamed is Decode that also returns the name of the document's
 // schema, which a host needs to encode it again.
 func DecodeNamed(data []byte, opts Options) (*gw.Document, string, error) {
-	if len(data) > MaxInput {
-		return nil, "", errors.New("document of " + strconv.Itoa(len(data)) + " bytes exceeds the limit of " + strconv.Itoa(MaxInput))
-	}
-	caps := opts.Caps
-	if caps.LabelBytes == 0 {
-		caps.LabelBytes = gw.DefaultCaps().LabelBytes
-	}
-	s := &scanner{data: data, path: make([]byte, 0, 64), maxS: caps.LabelBytes}
-	dec := &decoder{s: s, opts: opts}
-	if err := dec.root(); err != nil {
-		return nil, "", err
-	}
-	if dec.d == nil {
-		return nil, "", errors.New("document has no schema")
-	}
-	if dec.unplaced && !opts.NoLayout {
-		if _, err := layout.New(dec.d.Caps()).Run(dec.d, layout.Options{}); err != nil {
-			return nil, "", err
-		}
-	}
-	dec.d.ClearUndo()
-	if err := dec.handOver(); err != nil {
+	dec, err := decode(data, opts, nil)
+	if err != nil {
 		return nil, "", err
 	}
 	return dec.d, dec.name, nil
+}
+
+// DecodeInto reads a document into d, which it empties first
+// (gw.Document.Reset) and returns the name of the document's schema:
+// a host that shows one document after another reads each into the
+// room it already holds, and nothing is allocated for the capacities.
+// They are d's, and opts.Caps is not read. A document that does not fit
+// them (more vertices or edges, more attributes on an element or ports
+// on a vertex, more bend points than the edges have room for, or a text
+// longer than d's LabelBytes) is refused before d is touched, and d is
+// left as it was; so is d while it is locked, and for a schema with more
+// vertex kinds than d was made with. A document refused for anything
+// else, which one Encode wrote never is, leaves d empty. To lay out a
+// document without positions it takes opts.Layouter, which it makes
+// when nil, as Decode does.
+func DecodeInto(d *gw.Document, data []byte, opts Options) (string, error) {
+	if d == nil {
+		return "", errNoDocument
+	}
+	if err := checkSize(data); err != nil {
+		return "", err
+	}
+	if d.Locked() {
+		return "", gw.ErrLocked
+	}
+	if err := fits(data, d.Caps()); err != nil {
+		return "", err
+	}
+	dec, err := decode(data, opts, d)
+	if err != nil {
+		if dec.d != nil {
+			// Refused after d was emptied: what was read of it goes too.
+			_ = d.Reset(d.Kinds()) // discarded: d took these kinds a moment ago, and nothing has locked it since
+		}
+		return "", err
+	}
+	return dec.name, nil
+}
+
+// errNoDocument refuses DecodeInto without a document to read into.
+var errNoDocument = errors.New("no document to read into")
+
+// checkSize refuses text beyond MaxInput, before anything is parsed.
+func checkSize(data []byte) error {
+	if len(data) > MaxInput {
+		return errors.New("document of " + strconv.Itoa(len(data)) + " bytes exceeds the limit of " + strconv.Itoa(MaxInput))
+	}
+	return nil
+}
+
+// decode reads a document, into the one given or, for nil, a new one,
+// and returns the decoder, whose d is the document once the schema is
+// read, refused or not.
+func decode(data []byte, opts Options, into *gw.Document) (*decoder, error) {
+	dec := &decoder{opts: opts, into: into}
+	if err := checkSize(data); err != nil {
+		return dec, err
+	}
+	caps := opts.Caps
+	if into != nil {
+		caps = into.Caps()
+	}
+	if caps.LabelBytes == 0 {
+		caps.LabelBytes = gw.DefaultCaps().LabelBytes
+	}
+	dec.s = &scanner{data: data, path: make([]byte, 0, 64), maxS: caps.LabelBytes}
+	if err := dec.root(); err != nil {
+		return dec, err
+	}
+	if dec.d == nil {
+		return dec, errors.New("document has no schema")
+	}
+	if dec.unplaced && !opts.NoLayout {
+		l := opts.Layouter
+		if l == nil {
+			l = layout.New(dec.d.Caps())
+		}
+		if _, err := l.Run(dec.d, layout.Options{}); err != nil {
+			return dec, err
+		}
+	}
+	dec.d.ClearUndo()
+	return dec, dec.handOver()
 }
 
 // decoder holds the document being built and what the root has seen.
 type decoder struct {
 	s        *scanner
 	opts     Options
+	into     *gw.Document // the document to read into, or nil to make one
 	d        *gw.Document
 	name     string // the schema's
 	unplaced bool
@@ -208,7 +273,7 @@ func (dec *decoder) schema() error {
 	}
 	for _, n := range dec.opts.Schemas {
 		if n.Name == name {
-			d, err := gw.New(n.Kinds, dec.opts.Caps)
+			d, err := dec.made(n.Kinds)
 			if err != nil {
 				return s.errorf(err.Error())
 			}
@@ -217,6 +282,18 @@ func (dec *decoder) schema() error {
 		}
 	}
 	return s.errorf("schema " + strconv.Quote(name) + " not supplied")
+}
+
+// made is the document read into, emptied for the kinds, or a new one
+// of them.
+func (dec *decoder) made(k *gw.Kinds) (*gw.Document, error) {
+	if dec.into == nil {
+		return gw.New(k, dec.opts.Caps)
+	}
+	if err := dec.into.Reset(k); err != nil {
+		return nil, err
+	}
+	return dec.into, nil
 }
 
 // need refuses vertices or edges before the schema.

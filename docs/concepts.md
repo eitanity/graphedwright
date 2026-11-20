@@ -44,7 +44,9 @@ takes the default:
 
 Everything the document will ever hold is allocated when it is made, so
 editing never allocates and never grows. A command that would pass a
-capacity is refused, with an error that names the capacity. This is
+capacity is refused, with an error that names the capacity; a host
+whose document has filled makes a larger one with `Grow`, which keeps
+what can be undone. This is
 what lets the same code run in TinyGo and keeps the browser editor free
 of garbage-collection pauses.
 

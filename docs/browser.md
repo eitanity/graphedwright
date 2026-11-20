@@ -258,6 +258,15 @@ func main() {
   `Fit` and `Destroy`. `Hold` and `Release` hold the editor while the
   host waits on work of its own, as `hold(g)` and `release(g)` do. `Document` and `Editor` are for reading; change
   the document through the handle, so that the drawing follows.
+- **Showing one document after another:** `Load` of a document at the
+  capacities of the one shown keeps the handle's editor, layouter and
+  arrays, so nothing is allocated for the capacities. Read each into
+  the handle's own document and load it:
+  `doc.DecodeInto(h.Document(), data, opts)`, then `h.Load(h.Document())`.
+  A document too big for them is refused, and the one shown is left as
+  it was.
+  When the document shown has filled, `g, err := h.Document().Grow(caps)`
+  and `h.Load(g)` go on in a larger one, keeping what the user can undo.
 - **The host** implements `dom.Host`: `Changed`, `Selected`,
   `Refused`, `EditingLabel` and `Context`. It embeds `dom.NoHost` to
   leave out the ones it doesn't need. Each method runs after the change

@@ -39,6 +39,19 @@ d.Redo()
   refuses nil kinds, and kinds with more ports or attributes than the
   capacities allow. [Concepts](concepts.md#capacities) describes the
   capacities.
+- **`Reset(kinds)`** empties a document as `New` made it, for the kinds
+  given, in the room it has, and allocates nothing. It is refused while
+  the document is locked and for kinds the document has no room for,
+  and the document is then left as it was.
+- **`Grow(caps)`** makes a document of larger capacities that holds all
+  this one holds, its undo log among it: the vertices and edges at the
+  same indices, the bends, the view, the snapshots of the layouts the
+  log reaches back across, and the host's store. A host whose drawing
+  has filled goes on in the larger one, and the user keeps their undo.
+  Every capacity must be at least the document's. It allocates the new
+  document, as `New` does, and leaves this one empty, without the store
+  or the log; the store is told of nothing. Load the new one into a
+  handle with `h.Load`.
 - **`Kinds()`** is the document's kinds. They are read by index, as
   values: `k.Vertex(i)` and `k.Edge(i)`, with `VertexKinds()` and
   `EdgeKinds()` their numbers and `VertexNamed` and `EdgeNamed` an
@@ -242,6 +255,14 @@ without positions is laid out unless `NoLayout` is set.
   with one shares its `Kinds`.
 - **Capacities:** `Options.Caps` gives the capacities of the document
   made.
+- **Into a document held:** `doc.DecodeInto(d, data, opts)` empties `d`
+  and reads the document into it, at `d`'s capacities, so that a host
+  showing one document after another allocates nothing for them. A
+  document that doesn't fit them is refused before `d` is touched, and
+  `d` is left as it was; a document refused for anything else leaves
+  `d` empty. It returns the schema's name. `Options.Layouter`, made for
+  the capacities, lays out a document without positions instead of a
+  layouter made for it.
 - **Host data:** `Options.Codec` reads each `data` member, and
   `EncodeWith(d, name, opts, w)` writes them through the same codec
   ([Host data](format.md#host-data)).
@@ -255,6 +276,7 @@ browser, so a test or another front end can drive it with events:
 
 ```go
 e := edit.New(d, edit.Edit, 8)        // the grid is the snap and nudge step
+e.Reset(d2, edit.Edit, 8)             // another document of d's capacities, in the same arrays
 ch, err := e.Handle(edit.Event{Kind: edit.PointerDown, Point: gw.Point{X: 220, Y: 100}})
 ch, err = e.Handle(edit.Event{Kind: edit.PointerUp, Point: gw.Point{X: 300, Y: 140}})   // a drag: a Move
 ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
