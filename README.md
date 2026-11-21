@@ -1,7 +1,7 @@
 # graphedwright
 
 A Go library that draws directed graphs as SVG and edits them in the
-browser. One graph document is drawn the same in a web page, on a
+browser, and draws charts beside them. One graph document is drawn the same in a web page, on a
 server, from a command line and in a test. It compiles to WebAssembly
 with the Go or the TinyGo toolchain. Besides the standard library it
 imports only merilo's `fsm`, which itself imports nothing.
@@ -23,6 +23,9 @@ imports only merilo's `fsm`, which itself imports nothing.
   containers such as system or trust boundaries are laid out as a block.
 - **SVG** written as text, the same byte for byte everywhere, with every
   element addressable by ID and class for styling and scripting.
+- **Charts** from plain values: plots on linear or log axes with bands
+  and marks, bars, histograms, tornadoes and heat tables, each with its
+  values as an HTML table.
 - **An editor in the browser:**
   - adding and connecting shapes, and choosing the kind of line;
   - moving shapes into and out of containers, and resizing shapes and
@@ -82,6 +85,8 @@ go run ./cmd/graphedwright render --css -f web/examples/use-case.json > use-case
 - **[In the browser](docs/browser.md):** the JavaScript API, the
   editor's gestures, styling.
 - **[The Go API](docs/go.md):** the packages and how they fit together.
+- **[Charts](docs/charts.md):** plots, bars, histograms, tornadoes and
+  heat tables from plain values.
 - **[Document format](docs/format.md)** and **[command line](docs/cli.md)**.
 
 ## The demo

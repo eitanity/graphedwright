@@ -93,10 +93,13 @@ escapes: $(BIN)/escapes
 
 # The same hot path files as TinyGo builds them, which keeps on the heap
 # more than Go does: what a closure captures, and a local buffer handed
-# to a function that TinyGo cannot see keeps none of it.
+# to a function that TinyGo cannot see keeps none of it. The browser
+# entry point draws no chart, so the chart package's tests are built too.
 tinygo-escapes: $(BIN)/escapes
 	tinygo build -o $(BIN)/allocs.tinygo.wasm -target wasm -opt=z -no-debug -print-allocs=. ./cmd/graphedwright-wasm \
 	  > $(BIN)/allocs.txt 2>&1 || { cat $(BIN)/allocs.txt; exit 1; }
+	tinygo test -c -o $(BIN)/allocs.chart.wasm -target wasip1 -opt=z -print-allocs=. ./chart \
+	  >> $(BIN)/allocs.txt 2>&1 || { cat $(BIN)/allocs.txt; exit 1; }
 	$(BIN)/escapes $(HOTPATH) < $(BIN)/allocs.txt
 
 # No float64 expression is fused into a multiply-add on any target. The
@@ -200,7 +203,7 @@ wasm-smoke: wasm
 # collector lets each package's heap run to gigabytes, and the packages
 # run side by side past a CI runner's 16 GB; with it they stay near 2 GB.
 wasm-test: $(BIN)/wazero
-	GOMEMLIMIT=1GiB PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./layout ./doc ./edit ./shapes
+	GOMEMLIMIT=1GiB PATH="$(BIN):$$PATH:$$(go env GOROOT)/lib/wasm" GOOS=wasip1 GOARCH=wasm GOWASIRUNTIME=wazero go test -count=1 -timeout 30m . ./svg ./chart ./layout ./doc ./edit ./shapes
 
 # Every package's tests on the other Linux architectures under qemu-user,
 # the big-endian and 32-bit ones among them, so that a result that
@@ -246,5 +249,5 @@ size: wasm
 
 # Rewrites the frozen SVGs after an intended change; review the diff.
 golden:
-	go test -run TestGolden ./svg -update
+	go test -run TestGolden ./svg ./chart -update
 

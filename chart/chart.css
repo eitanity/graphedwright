@@ -1,0 +1,41 @@
+/* The default look of a graphedwright chart. A host styles by class;
+   nothing here is required. The two series colours are the reference
+   palette's first two slots, which pass the colour-vision checks; a
+   third series and on are drawn in the muted ink until the host gives
+   them colours. The heat ramp is one hue, light to dark. */
+
+.gw-chart { font-family: system-ui, sans-serif; }
+.gw-chart text { fill: #0b0b0b; }
+.gw-chart .tick, .gw-chart .axis-label, .gw-chart .base-label { fill: #52514e; }
+.gw-chart .grid { stroke: #e1e0d9; }
+.gw-chart .axis, .gw-chart .base { stroke: #c3c2b7; }
+
+.gw-chart .series .line { fill: none; stroke: #52514e; stroke-width: 2; stroke-linejoin: round; }
+.gw-chart .series .band { fill: #52514e; fill-opacity: .1; stroke: none; }
+.gw-chart .series .point, .gw-chart .swatch, .gw-chart .bar { fill: #52514e; }
+.gw-chart .s1 .line { stroke: #2a78d6; }
+.gw-chart .s2 .line { stroke: #eb6834; }
+.gw-chart .s1 .band, .gw-chart .s1 .point, .gw-chart .bar.s1, .gw-chart .swatch.s1, .gw-chart .s1 .bar { fill: #2a78d6; }
+.gw-chart .s2 .band, .gw-chart .s2 .point, .gw-chart .bar.s2, .gw-chart .swatch.s2, .gw-chart .s2 .bar { fill: #eb6834; }
+.gw-chart .point, .gw-chart .mark { stroke: #fcfcfb; stroke-width: 1.5; }
+.gw-chart .mark { fill: #0b0b0b; }
+.gw-chart .low { fill: #2a78d6; }
+.gw-chart .high { fill: #eb6834; }
+.gw-chart .value.low, .gw-chart .value.high { fill: #0b0b0b; }
+.gw-chart .hit { fill: transparent; }
+.gw-chart .hit:hover { fill: #0b0b0b; fill-opacity: .05; }
+
+.gw-chart .ramp-0 { fill: #cde2fb; }
+.gw-chart .ramp-1 { fill: #9ec5f4; }
+.gw-chart .ramp-2 { fill: #6da7ec; }
+.gw-chart .ramp-3 { fill: #3987e5; }
+.gw-chart .ramp-4 { fill: #256abf; }
+.gw-chart .ramp-5 { fill: #184f95; }
+.gw-chart .ramp-6 { fill: #0d366b; }
+.gw-chart .on-light { fill: #0b0b0b; }
+.gw-chart .on-dark { fill: #ffffff; }
+
+.gw-chart-table { border-collapse: collapse; font-size: 12px; }
+.gw-chart-table caption { text-align: left; font-weight: 600; padding: 2px 8px; }
+.gw-chart-table td, .gw-chart-table th { padding: 2px 8px; text-align: left; border-bottom: 1px solid #e1e0d9; }
+.gw-chart-table td { text-align: right; font-variant-numeric: tabular-nums; }

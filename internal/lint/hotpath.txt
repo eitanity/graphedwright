@@ -5,7 +5,7 @@
 # an editor keep, are in new.go files of their own and left out, as is
 # edit/props.go, the host's query of an element's properties, a fresh
 # value by design and not an event.
-svg/escape.go
+internal/xmltext/xmltext.go
 svg/fold.go
 svg/geom.go
 svg/hit.go
@@ -20,3 +20,13 @@ edit/pointer.go
 edit/select.go
 edit/gesture/gesture.go
 layout/order.go
+chart/bars.go
+chart/chart.go
+chart/draw.go
+chart/format.go
+chart/heat.go
+chart/histogram.go
+chart/plot.go
+chart/scale.go
+chart/table.go
+chart/tornado.go

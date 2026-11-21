@@ -126,9 +126,9 @@ func TestNoFullText(t *testing.T) {
 func num(f float64) string {
 	var b bytes.Buffer
 	o := newOut()
-	o.reset(&b)
-	o.num(f)
-	o.flush()
+	o.Reset(&b)
+	o.Num(f)
+	o.Flush()
 	return b.String()
 }
 

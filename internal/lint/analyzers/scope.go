@@ -11,8 +11,9 @@ import (
 const modulePath = "code.eitanity.com/graphedwright"
 
 // corePkgs are the packages the core-only checks apply to: the document
-// model, the layout, the renderer, the document format and the editor.
-var corePkgs = [...]string{modulePath, modulePath + "/layout", modulePath + "/svg", modulePath + "/doc", modulePath + "/edit"}
+// model, the layout, the renderer, the charts and the writer they share,
+// the document format and the editor.
+var corePkgs = [...]string{modulePath, modulePath + "/layout", modulePath + "/svg", modulePath + "/chart", modulePath + "/internal/xmltext", modulePath + "/doc", modulePath + "/edit"}
 
 // inModule reports whether the package being analysed is own code.
 func inModule(pass *analysis.Pass) bool {

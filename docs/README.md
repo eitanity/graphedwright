@@ -10,6 +10,8 @@
 - **[In the browser](browser.md):** building and serving, the
   JavaScript API, using the editor, and styling.
 - **[The Go API](go.md):** the packages and how they fit together.
+- **[Charts](charts.md):** plots, bars, histograms, tornadoes and heat
+  tables from plain values, as SVG and as a table.
 - **[Upgrading to v0.2.0](upgrading.md):** what each read and write of
   v0.1 becomes.
 - **[Document format](format.md):** the JSON a document is saved as.

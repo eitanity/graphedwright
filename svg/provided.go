@@ -92,27 +92,27 @@ func (r *Renderer) provided(class string, s gw.ShapeView, size gw.Size, turned b
 		return
 	}
 	n := nineOf(s, size, turned)
-	o.str(`<g class="shape shape-`)
-	o.str(s.Name()) // a word of lowercase letters, digits and '-', as the schema checked it
-	o.str(`">`)
+	o.Str(`<g class="shape shape-`)
+	o.Str(s.Name()) // a word of lowercase letters, digits and '-', as the schema checked it
+	o.Str(`">`)
 	for i := range s.Paths() {
 		p := s.Path(i)
-		o.str(`<path class="`)
+		o.Str(`<path class="`)
 		if p.Fill() {
-			o.str(`mark`)
+			o.Str(`mark`)
 		} else {
-			o.str(`line`)
+			o.Str(`line`)
 		}
-		o.str(`" d="`)
+		o.Str(`" d="`)
 		for j := range p.Len() {
 			if j > 0 {
-				o.byte(' ')
+				o.Byte(' ')
 			}
 			n.command(o, p.At(j))
 		}
-		o.str(`"/>`)
+		o.Str(`"/>`)
 	}
-	o.str(`</g>`)
+	o.Str(`</g>`)
 }
 
 // command writes one command of a path, its numbers scaled. An arc's
@@ -129,28 +129,28 @@ func (n nine) command(o *out, c gw.PathCommand) {
 	}
 	switch op {
 	case gw.MoveTo, gw.LineTo:
-		o.str(opLetter(c.Op))
+		o.Str(opLetter(c.Op))
 		x, y := n.pt(a[0], a[1])
-		o.point(x, y)
+		o.Point(x, y)
 	case gw.HLineTo:
-		o.str(`H `)
+		o.Str(`H `)
 		x, _ := n.x(a[0])
-		o.num(x)
+		o.Num(x)
 	case gw.VLineTo:
-		o.str(`V `)
+		o.Str(`V `)
 		y, _ := n.y(a[0])
-		o.num(y)
+		o.Num(y)
 	case gw.CubicTo, gw.QuadTo:
-		o.str(opLetter(c.Op))
+		o.Str(opLetter(c.Op))
 		x, y := n.pt(a[0], a[1])
-		o.point(x, y)
-		o.byte(' ')
+		o.Point(x, y)
+		o.Byte(' ')
 		x, y = n.pt(a[2], a[3])
-		o.point(x, y)
+		o.Point(x, y)
 		if c.Op == gw.CubicTo {
-			o.byte(' ')
+			o.Byte(' ')
 			x, y = n.pt(a[4], a[5])
-			o.point(x, y)
+			o.Point(x, y)
 		}
 	case gw.ArcTo:
 		rx, ry, ex, ey, sweep := a[0], a[1], a[5], a[6], a[4]
@@ -159,16 +159,16 @@ func (n nine) command(o *out, c gw.PathCommand) {
 		}
 		x, kx := n.x(ex)
 		y, ky := n.y(ey)
-		o.str(`A `)
-		o.point(float64(rx*kx), float64(ry*ky))
-		o.str(` 0 `)
-		o.num(a[3])
-		o.byte(' ')
-		o.num(sweep)
-		o.byte(' ')
-		o.point(x, y)
+		o.Str(`A `)
+		o.Point(float64(rx*kx), float64(ry*ky))
+		o.Str(` 0 `)
+		o.Num(a[3])
+		o.Byte(' ')
+		o.Num(sweep)
+		o.Byte(' ')
+		o.Point(x, y)
 	case gw.Close:
-		o.byte('Z')
+		o.Byte('Z')
 	}
 }
 
@@ -198,17 +198,17 @@ func (r *Renderer) outline(class string, s gw.ShapeView, size gw.Size, turned bo
 	o := r.o
 	n := nineOf(s, size, turned)
 	poly := s.Polygon()
-	o.str(`<polygon class="`)
-	o.str(class)
-	o.str(`" points="`)
+	o.Str(`<polygon class="`)
+	o.Str(class)
+	o.Str(`" points="`)
 	for i := range poly.Len() {
 		if i > 0 {
-			o.byte(' ')
+			o.Byte(' ')
 		}
 		x, y := n.pt(poly.At(i).X, poly.At(i).Y)
-		o.point(x, y)
+		o.Point(x, y)
 	}
-	o.str(`"/>`)
+	o.Str(`"/>`)
 }
 
 // builtinOutline is the built-in shape whose outline a provided

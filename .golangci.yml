@@ -49,6 +49,8 @@ linters:
             - "**/graphedwright/*.go"
             - "**/graphedwright/layout/**"
             - "**/graphedwright/svg/**"
+            - "**/graphedwright/chart/**"
+            - "**/graphedwright/internal/xmltext/**"
             - "**/graphedwright/doc/**"
             - "**/graphedwright/edit/**"
             - "!**/cmd/**"

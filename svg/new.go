@@ -5,6 +5,7 @@ import (
 	"io"
 
 	gw "code.eitanity.com/graphedwright"
+	"code.eitanity.com/graphedwright/internal/xmltext"
 )
 
 // Stylesheet is the default look of a drawing, for a host to serve as
@@ -18,7 +19,10 @@ var Stylesheet string
 func New() *Renderer { return &Renderer{o: newOut()} }
 
 // newOut makes an output buffer.
-func newOut() *out { return &out{buf: make([]byte, bufSize)} }
+func newOut() *out { return xmltext.New() }
+
+// out is the buffered writer every element is written through.
+type out = xmltext.Writer
 
 // Render writes a document as SVG text to w with a fresh renderer.
 func Render(d *gw.Document, opts Options, w io.Writer) error {
