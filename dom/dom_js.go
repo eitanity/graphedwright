@@ -40,6 +40,7 @@ type jsHost struct {
 	cbs     [cbCount]js.Value
 	schemas []doc.Named
 	schema  string
+	outline []gw.OutlineEntry // outline's, made at its first call for the capacities
 }
 
 // binding is the graphedwright object's state: the editors created and
@@ -74,6 +75,13 @@ const (
 	opFit
 	opHold
 	opRelease
+	opFind
+	opReveal
+	opFocus
+	opUnfocus
+	opFold
+	opUnfold
+	opOutline
 	opCount
 )
 
@@ -94,6 +102,7 @@ func Install(schemas ...doc.Named) {
 		opSetMode: "setMode", opLayout: "layout", opAnnotate: "annotate", opOn: "on", opUndo: "undo", opRedo: "redo",
 		opDestroy: "destroy", opProperties: "properties", opSetLabel: "setLabel", opSetAttr: "setAttr",
 		opAddPort: "addPort", opDeletePort: "deletePort", opZoom: "zoom", opFit: "fit", opHold: "hold", opRelease: "release",
+		opFind: "find", opReveal: "reveal", opFocus: "focus", opUnfocus: "unfocus", opFold: "fold", opUnfold: "unfold", opOutline: "outline",
 	}
 	obj := js.Global().Get("Object").New()
 	for op, name := range names {
@@ -179,6 +188,8 @@ func (c *call) invoke(_ js.Value, args []js.Value) any {
 		return result(true, j.h.Hold())
 	case opRelease:
 		return result(true, j.h.Release())
+	case opFind, opReveal, opFocus, opUnfocus, opFold, opUnfold, opOutline:
+		return large(j, c.op, args)
 	}
 	return fail("no such function")
 }

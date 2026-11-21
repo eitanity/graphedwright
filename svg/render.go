@@ -79,6 +79,36 @@ type Options struct {
 	// tokens: letters, digits, '-' and '_', anything else as '_'.
 	IDPrefix    string
 	DocIDPrefix string
+	// Focus, when not nil, marks by index the vertices in focus: the
+	// others, and the edges not between two in focus, are drawn dimmed
+	// (the class dim), or with FocusHide not at all. A fold is in focus
+	// when it is marked; gw.Document.Around marks what to give it, and
+	// the editor's Focus marks a fold for what it holds.
+	Focus     []bool
+	FocusHide bool
+}
+
+// inFocus reports whether vertex v is in the focus, or there is none.
+func (opts *Options) inFocus(v gw.VertexIndex) bool {
+	return opts.Focus == nil || int(v) < len(opts.Focus) && v >= 0 && opts.Focus[v]
+}
+
+// edgeInFocus reports whether an edge as drawn joins two vertices in
+// the focus, or there is none.
+func (opts *Options) edgeInFocus(e shown) bool {
+	return opts.inFocus(e.From()) && opts.inFocus(e.To())
+}
+
+// vertexShown reports whether vertex v is written: not hidden in a
+// fold, and in the focus or the focus not hiding.
+func vertexShown(d *gw.Document, opts *Options, v gw.VertexIndex) bool {
+	return !d.Hidden(v) && (!opts.FocusHide || opts.inFocus(v))
+}
+
+// edgeShown reports whether edge e is written: drawn (EdgeDrawn), and in
+// the focus or the focus not hiding.
+func edgeShown(d *gw.Document, opts *Options, e gw.EdgeIndex) bool {
+	return EdgeDrawn(d, e) && (!opts.FocusHide || opts.edgeInFocus(shownEdge(d, e)))
 }
 
 // Selection is what the overlay outlines: the vertices and edges it
@@ -172,19 +202,21 @@ func (r *Renderer) Render(d *gw.Document, opts Options, w io.Writer) error {
 	// draw over them, and two that overlap do not interleave.
 	o.str(`<g class="containers">`)
 	for at := range d.Containers().Len() {
-		v := d.Containers().At(at)
-		r.vertex(d, opts, v)
+		if v := d.Containers().At(at); vertexShown(d, &opts, v) {
+			r.vertex(d, opts, v)
+		}
 	}
 	o.str(`</g><g class="edges">`)
 	for i := range d.EdgeSlots() {
-		if d.Edge(gw.EdgeIndex(i)).Live() { //nolint:gosec // bounded by the capacity
+		if edgeShown(d, &opts, gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
 			r.edge(d, opts, gw.EdgeIndex(i), maxW) //nolint:gosec // bounded by the capacity
 		}
 	}
 	o.str(`</g><g class="vertices">`)
 	for i := range d.VertexSlots() {
-		if d.Vertex(gw.VertexIndex(i)).Live() && !d.Kinds().Vertex(d.Vertex(gw.VertexIndex(i)).Kind()).Container() { //nolint:gosec // bounded by the capacity
-			r.vertex(d, opts, gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+		v := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+		if d.Vertex(v).Live() && !d.Kinds().Vertex(d.Vertex(v).Kind()).Container() && vertexShown(d, &opts, v) {
+			r.vertex(d, opts, v)
 		}
 	}
 	o.str(`</g>`)
@@ -196,10 +228,13 @@ func (r *Renderer) Render(d *gw.Document, opts Options, w io.Writer) error {
 }
 
 // RenderVertex writes one vertex's element alone, for a host that
-// replaces it in place.
+// replaces it in place; for a vertex hidden in a fold, or out of a
+// focus that hides, which is not drawn, nothing.
 func (r *Renderer) RenderVertex(d *gw.Document, opts Options, v gw.VertexIndex, w io.Writer) error {
 	r.o.reset(w)
-	r.vertex(d, opts.filled(), v)
+	if vertexShown(d, &opts, v) {
+		r.vertex(d, opts.filled(), v)
+	}
 	r.o.flush()
 	return r.o.err
 }
@@ -214,11 +249,14 @@ func (r *Renderer) RenderOverlay(d *gw.Document, opts Options, w io.Writer) erro
 	return r.o.err
 }
 
-// RenderEdge writes one edge's element alone.
+// RenderEdge writes one edge's element alone; for one that is not drawn
+// (EdgeDrawn), or is out of a focus that hides, nothing.
 func (r *Renderer) RenderEdge(d *gw.Document, opts Options, e gw.EdgeIndex, w io.Writer) error {
 	r.o.reset(w)
 	opts = opts.filled()
-	r.edge(d, opts, e, maxWeight(d, opts))
+	if edgeShown(d, &opts, e) {
+		r.edge(d, opts, e, maxWeight(d, opts))
+	}
 	r.o.flush()
 	return r.o.err
 }
@@ -367,11 +405,13 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 		o.byte(' ')
 		o.name(note.Class)
 	}
+	merged := r.edgeMarks(d, opts, i)
 	o.str(`" id="`)
 	o.name(opts.DocIDPrefix)
 	o.attr(string(e.ID()))
 	o.str(`" data-kind="`)
 	o.attr(kind.Name())
+	r.mergedAttr(merged)
 	o.str(`" data-from="`)
 	o.attr(string(d.Vertex(e.From()).ID()))
 	o.str(`" data-to="`)
@@ -379,29 +419,16 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	o.byte('"')
 	r.dataAttrs(e.Attrs())
 	o.byte('>')
-	var lane [1]gw.Point
-	w := wayOf(d, i, &lane)
+	w := wayOf(d, i)
 	f := w.f
 	end, drop := w.shortened(kind)
 	r.path(f, w.route, w.started(kind), w.drawn(drop), end)
 	width := strokeWidth(d, opts, int(i), maxW)
 	o.numAttr("stroke-width", width)
-	if kind.Tail() != gw.NoTail {
-		o.str(` marker-start="url(#`)
-		o.name(opts.IDPrefix)
-		o.str(`tail-`)
-		o.int(int(e.Kind()))
-		o.str(`)"`)
-	}
-	if kind.Arrow() {
-		o.str(` marker-end="url(#`)
-		o.name(opts.IDPrefix)
-		o.str(`arrow-`)
-		o.int(int(e.Kind()))
-		o.str(`)"`)
-	}
+	r.markers(kind, e.Kind(), opts.IDPrefix)
 	o.str(`/>`)
 	mid := w.middle(w.route)
+	r.mergedCount(merged, mid, width)
 	if c, ok := w.turnedAt(mid, turnedLength(d, i)); ok {
 		r.turnedLabels(kind, e, note, gw.Point{X: mid.X, Y: c}, width, w.side(), opts)
 		o.str(`</g>`)
@@ -414,6 +441,68 @@ func (r *Renderer) edge(d *gw.Document, opts Options, i gw.EdgeIndex, maxW float
 	}
 	r.levelLabels(kind, e, note, mid, width, w.side(), opts)
 	o.str(`</g>`)
+}
+
+// markers writes the path's tail and arrowhead markers, the kind's.
+func (r *Renderer) markers(kind gw.EdgeKindView, k gw.KindIndex, prefix string) {
+	o := r.o
+	if kind.Tail() != gw.NoTail {
+		o.str(` marker-start="url(#`)
+		o.name(prefix)
+		o.str(`tail-`)
+		o.int(int(k))
+		o.str(`)"`)
+	}
+	if kind.Arrow() {
+		o.str(` marker-end="url(#`)
+		o.name(prefix)
+		o.str(`arrow-`)
+		o.int(int(k))
+		o.str(`)"`)
+	}
+}
+
+// edgeMarks writes edge i's classes for a fold and a focus: merged
+// when it is drawn for several, dim out of the focus. It returns how
+// many it is drawn for.
+func (r *Renderer) edgeMarks(d *gw.Document, opts Options, i gw.EdgeIndex) int {
+	_, merged := Merged(d, i)
+	if merged > 1 {
+		r.o.str(" merged")
+	}
+	if !opts.edgeInFocus(shownEdge(d, i)) {
+		r.o.str(" dim")
+	}
+	return merged
+}
+
+// mergedAttr writes, within the edge's opening tag, how many edges it is
+// drawn for, when more than one.
+func (r *Renderer) mergedAttr(merged int) {
+	if merged > 1 {
+		r.o.str(`" data-merged="`)
+		r.o.int(merged)
+	}
+}
+
+// mergedCount writes the number of edges one is drawn for, when more
+// than one, above its middle.
+func (r *Renderer) mergedCount(merged int, mid gw.Point, width float64) {
+	if merged > 1 {
+		r.count(merged, mid.X, mid.Y-float64(width/2)-4)
+	}
+}
+
+// count writes the number a folded container holds, or of the edges
+// drawn as one, centred at (x, y).
+func (r *Renderer) count(n int, x, y float64) {
+	o := r.o
+	o.str(`<text class="count"`)
+	o.numAttr("x", x)
+	o.numAttr("y", y)
+	o.str(` text-anchor="middle">`)
+	o.int(n)
+	o.str(`</text>`)
 }
 
 // levelLabels writes an edge's texts for a left-to-right flow: the
@@ -567,6 +656,16 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	if kind.Dashed() {
 		o.str(" dashed")
 	}
+	if v.Folded() {
+		o.str(" folded")
+	}
+	if !opts.inFocus(i) {
+		o.str(" dim")
+	}
+	frameless := kind.Frameless() && !v.Folded()
+	if frameless {
+		o.str(" frameless")
+	}
 	if note.Class != "" {
 		o.byte(' ')
 		o.name(note.Class)
@@ -583,7 +682,17 @@ func (r *Renderer) vertex(d *gw.Document, opts Options, i gw.VertexIndex) {
 	o.point(v.Pos().X, v.Pos().Y)
 	o.str(`)"`)
 	r.dataAttrs(v.Attrs())
+	if v.Folded() {
+		o.str(` data-holds="`)
+		o.int(d.Members(i))
+		o.byte('"')
+	}
 	o.byte('>')
+	if frameless {
+		// A group the host names: what it holds is drawn, and it is not.
+		o.str(`</g>`)
+		return
+	}
 	r.shape(shapeClass, d.Kinds(), kind.Shape(), v.Size(), turned(d, v))
 	if kind.Shape() == gw.Actor || kind.Shape() == gw.DataStore {
 		r.figure(kind.Shape(), v.Size(), gw.MoreLines(d.VertexLabelLines(i)))
@@ -632,6 +741,9 @@ func (r *Renderer) texts(d *gw.Document, opts Options, i gw.VertexIndex) {
 	switch {
 	case kind.Container():
 		r.title(v, kind, opts)
+		if v.Folded() {
+			r.count(d.Members(i), 0, float64(-v.Size().H/2)+gw.ContainerTitle+opts.FontSize)
+		}
 	case d.ShowsCompartments(i):
 		r.compartments(v, kind, labelW, d.TitleHeight(i), more, opts)
 	case none:
@@ -1169,8 +1281,7 @@ func (r *Renderer) selection(d *gw.Document, opts Options, maxW float64) {
 		}
 		ed := d.Edge(e)
 		kind := d.Kinds().Edge(ed.Kind())
-		var lane [1]gw.Point
-		w := wayOf(d, e, &lane)
+		w := wayOf(d, e)
 		end, drop := w.shortened(kind)
 		r.path(w.f, w.route, w.a, w.drawn(drop), end)
 		o.str(` class="selection"`)

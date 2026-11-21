@@ -134,19 +134,7 @@ func (l *Layouter) orderLayer(k int) {
 			l.bary[v] = sum / float64(cnt)
 		}
 	}
-	slices.SortStableFunc(l.order[lo:hi], func(a, b int32) int {
-		switch {
-		case l.bary[a] < l.bary[b]:
-			return -1
-		case l.bary[a] > l.bary[b]:
-			return 1
-		case a < b:
-			return -1
-		case a > b:
-			return 1
-		}
-		return 0
-	})
+	l.sortLayer(l.order[lo:hi])
 	// bound: the nodes of one layer
 	for p := lo; p < hi; p++ {
 		l.pos[l.order[p]] = p - lo
@@ -207,4 +195,49 @@ func (l *Layouter) inversions(a []int32, size int) int64 {
 		}
 	}
 	return count
+}
+
+// sortLayer sorts the nodes of a layer by barycentre, ties by node
+// index, a total order, so that the sort need not be stable. It is a
+// heapsort written out: a comparator closure would capture the
+// layouter, which TinyGo puts on the heap, and the sort package's
+// interface sort costs the TinyGo build more than this.
+func (l *Layouter) sortLayer(o []int32) {
+	n := len(o)
+	// bound: the first half of the layer, each sifted once
+	for i := n/2 - 1; i >= 0; i-- {
+		l.sift(o, i, n)
+	}
+	// bound: the layer, each node taken from the heap once
+	for end := n - 1; end > 0; end-- {
+		o[0], o[end] = o[end], o[0]
+		l.sift(o, 0, end)
+	}
+}
+
+// sift moves o[i] down the heap of o[:n] whose greatest is at its root.
+func (l *Layouter) sift(o []int32, i, n int) {
+	// bound: the heap's depth, log2 n
+	for {
+		c := 2*i + 1
+		if c >= n {
+			return
+		}
+		if c+1 < n && l.before(o[c], o[c+1]) {
+			c++
+		}
+		if !l.before(o[i], o[c]) {
+			return
+		}
+		o[i], o[c] = o[c], o[i]
+		i = c
+	}
+}
+
+// before reports whether node a goes before node b in a layer.
+func (l *Layouter) before(a, b int32) bool {
+	if l.bary[a] != l.bary[b] {
+		return l.bary[a] < l.bary[b]
+	}
+	return a < b
 }

@@ -47,7 +47,7 @@ func TestBentRoutesClear(t *testing.T) {
 		}
 		bent := 0
 		for i := range d.EdgeSlots() {
-			e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+			e := shownEdge(d, gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 			if !e.Live() || e.Bends().Len() == 0 {
 				continue
 			}
@@ -111,7 +111,7 @@ func TestBackwardRoutesOneWay(t *testing.T) {
 			if _, err := layout.New(d.Caps()).Run(d, layout.Options{}); err != nil {
 				t.Fatal(err)
 			}
-			e := d.Edge(back)
+			e := shownEdge(d, back)
 			if e.Bends().Len() == 0 || !backward(d, e) {
 				t.Fatalf("flow %d kind %d: the edge back has bends %v, backward %t", flow, kind, e.Bends(), backward(d, e))
 			}
@@ -163,8 +163,7 @@ func TestLanesApart(t *testing.T) {
 			}
 			route := s.EdgeKinds[kind].Route
 			for i := range gw.EdgeIndex(4) {
-				var lane [1]gw.Point
-				w := wayOf(d, i, &lane)
+				w := wayOf(d, i)
 				if w.n != 4 || w.k != int(i) {
 					t.Fatalf("flow %d kind %d: edge %d in lane %d of %d", flow, kind, i, w.k, w.n)
 				}
@@ -182,8 +181,7 @@ func TestLanesApart(t *testing.T) {
 				}
 				bi := EdgeLabelBox(d, i)
 				for o := range i {
-					var olane [1]gw.Point
-					ow := wayOf(d, o, &olane)
+					ow := wayOf(d, o)
 					if w.middle(route) == ow.middle(route) {
 						t.Errorf("flow %d kind %d: edges %d and %d share their middle", flow, kind, o, i)
 					}

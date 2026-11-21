@@ -358,3 +358,76 @@ func TestTitleLinesLaidOut(t *testing.T) {
 		}
 	}
 }
+
+// TestFoldedContainers: on random DAGs with nested zones, some folded,
+// a folded zone is laid out as one vertex of its own size; what is drawn
+// lies inside its zone and overlaps nothing else of its level; each
+// hidden vertex keeps its place relative to the fold it is drawn as;
+// the layout is the same twice; and each fold, unfolded, holds what it
+// held.
+func TestFoldedContainers(t *testing.T) {
+	for seed := uint64(1); seed <= 8; seed++ {
+		name := "folded, seed " + strconv.FormatUint(seed, 10)
+		d := nested(t, seed, 30, 50, 5)
+		for _, z := range []gw.VertexIndex{30, 32} {
+			if _, err := d.Apply(gw.Command{Op: gw.Fold, Vertex: z}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		off := map[int]gw.Point{}
+		for i := range d.VertexSlots() {
+			v := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+			if f := d.DrawnAs(v); f != v {
+				off[i] = gw.Point{X: d.Vertex(v).Pos().X - d.Vertex(f).Pos().X, Y: d.Vertex(v).Pos().Y - d.Vertex(f).Pos().Y}
+			}
+		}
+		l := layout.New(d.Caps())
+		if _, err := l.Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		first := positions(d)
+		for i := range d.VertexSlots() {
+			v := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+			a := d.Vertex(v)
+			if o, ok := off[i]; ok {
+				f := d.Vertex(d.DrawnAs(v)).Pos()
+				if p := a.Pos(); math.Abs(p.X-f.X-o.X) > 1e-6 || math.Abs(p.Y-f.Y-o.Y) > 1e-6 {
+					t.Errorf("%s: hidden %s at %v, %v from its fold, was %v", name, a.Label(), p, gw.Point{X: p.X - f.X, Y: p.Y - f.Y}, o)
+				}
+				continue
+			}
+			if !a.Live() {
+				continue
+			}
+			if a.Folded() && a.Size() != (gw.Size{W: 60, H: 40}) {
+				t.Errorf("%s: folded %s at %v", name, a.Label(), a.Size())
+			}
+			if a.Parent() != gw.None && !inside(a, d.Vertex(a.Parent())) {
+				t.Errorf("%s: %s outside its zone", name, a.Label())
+			}
+			for j := i + 1; j < d.VertexSlots(); j++ {
+				b := d.Vertex(gw.VertexIndex(j))                                                           //nolint:gosec // bounded by the capacity
+				if b.Live() && !d.Hidden(gw.VertexIndex(j)) && a.Parent() == b.Parent() && overlap(a, b) { //nolint:gosec // bounded by the capacity
+					t.Errorf("%s: %s %v %v overlaps %s %v %v", name, a.Label(), a.Pos(), a.Size(), b.Label(), b.Pos(), b.Size())
+				}
+			}
+		}
+		if _, err := l.Run(d, layout.Options{All: true}); err != nil {
+			t.Fatal(err)
+		}
+		if positions(d) != first {
+			t.Errorf("%s: a second layout moved what the first placed", name)
+		}
+		for _, z := range []gw.VertexIndex{30, 32} {
+			if _, err := d.Apply(gw.Command{Op: gw.Unfold, Vertex: z}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := range d.VertexSlots() {
+			a := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
+			if a.Live() && a.Parent() != gw.None && !inside(a, d.Vertex(a.Parent())) {
+				t.Errorf("%s: unfolded, %s outside its zone", name, a.Label())
+			}
+		}
+	}
+}

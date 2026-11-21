@@ -275,7 +275,7 @@ func bandSpan(b []float64, lo, hi float64, crossed bool) {
 func banded(b []float64) bool { return b[0] <= b[2] || b[1] >= b[3] }
 
 // fitOne sizes a container to the box gathered from what it holds, or
-// to its own size when it holds nothing, and a vertex to its
+// to its own size when it holds nothing or is folded, and a vertex to its
 // compartments, and adds the vertex's own box to its container's.
 func (d *Document) fitOne(i VertexIndex) {
 	if d.holdsCompartments(i) && !d.isContainer(i) {
@@ -285,7 +285,7 @@ func (d *Document) fitOne(i VertexIndex) {
 	if b := d.box[fitSlots*int(i) : fitSlots*int(i)+fitSlots]; d.isContainer(i) {
 		var pos Point
 		var size Size
-		if b[0] <= b[2] {
+		if b[0] <= b[2] && !v.Folded {
 			back, on := d.EnclosedRoom(i)
 			band := 0.0
 			if banded(b[4:]) {
@@ -404,7 +404,7 @@ func (d *Document) reorder() {
 // what a container holds, so that the containers are fitted after it.
 func moves(op Op) bool {
 	switch op {
-	case DeleteVertex, Move, Resize, SetParent, Layout:
+	case DeleteVertex, Move, Resize, SetParent, Layout, Fold, Unfold:
 		return true
 	case AddVertex, AddEdge, DeleteEdge, Relabel, SetAttr, SetPorts, Compact, AddPort, DeletePort, HostChange:
 	}

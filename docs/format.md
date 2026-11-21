@@ -41,6 +41,7 @@ return the same shape as a string or an object.
 | `x`, `y` | the position of its centre, within 10⁹ of the origin. A document in which any vertex has no position is laid out when it is read. |
 | `w`, `h` | its size, when not the kind's: both positive, at most 10⁹. A container's are its own size: what it is when it holds nothing, and least when it holds something; a container fitted to what it holds writes none. A vertex whose kind's shape turns with the flow has its size as drawn in the document's flow; a `flow` named after the vertices turns them. |
 | `placed` | `true` when a user or a host placed it: a layout leaves it where it is. |
+| `folded` | `true` for a container folded into one vertex, what it holds hidden ([Large drawings](concepts.md#large-drawings)). Refused on a vertex that is not a container. |
 | `parent` | the ID of the container it is in. The container may come later in the list. A container that holds anything is fitted around it when read, whatever its own position says, at least its own size. |
 | `attrs` | its attributes, an object of strings, keyed by lowercase letters, digits, `-` and `_` (not `kind`, `from` or `to`). |
 | `ports` | its own ports, after its kind's: an array of `{"name", "side", "max"}`, with `side` one of `"left"`, `"right"`, `"top"` and `"bottom"`, and `max`, the most edges it takes, left out for any. A vertex with ports of its own writes its own size in `w` and `h`, as a container does. |

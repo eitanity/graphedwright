@@ -334,6 +334,37 @@ async function main() {
   lines.drawn = clash.querySelectorAll("svg #l text.label tspan").length;
   graphedwright.destroy(hl);
   out.lines = lines;
+
+  // A large drawing's functions: find, fold, the outline, reveal, focus
+  // and unfold, and the fold's undo.
+  const large = {};
+  const hlg = graphedwright.create(clash, { schema: "basic" }).ok;
+  large.load = graphedwright.load(hlg, { schema: "basic", vertices: [
+    { id: "x", kind: "box", label: "outside", x: 60, y: 60, placed: true },
+    { id: "a", kind: "box", label: "Pump one", x: 260, y: 60, placed: true, parent: "grp" },
+    { id: "b", kind: "box", label: "pump two", x: 260, y: 140, placed: true, parent: "grp" },
+    { id: "grp", kind: "group", label: "pumps" }],
+    edges: [{ id: "xa", kind: "arrow", from: "x", to: "a" }, { id: "xb", kind: "arrow", from: "x", to: "b" }] });
+  const shown = (id) => clash.querySelector(`svg [id="${id}"]`);
+  large.find = [graphedwright.find(hlg, "PUMP").ok, graphedwright.find(hlg, "pump", "a").ok, graphedwright.find(hlg, "zz").ok];
+  large.fold = graphedwright.fold(hlg, "grp");
+  large.folded = clash.querySelector("svg g.vertex.folded") !== null && shown("a") === null && shown("xb") === null;
+  large.merged = shown("xa") ? shown("xa").getAttribute("data-merged") : null;
+  large.outline = graphedwright.outline(hlg).ok;
+  large.saved = graphedwright.export(hlg).ok.vertices.find((v) => v.id === "grp").folded === true;
+  large.reveal = graphedwright.reveal(hlg, "b");
+  large.revealed = shown("b") !== null && clash.querySelector("svg g.vertex.folded") === null;
+  large.focus = graphedwright.focus(hlg, 0, "both");
+  large.dimmed = shown("x").classList.contains("dim") && !shown("b").classList.contains("dim");
+  large.unfocus = graphedwright.unfocus(hlg);
+  large.undimmed = clash.querySelector("svg .dim") === null;
+  graphedwright.undo(hlg);
+  large.refolded = clash.querySelector("svg g.vertex.folded") !== null;
+  large.unfold = graphedwright.unfold(hlg, "grp");
+  large.badFold = graphedwright.fold(hlg, "a");
+  large.badWay = graphedwright.focus(hlg, 1, "sideways");
+  graphedwright.destroy(hlg);
+  out.large = large;
   out.afterDestroy = graphedwright.svg(h2);
   document.getElementById("out").textContent = JSON.stringify(out);
 }

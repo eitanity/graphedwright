@@ -56,6 +56,7 @@ jobs:
       - run: make lint
       - run: make custom-lint
       - run: make escapes
+      - run: make tinygo-escapes
       - run: make nofma
       - run: make race
       - run: make alloc

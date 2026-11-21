@@ -17,7 +17,7 @@ Build with either toolchain:
 GOOS=js GOARCH=wasm go build -trimpath -o graphedwright.wasm ./cmd/graphedwright-wasm
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
-# TinyGo: under 824 KiB
+# TinyGo: under 896 KiB
 tinygo build -o graphedwright.wasm -target wasm -opt=z -no-debug ./cmd/graphedwright-wasm
 cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" .
 ```
@@ -89,6 +89,12 @@ throws. The first argument of every call after `create` is the handle
 | `deletePort(g, name)` | removes a port of the one selected vertex's own that no edge uses |
 | `zoom(g, factor)` | zooms the view about its centre: in by a factor above 1, out by one below |
 | `fit(g)` | sets the view to the drawing's bounds |
+| `find(g, text, after)` | the ID of the next vertex after the one with the ID `after`, or from the first, whose label or ID holds the text, its case folded; `null` for none |
+| `reveal(g, id)` | unfolds the folds a vertex is in, as one step for undo, selects it and centres it |
+| `fold(g, id)`, `unfold(g, id)` | folds a container into one vertex, or unfolds it, as a command |
+| `focus(g, depth, way)` | dims all but the selection and the vertices within `depth` edges of it; `way` is `"both"`, `"successors"` or `"predecessors"`. `ok` is false with nothing selected |
+| `unfocus(g)` | ends the focus |
+| `outline(g)` | the vertices in drawing order, each container before what it holds: `[{id, label, depth, folded, holds}]` |
 | `hold(g)`, `release(g)` | hold the editor while the page waits on work of its own, and release it (below) |
 | `annotate(g, {id: {text, class, weight}})` | draws a figure on each element named, replacing the last set: text under a vertex's label or at an edge's middle, a class added to it, and on an edge a weight that sets its stroke width |
 | `on(g, event, callback)` | listens for an event (below) |
@@ -334,7 +340,8 @@ In edit mode the drawing shows a palette of the schema's kinds above it.
 | delete | Delete or Backspace |
 | nudge | the arrow keys, one grid step |
 | undo, redo | Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y (Cmd on a Mac) |
-| cancel | Escape ends a drag, a resize, a connection or an edit |
+| cancel | Escape ends a drag, a resize, a connection or an edit, and with nothing selected a focus |
+| fold, unfold | select one container and press Ctrl+[ to fold it into one shape, Ctrl+] to unfold it; double-click a folded one to unfold it |
 | context menu | right-click, Ctrl+click on a Mac, the menu key or a long press: the page's menu, when it listens for `"context"`, else the browser's |
 | step through | Tab selects the next shape |
 | pan | scroll, drag with the middle button, or Alt+drag |
@@ -375,6 +382,9 @@ restyle it with CSS or script it.
   circles, with a `text.port-label` naming each of a vertex's own. Each compartment is a `g.compartment` with its attribute's
   key as `data-key`, holding a `line` and a `text.entry` for each line. Extra classes are `.container`,
   `.dashed`, and `.unplaced` for a vertex no layout or user has placed.
+  A folded container has `.folded`, `data-holds` and a `text.count` of
+  what it holds; a frameless one, open, has `.frameless` and nothing
+  inside. Out of a focus, a shape or an edge has `.dim`.
 - **Cut texts:** a label, keyword, title, compartment line or
   annotation too long for its room is cut with an ellipsis and has
   `.cut` as well. The full text follows it with `.full` and
@@ -385,7 +395,9 @@ restyle it with CSS or script it.
   false` at `create` leaves the full text and `.cut` out.
 - **Edges:** each is a `g.edge` with its kind's class, `id`,
   `data-from`, `data-to` and its attributes. Inside are the `path`, and
-  `text.label` and `text.stereotype`. A dashed kind has `.dashed`.
+  `text.label` and `text.stereotype`. A dashed kind has `.dashed`. The
+  one edge drawn for several a fold brings together has `.merged`,
+  `data-merged` and a `text.count`.
 - **Arrowheads** are markers with the class `.arrowhead` plus the edge
   kind's class, and `.open` or `.hollow`, with `.typed` or `.bar` for
   the marked hollow heads. **Tails** are markers with the class `.tail`

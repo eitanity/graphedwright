@@ -73,8 +73,7 @@ func TestSpreadEnds(t *testing.T) {
 				if shape == gw.Rect && q.X != 250 {
 					t.Errorf("flow %d: edge %d ends at %v along, off the box's side", f, i, q.X)
 				}
-				var lane [1]gw.Point
-				w := wayOf(d, i, &lane)
+				w := wayOf(d, i)
 				want := 1.0 // the first, before the middle: above left to right, left top to bottom
 				if f == gw.TopToBottom {
 					want = -1
@@ -91,8 +90,7 @@ func TestSpreadEnds(t *testing.T) {
 			if q := ft.t(b); q.Y != 0 || q.X != 250 {
 				t.Errorf("flow %d, shape %d: a lone curve ends at %v, not the middle", f, shape, b)
 			}
-			var lane [1]gw.Point
-			if w := wayOf(alone, 0, &lane); w.side() != 1 {
+			if w := wayOf(alone, 0); w.side() != 1 {
 				t.Errorf("flow %d, shape %d: a lone curve's texts on side %v", f, shape, w.side())
 			}
 		}
@@ -142,8 +140,7 @@ func TestSpreadAwayFromSource(t *testing.T) {
 			if i == 1 {
 				want = -want
 			}
-			var lane [1]gw.Point
-			if w := wayOf(d, i, &lane); w.side() != want {
+			if w := wayOf(d, i); w.side() != want {
 				t.Errorf("flow %d, edge %d: texts on side %v, want %v", f, i, w.side(), want)
 			}
 		}

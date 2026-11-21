@@ -122,8 +122,7 @@ func TestParallelLabelsClear(t *testing.T) {
 					t.Fatalf("flow %d route %d back %v: %d texts in\n%s", flow, route, back, len(boxes), buf.String())
 				}
 				for i := range d.EdgeSlots() {
-					var lane [1]gw.Point
-					w := wayOf(d, gw.EdgeIndex(i), &lane)
+					w := wayOf(d, gw.EdgeIndex(i))
 					for k := 0; k <= 400; k++ {
 						p := along(w.f, route, w.a, w.through, w.b, float64(k)/400)
 						for j, b := range boxes {
@@ -210,8 +209,7 @@ func TestOrthogonalLabelOwnLeg(t *testing.T) {
 			box = turnBox(box, x, y)
 		}
 		for i := range d.EdgeSlots() {
-			var lane [1]gw.Point
-			w := wayOf(d, gw.EdgeIndex(i), &lane)
+			w := wayOf(d, gw.EdgeIndex(i))
 			for k := 0; k <= 400; k++ {
 				if p := along(w.f, gw.Orthogonal, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
 					t.Errorf("flow %d: the label %v crosses edge %s at %v", flow, box, d.Edge(gw.EdgeIndex(i)).ID(), p) //nolint:gosec // bounded by the capacity
@@ -227,8 +225,7 @@ func TestOrthogonalLabelOwnLeg(t *testing.T) {
 			}
 		}
 		// Along its own last leg: past the turn, towards its target.
-		var lane [1]gw.Point
-		w := wayOf(d, 1, &lane)
+		w := wayOf(d, 1)
 		a, b := w.f.t(w.a), w.f.t(w.b)
 		turn := (a.X + b.X) / 2
 		lo, hi := box.X, box.X+box.W
@@ -265,8 +262,7 @@ const throughContainer = `{"schema": "state-machine", "vertices": [
 // and the containers that hold them, or None.
 func routeClear(d *gw.Document, i gw.EdgeIndex) (gw.VertexIndex, gw.Point) {
 	e := d.Edge(i)
-	var lane [1]gw.Point
-	w := wayOf(d, i, &lane)
+	w := wayOf(d, i)
 	route := d.Route(i)
 	for k := 0; k <= 1000; k++ {
 		p := along(w.f, route, w.a, w.through, w.b, float64(k)/1000)
@@ -605,8 +601,7 @@ func TestUprightsUntangled(t *testing.T) {
 
 // drawnPoints is edge e's line as drawn, at apartSamples steps.
 func drawnPoints(d *gw.Document, e gw.EdgeIndex) []gw.Point {
-	var lane [1]gw.Point
-	w := wayOf(d, e, &lane)
+	w := wayOf(d, e)
 	route := d.Route(e)
 	pts := make([]gw.Point, 0, apartSamples+1)
 	for k := 0; k <= apartSamples; k++ {
@@ -739,8 +734,7 @@ func edgeTextsClear(t reporter, name string, d *gw.Document) {
 					if !d.Edge(gw.EdgeIndex(i)).Live() || string(d.Edge(gw.EdgeIndex(i)).ID()) == g[1] { //nolint:gosec // bounded by the capacity
 						continue
 					}
-					var lane [1]gw.Point
-					w := wayOf(d, gw.EdgeIndex(i), &lane)
+					w := wayOf(d, gw.EdgeIndex(i))
 					route := d.Route(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
 					for k := 0; k <= 400; k++ {
 						if p := along(w.f, route, w.a, w.through, w.b, float64(k)/400); inBox2(box, p) {
@@ -973,7 +967,7 @@ func TestEnclosedEdgeLaidOut(t *testing.T) {
 		}
 		zb := vertexBox(d.Vertex(z))
 		for k, way := range [5]float64{-1, 1, -1, -1, 1} {
-			e := d.Edge(es[k])
+			e := shownEdge(d, es[k])
 			a, b := ends(d, es[k], e.Bends())
 			c, o := a, b // the zone's end, and the box's or the bend next to the zone's
 			if bs := e.Bends(); way < 0 && bs.Len() > 0 {

@@ -91,8 +91,7 @@ func turnedDoc(t *testing.T) (*gw.Document, gw.EdgeIndex) {
 	if !d.SetBends(es[0], []gw.Point{{X: -10, Y: 100}, {X: -10, Y: 300}}) || !d.SetLabelAt(es[0], 0.02) {
 		t.Fatal("no bends or label place")
 	}
-	var lane [1]gw.Point
-	if w := wayOf(d, es[0], &lane); w.side() != -1 || w.a.X != -10 {
+	if w := wayOf(d, es[0]); w.side() != -1 || w.a.X != -10 {
 		t.Fatalf("the edge's texts on side %v, from %v", w.side(), w.a)
 	}
 	return d, es[0]

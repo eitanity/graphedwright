@@ -12,6 +12,7 @@ const sample = `./walk.go:12:6: moved to heap: row
 ./compile.go:40:2: leaking param: g
 ./dist/sampler.go:77:9: &buf escapes to heap
 ./dist/pert.go:30:3: x does not escape
+/abs/repo/walk.go:20:7: object allocated on the heap: escapes at line 22
 `
 
 func TestEscapesGate(t *testing.T) {
@@ -29,8 +30,8 @@ func TestEscapesGate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected failure:\n%s", out)
 	}
-	if n := strings.Count(string(out), "hot path allocation"); n != 2 {
-		t.Fatalf("want 2 findings, got %d:\n%s", n, out)
+	if n := strings.Count(string(out), "hot path allocation"); n != 3 {
+		t.Fatalf("want 3 findings, Go's two and TinyGo's one, got %d:\n%s", n, out)
 	}
 	if err := os.WriteFile(list, []byte("compile.go\n"), 0o600); err != nil {
 		t.Fatal(err)

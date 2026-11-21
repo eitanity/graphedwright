@@ -3,7 +3,8 @@ package graphedwright
 // The lists a document and its kinds hold are read through these
 // values: each holds the list but gives no way to change it, and reads
 // by position, the zero value out of range. A caller's own list is
-// read the same way through PortsOf, AttrsOf, PointsOf and EdgesOf.
+// read the same way through PortsOf, AttrsOf, PointsOf and EdgesOf,
+// and one point through PointOf.
 
 // PortList is a list of ports.
 type PortList struct{ s []Port }
@@ -46,21 +47,50 @@ func (l AttrList) At(i int) Attr {
 // Value is the value of the attribute with the key, or "".
 func (l AttrList) Value(key string) string { return AttrValue(l.s, key) }
 
-// PointList is a list of points.
-type PointList struct{ s []Point }
+// PointList is a list of points. It holds a caller's slice, or one
+// point in itself (PointOf), which a copy of the list carries.
+type PointList struct {
+	s   []Point
+	one Point
+	n1  bool // it holds one, in one, and not s
+}
 
 // PointsOf reads the caller's own points as a list.
-func PointsOf(s []Point) PointList { return PointList{s} }
+func PointsOf(s []Point) PointList { return PointList{s: s} }
+
+// PointOf is the list of the one point p, held in the list itself, so
+// that it needs no slice to read: a list that lives no longer than the
+// value holding it.
+func PointOf(p Point) PointList { return PointList{one: p, n1: true} }
 
 // Len is the number of points.
-func (l PointList) Len() int { return len(l.s) }
+func (l PointList) Len() int {
+	if l.n1 {
+		return 1
+	}
+	return len(l.s)
+}
 
 // Prefix is the first n points, all of them when n is past the end and
 // none when it is below 1.
-func (l PointList) Prefix(n int) PointList { return PointList{l.s[:max(0, min(n, len(l.s)))]} }
+func (l PointList) Prefix(n int) PointList {
+	if l.n1 {
+		if n < 1 {
+			return PointList{}
+		}
+		return l
+	}
+	return PointList{s: l.s[:max(0, min(n, len(l.s)))]}
+}
 
 // At is the ith point; out of range, the zero Point.
 func (l PointList) At(i int) Point {
+	if l.n1 {
+		if i == 0 {
+			return l.one
+		}
+		return Point{}
+	}
 	if i < 0 || i >= len(l.s) {
 		return Point{}
 	}

@@ -199,6 +199,18 @@ def check(out, native, example):
     if h != {"hold": {"ok": True}, "inputHidden": True, "labelKept": "k", "marked": True, "heldMoved": False, "setLabel": {"ok": True}, "label": "by the host", "loadedMoved": False, "loadedMarked": True, "release": {"ok": True}, "unmarked": True, "releasedMoved": True}:
         raise SystemExit(f"the hold: {h}")
 
+    lg = out["large"]
+    want = {"load": {"ok": True}, "find": ["a", "b", None], "fold": {"ok": True}, "folded": True, "merged": "2",
+            "outline": [{"id": "x", "label": "outside", "depth": 0, "folded": False, "holds": 0},
+                        {"id": "grp", "label": "pumps", "depth": 0, "folded": True, "holds": 2},
+                        {"id": "a", "label": "Pump one", "depth": 1, "folded": False, "holds": 0},
+                        {"id": "b", "label": "pump two", "depth": 1, "folded": False, "holds": 0}],
+            "saved": True, "reveal": {"ok": True}, "revealed": True, "focus": {"ok": True}, "dimmed": True,
+            "unfocus": {"ok": True}, "undimmed": True, "refolded": True, "unfold": {"ok": True}}
+    got = {k: lg.get(k) for k in want}
+    if got != want or "is not a container" not in lg["badFold"].get("error", "") or "way is" not in lg["badWay"].get("error", ""):
+        raise SystemExit(f"a large drawing's functions: {lg}")
+
     ln = out["lines"]
     if ln != {"editing": "one\ntwo", "unchanged": "one\ntwo", "shiftKept": True, "shiftOpen": True, "shiftLabel": "one\ntwo", "grew": True, "typed": "one\ntwo\nthree", "drawn": 3}:
         raise SystemExit(f"a label of lines: {ln}")

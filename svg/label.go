@@ -86,8 +86,7 @@ func EdgeLabelInputBox(d *gw.Document, i gw.EdgeIndex) gw.Viewport {
 // edgeLabelBox is EdgeLabelBox, the side of its lane it is on, and
 // whether it is turned.
 func edgeLabelBox(d *gw.Document, i gw.EdgeIndex) (gw.Viewport, float64, bool) {
-	var lane [1]gw.Point
-	wy := wayOf(d, i, &lane)
+	wy := wayOf(d, i)
 	b, turned := labelBoxAt(d, i, &wy, wy.middle(wy.route))
 	return b, wy.side(), turned
 }
@@ -249,8 +248,7 @@ func portHeads(d *gw.Document, v gw.VertexIndex, p gw.PortIndex, at gw.Point, re
 // leg from its start or from its end until it is reach from the port,
 // rises above the port or runs right of it on the way.
 func edgeHeads(d *gw.Document, i gw.EdgeIndex, from bool, at gw.Point, reach float64) (up, right bool) {
-	var lane [1]gw.Point
-	wy := wayOf(d, i, &lane)
+	wy := wayOf(d, i)
 	f := wy.f
 	route := wy.route
 	legs := wy.through.Len() + 1

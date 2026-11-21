@@ -69,7 +69,7 @@ func schemaFromJS(v js.Value) (gw.Schema, error) {
 }
 
 func vertexKindFromJS(s *gw.Schema, k js.Value) (gw.VertexKind, error) {
-	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr"), Note: get(k, "note").Truthy()}
+	vk := gw.VertexKind{Name: str(k, "name"), Size: gw.Size{W: float(k, "w"), H: float(k, "h")}, Root: get(k, "root").Truthy(), Leaf: get(k, "leaf").Truthy(), Max: count(k, "max"), Dashed: get(k, "dashed").Truthy(), Container: get(k, "container").Truthy(), Keyword: str(k, "keyword"), MaxWidth: float(k, "maxWidth"), LabelFormat: str(k, "labelFormat"), EditAttr: str(k, "editAttr"), Note: get(k, "note").Truthy(), Frameless: get(k, "frameless").Truthy()}
 	compartments := get(k, "compartments")
 	for j := 0; compartments.Type() == js.TypeObject && j < compartments.Length(); j++ {
 		vk.Compartments = append(vk.Compartments, compartments.Index(j).String())

@@ -153,6 +153,16 @@ func TestListsOf(t *testing.T) {
 	if pts.Len() != 1 || pts.At(0) != (gw.Point{X: 1, Y: 2}) || pts.At(1) != (gw.Point{}) || pts.At(-1) != (gw.Point{}) {
 		t.Error("PointsOf")
 	}
+	one := gw.PointOf(gw.Point{X: 3, Y: 4})
+	if one.Len() != 1 || one.At(0) != (gw.Point{X: 3, Y: 4}) || one.At(1) != (gw.Point{}) || one.At(-1) != (gw.Point{}) {
+		t.Error("PointOf")
+	}
+	if one.Prefix(1).Len() != 1 || one.Prefix(5).At(0) != one.At(0) || one.Prefix(0).Len() != 0 || one.Prefix(-1).Len() != 0 {
+		t.Error("PointOf Prefix")
+	}
+	if pts.Prefix(0).Len() != 0 || pts.Prefix(9).Len() != 1 {
+		t.Error("PointsOf Prefix")
+	}
 	k, err := gw.Compile(kindsSchema())
 	if err != nil {
 		t.Fatal(err)

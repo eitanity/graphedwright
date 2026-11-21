@@ -111,6 +111,10 @@ func (v VertexView) Parent() VertexIndex {
 	return v.x.Parent
 }
 
+// Folded reports whether the vertex is a container folded into one
+// vertex, what it holds hidden.
+func (v VertexView) Folded() bool { return v.x != nil && v.x.Folded }
+
 // EdgeView reads one edge of a document, by index. It reads the
 // document as it is at each call.
 type EdgeView struct{ x *edge }
@@ -198,7 +202,7 @@ func (e EdgeView) Bends() PointList {
 	if e.x == nil {
 		return PointList{}
 	}
-	return PointList{e.x.Bends}
+	return PointList{s: e.x.Bends}
 }
 
 // LabelAt is where along its route the edge's label is drawn, as a

@@ -255,6 +255,10 @@ func (v VertexKindView) Dashed() bool { return v.k != nil && v.k.Dashed }
 // Container reports whether the kind holds other vertices.
 func (v VertexKindView) Container() bool { return v.k != nil && v.k.Container }
 
+// Frameless reports whether the kind is a container drawn only when it
+// is folded: a group the host names.
+func (v VertexKindView) Frameless() bool { return v.k != nil && v.k.Frameless }
+
 // Holds reports whether a container of the kind may hold a vertex of
 // the kind given by its Contains: any, when it names none. A container
 // holds a note whatever it names (see Kinds.Holds).

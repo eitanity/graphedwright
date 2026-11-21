@@ -86,7 +86,7 @@ func (d *Document) refits(op Op) bool {
 		return d.hasCompartments() || d.hasContainers()
 	case AddVertex:
 		return d.hasCompartments()
-	case DeleteVertex, Move, Resize, Layout, Compact, SetParent, HostChange:
+	case DeleteVertex, Move, Resize, Layout, Compact, SetParent, HostChange, Fold, Unfold:
 	}
 	return moves(op)
 }

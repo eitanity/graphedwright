@@ -546,7 +546,7 @@ func (v ShapeView) Polygon() PointList {
 	if v.s == nil {
 		return PointList{}
 	}
-	return PointList{v.s.def.Polygon}
+	return PointList{s: v.s.def.Polygon}
 }
 
 // Label is where its label is drawn.

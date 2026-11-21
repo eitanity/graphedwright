@@ -37,6 +37,17 @@ func (e *Editor) selectEdge(x gw.EdgeIndex, add bool) {
 		e.clearSelection()
 	}
 	e.selE = push(e.selE, x)
+	e.selectMerged(x)
+}
+
+// isSelectedE reports whether edge x is selected.
+func (e *Editor) isSelectedE(x gw.EdgeIndex) bool {
+	for _, y := range e.selE {
+		if y == x {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Editor) isSelectedV(v gw.VertexIndex) bool {
@@ -81,11 +92,17 @@ func (e *Editor) selectIn(box gw.Viewport, add bool) {
 	}
 }
 
-// dropDead removes deleted elements from the selection.
+// Settle drops from the selection what is deleted, or hidden in a fold,
+// after a change the editor did not make: the host's own command, or
+// its undo. The editor settles after its own.
+func (e *Editor) Settle() { e.dropDead() }
+
+// dropDead removes deleted elements from the selection, and those a
+// fold hides.
 func (e *Editor) dropDead() {
 	n := 0
 	for _, v := range e.selV {
-		if e.d.Vertex(v).Live() {
+		if e.d.Vertex(v).Live() && !e.d.Hidden(v) {
 			e.selV[n] = v
 			n++
 		}
@@ -93,7 +110,7 @@ func (e *Editor) dropDead() {
 	e.selV = e.selV[:n]
 	m := 0
 	for _, x := range e.selE {
-		if e.d.Edge(x).Live() {
+		if e.d.Edge(x).Live() && !e.d.EdgeHidden(x) {
 			e.selE[m] = x
 			m++
 		}
@@ -110,7 +127,7 @@ func (e *Editor) context(ev Event) error {
 		p, hit = e.onSelection()
 	} else {
 		p = e.toDoc(ev.Point)
-		hit = svg.HitTest(e.d, p)
+		hit = e.hitAt(p)
 	}
 	return e.fire(gesture.Event{Kind: gesture.EvContext, Hit: hitOf(hit)}, input{p: p, hit: hit, ev: ev})
 }

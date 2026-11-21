@@ -63,8 +63,7 @@ func TestTails(t *testing.T) {
 			kind := d.Kinds().Edge(ed.Kind())
 			x, _ := strconv.ParseFloat(m[2], 64)
 			y, _ := strconv.ParseFloat(m[3], 64)
-			var lane [1]gw.Point
-			w := wayOf(d, e, &lane)
+			w := wayOf(d, e)
 			from := d.Vertex(ed.From())
 			if od := outlineDistance(d.Kinds().Vertex(from.Kind()).Shape(), from, w.a); math.Abs(od) > 0.5 {
 				t.Errorf("flow %d: %s leaves %g off its source's outline", flow, ed.ID(), od)

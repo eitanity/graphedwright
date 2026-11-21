@@ -125,13 +125,17 @@ func (o *out) name(s string) {
 }
 
 // num writes a number with at most two decimals, trailing zeros cut,
-// so that geometry reads short and the same everywhere.
+// so that geometry reads short and the same everywhere. It formats into
+// the buffer's free end, which holds 32 bytes once flushed, and any
+// number longer is written through from where strconv copied it: a scratch
+// array of its own would be on the heap under TinyGo, whose strconv
+// keeps the slice it is given.
 func (o *out) num(x float64) {
 	if o.n+32 > len(o.buf) {
 		o.flush()
 	}
-	var tmp [32]byte
-	b := strconv.AppendFloat(tmp[:0], x, 'f', 2, 64)
+	free := o.buf[o.n:o.n]
+	b := strconv.AppendFloat(free, x, 'f', 2, 64)
 	// Cut "0" and then "." from the end: 12.50 → 12.5, 12.00 → 12.
 	if len(b) > 0 && b[len(b)-1] == '0' {
 		b = b[:len(b)-1]
@@ -143,22 +147,31 @@ func (o *out) num(x float64) {
 		b = b[:len(b)-1]
 	}
 	if len(b) == 2 && b[0] == '-' && b[1] == '0' {
-		b = b[1:]
+		b[0] = '0'
+		b = b[:1]
+	}
+	o.put(free, b)
+}
+
+// put ends a number formatted by appending to free, the buffer's free
+// end: it is there already, unless it was too long and was copied out.
+func (o *out) put(free, b []byte) {
+	if cap(b) == cap(free) {
+		o.n += len(b)
+		return
 	}
 	for _, c := range b {
 		o.byte(c)
 	}
 }
 
-// int writes an integer.
+// int writes an integer, formatted into the buffer's free end as num.
 func (o *out) int(v int) {
 	if o.n+24 > len(o.buf) {
 		o.flush()
 	}
-	var tmp [24]byte
-	for _, c := range strconv.AppendInt(tmp[:0], int64(v), 10) {
-		o.byte(c)
-	}
+	free := o.buf[o.n:o.n]
+	o.put(free, strconv.AppendInt(free, int64(v), 10))
 }
 
 // numAttr writes ` name="x"`.

@@ -276,6 +276,8 @@ func (d *Document) undoOne(en entry) (st, mv bool) {
 		d.putIn(en.vertex, en.prev.To)
 	case HostChange:
 		d.undoHost(en)
+	case Fold, Unfold:
+		d.setFolded(en.vertex, en.cmd.Op == Unfold)
 	}
 	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
@@ -359,6 +361,8 @@ func (d *Document) redoOne(en entry) (st, mv bool) {
 		d.putIn(en.vertex, en.cmd.To)
 	case HostChange:
 		d.redoHost(en)
+	case Fold, Unfold:
+		d.setFolded(en.vertex, en.cmd.Op == Fold)
 	}
 	return structural(en.cmd.Op), d.refits(en.cmd.Op)
 }
@@ -377,7 +381,7 @@ func (d *Document) setLabel(v VertexIndex, e EdgeIndex, text string) {
 // structural reports whether an op changes what the layout has to place.
 func structural(op Op) bool {
 	switch op {
-	case AddVertex, DeleteVertex, AddEdge, DeleteEdge, Layout, Compact, SetParent:
+	case AddVertex, DeleteVertex, AddEdge, DeleteEdge, Layout, Compact, SetParent, Fold, Unfold:
 		return true
 	case Move, Resize, Relabel, SetAttr, SetPorts, AddPort, DeletePort, HostChange:
 		return false

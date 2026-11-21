@@ -49,8 +49,7 @@ func headsOutside(t *testing.T, name string, d *gw.Document) {
 		if !x.Live() || !kind.Arrow() || kind.Head() == gw.OpenHead || knownHidden[name] == x.ID() {
 			continue
 		}
-		var lane [1]gw.Point
-		w := wayOf(d, e, &lane)
+		w := wayOf(d, e)
 		end, drop := w.shortened(kind)
 		bends := w.drawn(drop)
 		from := lastFrom(w.a, bends)

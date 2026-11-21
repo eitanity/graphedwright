@@ -339,6 +339,7 @@ type vertexFields struct {
 	cmd       gw.Command
 	hasPos    bool
 	placed    bool
+	folded    bool
 	parent    string
 	hasParent bool
 	ports     []gw.Port
@@ -406,6 +407,11 @@ func (dec *decoder) applyVertex(f *vertexFields, attrs []gw.Attr) error {
 			return s.errorf(err.Error())
 		}
 	}
+	if f.folded {
+		if _, err := dec.d.Apply(gw.Command{Op: gw.Fold, Vertex: v}); err != nil {
+			return s.errorf(err.Error())
+		}
+	}
 	if f.hasData {
 		dec.keep(f.data, v, gw.None)
 	}
@@ -437,6 +443,8 @@ func (dec *decoder) vertexKey(k string, f *vertexFields, attrs []gw.Attr) ([]gw.
 		f.cmd.Size.H, err = s.num()
 	case "placed":
 		f.placed, err = s.boolean()
+	case "folded":
+		f.folded, err = s.boolean()
 	case "parent":
 		f.parent, err = s.str()
 		f.hasParent = true

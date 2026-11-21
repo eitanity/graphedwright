@@ -15,7 +15,7 @@ func (e *Editor) pointerDown(ev Event) error {
 		return nil // the secondary button: the Context event that follows does the work
 	}
 	p := e.toDoc(ev.Point)
-	hit := svg.HitTest(e.d, p)
+	hit := e.hitAt(p)
 	v, one := e.onlyVertex()
 	ge := gesture.Event{
 		Kind:   gesture.EvPress,
@@ -41,7 +41,7 @@ func (e *Editor) pointerMove(ev Event) error {
 	if !e.panned {
 		e.last = p
 	}
-	e.hover = svg.HitTest(e.d, e.last)
+	e.hover = e.hitAt(e.last)
 	return err
 }
 
@@ -230,7 +230,7 @@ func (e *Editor) endDrag() error {
 func (e *Editor) endConnect(p gw.Point, shift bool) error {
 	from, port, kind := e.connFrom, e.connPort, e.connKind
 	e.connFrom, e.connPort, e.connKind = gw.None, gw.None, gw.None
-	hit := svg.HitTest(e.d, p)
+	hit := e.hitAt(p)
 	toPort := gw.PortIndex(gw.None)
 	if port == gw.None && hit.Vertex == from {
 		e.selectVertex(from, shift)

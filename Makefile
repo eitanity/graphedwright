@@ -10,13 +10,13 @@ BIN                   := $(abspath bin)
 PKGS                  := ./...
 HOTPATH               := internal/lint/hotpath.txt
 WASM_SIZE_LIMIT_GO    := 4194304
-WASM_SIZE_LIMIT_TINY  := 868352
+WASM_SIZE_LIMIT_TINY  := 917504
 
-.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes nofma alloc test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
+.PHONY: all ci tools verify build tinygo-vet fmt vet lint custom-lint escapes tinygo-escapes nofma alloc test race fuzz cover vuln wasm wasm-smoke wasm-test qemu-test merilo demo size golden
 
 all: ci
 
-ci: verify build tinygo-vet fmt vet lint custom-lint escapes nofma race alloc merilo cover vuln wasm-test size wasm-smoke
+ci: verify build tinygo-vet fmt vet lint custom-lint escapes tinygo-escapes nofma race alloc merilo cover vuln wasm-test size wasm-smoke
 
 # ---- toolchain ------------------------------------------------------------
 
@@ -90,6 +90,14 @@ custom-lint: $(BIN)/graphedvet $(BIN)/norecursion
 
 escapes: $(BIN)/escapes
 	go build -gcflags=-m $(PKGS) 2>&1 | $(BIN)/escapes $(HOTPATH)
+
+# The same hot path files as TinyGo builds them, which keeps on the heap
+# more than Go does: what a closure captures, and a local buffer handed
+# to a function that TinyGo cannot see keeps none of it.
+tinygo-escapes: $(BIN)/escapes
+	tinygo build -o $(BIN)/allocs.tinygo.wasm -target wasm -opt=z -no-debug -print-allocs=. ./cmd/graphedwright-wasm \
+	  > $(BIN)/allocs.txt 2>&1 || { cat $(BIN)/allocs.txt; exit 1; }
+	$(BIN)/escapes $(HOTPATH) < $(BIN)/allocs.txt
 
 # No float64 expression is fused into a multiply-add on any target. The
 # Go spec lets arm64, riscv64, loong64, ppc64 and s390x fuse x*y + z,

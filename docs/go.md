@@ -52,6 +52,14 @@ d.Redo()
   document, as `New` does, and leaves this one empty, without the store
   or the log; the store is told of nothing. Load the new one into a
   handle with `h.Load`.
+- **Large drawings:** `Find(text, after)` and `FindCount(text)` search
+  the labels and IDs; `Around(from, depth, way, in)` marks a
+  neighbourhood; `Outline(dst)` lists the vertices in drawing order with
+  their depth; `Hidden(v)`, `DrawnAs(v)` and `EdgeHidden(e)` say what a
+  fold hides and what an edge is drawn to; `Members(c)` counts what a
+  container holds. `FirstIn` and `NextIn` walk a vertex's edges in, as
+  `FirstOut` and `NextOut` walk those out. [Concepts](concepts.md#large-drawings)
+  describes them.
 - **`Kinds()`** is the document's kinds. They are read by index, as
   values: `k.Vertex(i)` and `k.Edge(i)`, with `VertexKinds()` and
   `EdgeKinds()` their numbers and `VertexNamed` and `EdgeNamed` an
@@ -201,6 +209,7 @@ patching a page in place.
 | `NoFullText` | writes a cut text without its full text after it, which the stylesheet shows on hover; its title still holds it |
 | `IDPrefix` | goes before the renderer's own IDs, the title's and the arrowheads', for more than one drawing in a page |
 | `DocIDPrefix` | goes before each vertex's and edge's `id`, so that a document cannot take an ID the page uses |
+| `Focus`, `FocusHide` | the vertices in focus, by index: the rest, and the edges not between two in focus, are drawn with the class `dim`, or with `FocusHide` not at all; nil for no focus |
 
 The output is the same, byte for byte, on every platform, so it can be
 compared in tests. The viewport is the document's `View`, or when that
@@ -225,7 +234,9 @@ The geometry the renderer draws from is also exported:
   vertex's outline band, a vertex, an edge (its path or its label), a
   container, or the background.
 - **`ContainerAt(d, p, v)`** is the container vertex `v` would go in if
-  dropped at `p`.
+  dropped at `p`; never a folded one.
+- **`EdgeDrawn(d, e)`** and **`Merged(d, e)`** say whether an edge is
+  drawn, and which edge, and how many, a fold draws it as one with.
 - **`HandleBox(d, v)`** is the square of a vertex's resize handle, on
   its bottom right corner.
 - **`VertexLabelBox` and `EdgeLabelBox`** are where a label is drawn,
@@ -309,6 +320,13 @@ ch, err = e.Handle(edit.Event{Kind: edit.Key, Key: "Delete"})
   `Overlay(&opts)` fills the renderer's options to draw the selection,
   the feedback, and the cut texts of the vertex under the pointer
   (`Expanded()`); `SetExpand(false)` turns that last off.
+- **Large drawings:** `Reveal(v)` unfolds what holds a vertex, as one
+  step for undo, selects it and centres it; `Focus(depth, way)` focuses
+  on the selection's neighbourhood, `Unfocus()` ends it, `InFocus(v)`
+  reads it and `SetFocusHide(true)` leaves the rest undrawn; Ctrl with
+  `[` and `]` fold and unfold the one selected container. `Settle()`
+  drops from the selection what a change the editor did not make
+  deleted or folded away.
 - **Properties:** `Properties()` describes the one selected element for
   a panel, and `SetLabel` and `SetAttr` change it as commands.
 - **Mode:** `SetMode(edit.View)` turns editing off; edits are then
@@ -348,4 +366,4 @@ without pauses, and that keep each package's state its own:
 
 `make ci` checks all of these, with the linters and the project's own
 analyzers in `internal/lint`, and it checks the TinyGo build stays under
-824 KiB.
+896 KiB.

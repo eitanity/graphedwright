@@ -2,6 +2,7 @@ package doc_test
 
 import (
 	"errors"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -113,15 +114,21 @@ func TestDecodeIntoAllocations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var m0, m1 runtime.MemStats
-		runtime.ReadMemStats(&m0)
-		for range 10 {
-			if _, err := doc.DecodeInto(d, text, opts); err != nil {
-				t.Fatal(err)
+		// The least of five, as the counts are the process's, which
+		// the runtime's own work may add to.
+		allocs, bytes = math.MaxUint64, math.MaxUint64
+		for range 5 {
+			var m0, m1 runtime.MemStats
+			runtime.ReadMemStats(&m0)
+			for range 10 {
+				if _, err := doc.DecodeInto(d, text, opts); err != nil {
+					t.Fatal(err)
+				}
 			}
+			runtime.ReadMemStats(&m1)
+			allocs, bytes = min(allocs, (m1.Mallocs-m0.Mallocs)/10), min(bytes, (m1.TotalAlloc-m0.TotalAlloc)/10)
 		}
-		runtime.ReadMemStats(&m1)
-		return (m1.Mallocs - m0.Mallocs) / 10, (m1.TotalAlloc - m0.TotalAlloc) / 10
+		return allocs, bytes
 	}
 	sa, sb := measure(gw.Caps{Vertices: 64, Edges: 256})
 	da, db := measure(gw.Caps{})

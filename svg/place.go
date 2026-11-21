@@ -59,8 +59,7 @@ func PlaceLabels(d *gw.Document) {
 		if d.EdgeLabelRunes(e) == 0 {
 			continue // a deleted edge's label is refused its place by SetLabelAt
 		}
-		var lane [1]gw.Point
-		w := wayOf(d, e, &lane)
+		w := wayOf(d, e)
 		move(d, e, crossings(d, e, drawnLabel(d, e, &w, w.middle(w.route))))
 	}
 }
@@ -72,8 +71,7 @@ func PlaceLabels(d *gw.Document) {
 // nothing, or failing that the first that crosses fewest, if fewer than
 // c; where c is 0 it stays.
 func move(d *gw.Document, e gw.EdgeIndex, c int) {
-	var lane [1]gw.Point
-	w := wayOf(d, e, &lane)
+	w := wayOf(d, e)
 	if w.n > 1 || w.ownLeg {
 		return
 	}
@@ -151,8 +149,7 @@ func crossings(d *gw.Document, e gw.EdgeIndex, box gw.Viewport) int {
 		if o == e || !d.Edge(o).Live() {
 			continue
 		}
-		var lane [1]gw.Point
-		w := wayOf(d, o, &lane)
+		w := wayOf(d, o)
 		route := w.route
 		if d.EdgeLabelRunes(o) > 0 {
 			if boxesMeet(box, drawnLabel(d, o, &w, w.middle(route))) {

@@ -165,6 +165,9 @@ func (e *encoder) vertex(d *gw.Document, v gw.VertexView) {
 	if v.Placed() {
 		e.str(`,"placed":true`)
 	}
+	if v.Folded() {
+		e.str(`,"folded":true`)
+	}
 	if v.Parent() != gw.None {
 		e.field("parent")
 		e.quote(string(d.Vertex(v.Parent()).ID()))

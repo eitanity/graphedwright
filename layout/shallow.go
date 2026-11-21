@@ -190,7 +190,7 @@ func (l *Layouter) shallowLegs(d *gw.Document, g float64) int {
 // stands, or, where another member stands between the side the leg
 // comes in at and the one on the way to the end, to the band past them
 // all that the run inside takes round them (alongGap), the one nearer
-// from.
+// from. An edge to an end hidden in a fold goes to the fold's centre.
 func (l *Layouter) reachY(d *gw.Document, i int, v, from int32, g float64) float64 {
 	y := l.legY(v, g)
 	if int(v) >= l.realN {
@@ -201,8 +201,8 @@ func (l *Layouter) reachY(d *gw.Document, i int, v, from int32, g float64) float
 	if v == l.eTo[i] {
 		end = e.To()
 	}
-	if end == gw.VertexIndex(v) {
-		return y
+	if end == gw.VertexIndex(v) || l.eFold[i] {
+		return y // at its end, or at the fold its end is hidden in
 	}
 	at, m := y, end
 	// bound: the parent chain is acyclic, so at most the vertex count

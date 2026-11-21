@@ -22,6 +22,8 @@ const (
 	AddPort                // Vertex, Port: a port of the vertex's own, after its others
 	DeletePort             // Vertex, Text: the name of a port of its own that no edge uses
 	HostChange             // Vertex, or Edge with Vertex None, or neither for the document; Token: a change the document's Store makes
+	Fold                   // Vertex: a container, drawn as one vertex, what it holds hidden
+	Unfold                 // Vertex: a folded container, drawn with what it holds again
 )
 
 // Command is one change to a document. Which fields matter depends on
@@ -97,6 +99,8 @@ func (d *Document) Apply(c Command) (Change, error) {
 		err = d.setParent(c)
 	case HostChange:
 		err = d.hostChange(c)
+	case Fold, Unfold:
+		err = d.fold(c)
 	default:
 		err = refusal("unknown op " + itoa(int(c.Op)))
 	}
@@ -175,6 +179,35 @@ func (d *Document) NextOut(e EdgeIndex) EdgeIndex {
 		return None
 	}
 	return d.liveOut(d.nextOut[e])
+}
+
+// FirstIn is the first live edge into vertex v, or None; NextIn is the
+// live edge into the same vertex after edge e, or None, as FirstOut and
+// NextOut walk the edges out.
+func (d *Document) FirstIn(v VertexIndex) EdgeIndex {
+	if !d.vertexLive(v) {
+		return None
+	}
+	return d.liveIn(d.inHead[v])
+}
+
+// NextIn is the live edge after e into e's target, or None.
+func (d *Document) NextIn(e EdgeIndex) EdgeIndex {
+	if e < 0 || int(e) >= len(d.edges) {
+		return None
+	}
+	return d.liveIn(d.nextIn[e])
+}
+
+// liveIn is the first live edge of an in list from e on, or None.
+func (d *Document) liveIn(e int32) EdgeIndex {
+	// bound: the in list visits each edge of the vertex once
+	for ; e != None; e = d.nextIn[e] {
+		if d.edges[e].Live {
+			return EdgeIndex(e)
+		}
+	}
+	return None
 }
 
 // liveOut is the first live edge of an out list from e on, or None.

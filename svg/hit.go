@@ -33,37 +33,49 @@ type Hit struct {
 // last, its outline band when it has no ports or its box, then an edge
 // within the tolerance of its path or on its label's text, then the
 // container drawn uppermost whose box holds the point, else the
-// background.
+// background. What is not drawn is not hit: a vertex hidden in a fold,
+// an edge EdgeDrawn leaves out, and a frameless container unfolded; a
+// folded container is hit as a vertex.
 func HitTest(d *gw.Document, p gw.Point) Hit {
 	if h, ok := hitPort(d, p); ok {
 		return h
 	}
-	for i := d.VertexSlots() - 1; i >= 0; i-- {
-		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
-		if !v.Live() || d.Kinds().Vertex(v.Kind()).Container() {
-			continue
-		}
-		if v.Ports().Len() == 0 && math.Abs(vertexOutlineDistance(d, v, p)) <= band(v) {
-			return Hit{Kind: OutlineHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
-		}
-		if inVertex(d, v, p) {
-			return Hit{Kind: VertexHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None} //nolint:gosec // bounded by the capacity
-		}
+	if h, ok := hitVertex(d, p); ok {
+		return h
 	}
 	for i := d.EdgeSlots() - 1; i >= 0; i-- {
-		if d.Edge(gw.EdgeIndex(i)).Live() && nearEdge(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
+		if EdgeDrawn(d, gw.EdgeIndex(i)) && nearEdge(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
 			return Hit{Kind: EdgeHit, Vertex: gw.None, Port: gw.None, Edge: gw.EdgeIndex(i)} //nolint:gosec // bounded by the capacity
 		}
 	}
 	for i := d.EdgeSlots() - 1; i >= 0; i-- {
-		if d.Edge(gw.EdgeIndex(i)).Live() && inLabel(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
+		if EdgeDrawn(d, gw.EdgeIndex(i)) && inLabel(d, gw.EdgeIndex(i), p) { //nolint:gosec // bounded by the capacity
 			return Hit{Kind: EdgeHit, Vertex: gw.None, Port: gw.None, Edge: gw.EdgeIndex(i)} //nolint:gosec // bounded by the capacity
 		}
 	}
-	if c := ContainerAt(d, p, gw.None); c != gw.None {
+	if c := ContainerAt(d, p, gw.None); c != gw.None && !d.Kinds().Vertex(d.Vertex(c).Kind()).Frameless() {
 		return Hit{Kind: VertexHit, Vertex: c, Port: gw.None, Edge: gw.None}
 	}
 	return Hit{Kind: Background, Vertex: gw.None, Port: gw.None, Edge: gw.None}
+}
+
+// hitVertex names the vertex drawn last whose outline band, when it has
+// no ports, or box holds the point: a folded container among them, an
+// open one not, nor what a fold hides.
+func hitVertex(d *gw.Document, p gw.Point) (Hit, bool) {
+	for i := d.VertexSlots() - 1; i >= 0; i-- {
+		v := d.Vertex(gw.VertexIndex(i))                                                                 //nolint:gosec // bounded by the capacity
+		if !drawnVertex(d, gw.VertexIndex(i)) || d.Kinds().Vertex(v.Kind()).Container() && !v.Folded() { //nolint:gosec // bounded by the capacity
+			continue
+		}
+		if v.Ports().Len() == 0 && math.Abs(vertexOutlineDistance(d, v, p)) <= band(v) {
+			return Hit{Kind: OutlineHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None}, true //nolint:gosec // bounded by the capacity
+		}
+		if inVertex(d, v, p) {
+			return Hit{Kind: VertexHit, Vertex: gw.VertexIndex(i), Port: gw.None, Edge: gw.None}, true //nolint:gosec // bounded by the capacity
+		}
+	}
+	return Hit{}, false
 }
 
 // hitPort names the port whose circle holds the point, the later
@@ -72,7 +84,7 @@ func hitPort(d *gw.Document, p gw.Point) (Hit, bool) {
 	for i := d.VertexSlots() - 1; i >= 0; i-- {
 		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
 		ports := v.Ports()
-		if !v.Live() || ports.Len() == 0 {
+		if !v.Live() || ports.Len() == 0 || d.Hidden(gw.VertexIndex(i)) { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		for j := range ports.Len() {
@@ -89,12 +101,15 @@ func hitPort(d *gw.Document, p gw.Point) (Hit, bool) {
 // ContainerAt is the live container drawn uppermost whose box holds
 // the point, the innermost of those nested there, and, when v is not
 // None, that may hold v and is neither v nor in it: where v would go if
-// dropped there. It is None when there is none.
+// dropped there. A folded container, and one hidden in a fold, is none:
+// a vertex dropped on it would vanish. A frameless one, unfolded, is
+// one, so that what it holds stays in it when moved within its box. It
+// is None when there is none.
 func ContainerAt(d *gw.Document, p gw.Point, v gw.VertexIndex) gw.VertexIndex {
 	order := d.Containers()
 	for i := order.Len() - 1; i >= 0; i-- {
 		c := order.At(i)
-		if !inBox(d.Vertex(c), p) {
+		if !inBox(d.Vertex(c), p) || d.Vertex(c).Folded() || d.Hidden(c) {
 			continue
 		}
 		if v == gw.None || (!d.Within(c, v) && d.Kinds().Holds(d.Vertex(c).Kind(), d.Vertex(v).Kind())) {

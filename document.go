@@ -95,6 +95,7 @@ type vertex struct {
 	Placed bool        // false until a layout or a drag gives it a position
 	Live   bool        // false for a tombstone
 	Parent VertexIndex // the container it is in, or None
+	Folded bool        // a container drawn as one vertex, what it holds hidden
 	diedBy uint64
 }
 
@@ -174,6 +175,7 @@ type Document struct {
 	mark    []uint32
 	gen     uint32
 	stack   []int32
+	queue   []int32 // Around's and Outline's, apart from the cycle search's stack
 	parent  []int32
 	changeV []VertexIndex
 	changeE []EdgeIndex
@@ -239,6 +241,7 @@ func New(kinds *Kinds, caps Caps) (*Document, error) {
 	d.kindCount = make([]int32, len(kinds.vertex))
 	d.mark = make([]uint32, caps.Vertices)
 	d.stack = make([]int32, caps.Vertices)
+	d.queue = make([]int32, caps.Vertices)
 	d.parent = make([]int32, caps.Vertices)
 	d.changeV = make([]VertexIndex, 0, caps.Vertices)
 	d.changeE = make([]EdgeIndex, 0, caps.Edges)

@@ -24,7 +24,19 @@ func (e *Editor) key(ev Event) error {
 		case "0":
 			e.fit()
 			return nil
+		case "[", "]":
+			if e.idle() {
+				op := gw.Fold
+				if ev.Key == "]" {
+					op = gw.Unfold
+				}
+				return e.foldKey(op)
+			}
 		}
+	}
+	if ev.Key == "Escape" && e.focused && len(e.selV) == 0 && len(e.selE) == 0 {
+		e.Unfocus()
+		e.layout = true
 	}
 	_, _, one := e.one()
 	return e.fire(gesture.Event{Kind: keyKind(ev), One: one}, input{ev: ev})
@@ -74,7 +86,19 @@ func printable(key string) bool {
 // selecting it alone.
 func (e *Editor) doubleClick(ev Event) error {
 	p := e.toDoc(ev.Point)
-	hit := svg.HitTest(e.d, p)
+	hit := e.hitAt(p)
+	if hit.Kind == svg.VertexHit && e.d.Vertex(hit.Vertex).Folded() && e.idle() {
+		// A fold opens where a vertex's label would be edited.
+		if e.g.Held() {
+			return ErrHeld
+		}
+		if err := e.apply(gw.Command{Op: gw.Unfold, Vertex: hit.Vertex}); err != nil {
+			return err
+		}
+		e.clearSelection()
+		e.selV = push(e.selV, hit.Vertex)
+		return nil
+	}
 	return e.fire(gesture.Event{Kind: gesture.EvDoubleClick, Hit: hitOf(hit)}, input{p: p, hit: hit, ev: ev})
 }
 

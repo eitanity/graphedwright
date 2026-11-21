@@ -211,6 +211,32 @@ func TestContainersRoundTrip(t *testing.T) {
 	}
 }
 
+// TestFoldedRoundTrip: a folded container is read folded, at its own
+// size whatever it holds, with what it holds hidden, and written back
+// folded; "folded":false is no fold, and nothing is written for it.
+func TestFoldedRoundTrip(t *testing.T) {
+	text := `{"schema":"model","vertices":[
+		{"id":"a","kind":"node","x":220,"y":100,"parent":"z"},
+		{"id":"z","kind":"zone","x":0,"y":0,"folded":true}]}`
+	d := decode(t, text)
+	z := d.VertexByID("z")
+	if v := d.Vertex(z); !v.Folded() || !d.Hidden(d.VertexByID("a")) || v.Pos() != (gw.Point{}) || d.CanUndo() {
+		t.Errorf("zone folded %v at %v %v, a hidden %v", v.Folded(), v.Pos(), v.Size(), d.Hidden(d.VertexByID("a")))
+	}
+	var first, second bytes.Buffer
+	if err := doc.Encode(d, "model", &first); err != nil || !strings.Contains(first.String(), `"x":0,"y":0,"folded":true`) {
+		t.Fatalf("not written folded: %v\n%s", err, first.String())
+	}
+	if err := doc.Encode(decode(t, first.String()), "model", &second); err != nil || first.String() != second.String() {
+		t.Errorf("round trip differs:\n%s\n%s", first.String(), second.String())
+	}
+	d = decode(t, strings.Replace(text, `"folded":true`, `"folded":false`, 1))
+	first.Reset()
+	if err := doc.Encode(d, "model", &first); err != nil || d.Vertex(d.VertexByID("z")).Folded() || strings.Contains(first.String(), "folded") {
+		t.Errorf("folded false: %v\n%s", err, first.String())
+	}
+}
+
 // TestLayoutOnLoad: a document without positions is laid out, unless
 // the host says not to; one with them is left alone.
 func TestLayoutOnLoad(t *testing.T) {
@@ -337,6 +363,8 @@ func TestDecodeRefusals(t *testing.T) {
 		{"bad utf8 in an escaped string", v(`{"kind":"node","label":"\n` + "\xff" + `"}`), "string is not valid UTF-8"},
 		{"placed false", v(`{"kind":"node","placed":false}`), ""},
 		{"parent unknown", v(`{"kind":"node","parent":"x"}`), `document.vertices[0].parent: unknown vertex "x"`},
+		{"folded not a container", v(`{"id":"a","kind":"node","folded":true}`), `document.vertices[0]: vertex "a" of kind "node" is not a container`},
+		{"folded not a boolean", v(`{"kind":"zone","folded":1}`), `document.vertices[0].folded: expected true or false`},
 		{"parent not a string", v(`{"kind":"node","parent":1}`), `document.vertices[0].parent: expected '"'`},
 		{"parent refused", v(`{"id":"a","kind":"node","parent":"s"},{"id":"s","kind":"source"}`), `document.vertices[0]: vertex "s" of kind "source" is not a container`},
 		{"parent kind refused", v(`{"id":"s","kind":"source","parent":"z"},{"id":"z","kind":"zone"}`), `document.vertices[0]: container kind "zone" cannot hold kind "source"`},

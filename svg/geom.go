@@ -88,7 +88,7 @@ func sidePoint(pos gw.Point, size gw.Size, side gw.Side, k, n int) gw.Point {
 // moved along it by its offset (gw.Document.EndOffset) and in to the
 // shape's outline.
 func ends(d *gw.Document, i gw.EdgeIndex, through gw.PointList) (a, b gw.Point) {
-	e := d.Edge(i)
+	e := shownEdge(d, i)
 	from, to := d.Vertex(e.From()), d.Vertex(e.To())
 	if d.Route(i) == gw.Straight && e.From() != e.To() {
 		a, b = from.Pos(), to.Pos()
@@ -140,7 +140,7 @@ func ends(d *gw.Document, i gw.EdgeIndex, through gw.PointList) (a, b gw.Point) 
 // (gw.Document.Enclosing), to the container's side facing back, for one
 // in, or on, for one out, level with the bend next to it, or with no
 // bends the other end.
-func enclosedEnds(d *gw.Document, e gw.EdgeView, through gw.PointList, a, b gw.Point, down bool) (gw.Point, gw.Point) {
+func enclosedEnds(d *gw.Document, e shown, through gw.PointList, a, b gw.Point, down bool) (gw.Point, gw.Point) {
 	n := through.Len()
 	switch d.Enclosing(e.From(), e.To()) {
 	case 1:
@@ -207,7 +207,7 @@ func toOutline(d *gw.Document, v gw.VertexView, q, in gw.Point) gw.Point {
 // beside an edge the other way between the same two vertices, its lane
 // keeps it apart. An edge with a port keeps the side its port is on,
 // and one between a container and what it holds runs with the flow.
-func backward(d *gw.Document, e gw.EdgeView) bool {
+func backward(d *gw.Document, e shown) bool {
 	if e.FromPort() != gw.None || e.ToPort() != gw.None || d.Enclosing(e.From(), e.To()) != 0 {
 		return false
 	}
@@ -227,7 +227,7 @@ func backward(d *gw.Document, e gw.EdgeView) bool {
 type frame struct{ down, back bool }
 
 // frameOf is the frame of an edge in the document's flow.
-func frameOf(d *gw.Document, e gw.EdgeView) frame {
+func frameOf(d *gw.Document, e shown) frame {
 	return frame{down: d.Flow() == gw.TopToBottom, back: backward(d, e)}
 }
 
@@ -313,9 +313,9 @@ type way struct {
 // labels above them stack.
 const laneGap = labelHeight
 
-// wayOf is the way of edge i; lane holds its lane's point.
-func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
-	e := d.Edge(i)
+// wayOf is the way of edge i, a lane's point held in it.
+func wayOf(d *gw.Document, i gw.EdgeIndex) way {
+	e := shownEdge(d, i)
 	w := way{f: frameOf(d, e), through: e.Bends(), n: 1, enclosed: d.Enclosing(e.From(), e.To()) != 0, route: d.Route(i)}
 	w.a, w.b = ends(d, i, e.Bends())
 	k, n := d.Parallel(i)
@@ -337,8 +337,8 @@ func wayOf(d *gw.Document, i gw.EdgeIndex, lane *[1]gw.Point) way {
 		p, q = w.f.t(d.Vertex(e.From()).Pos()), w.f.t(d.Vertex(e.To()).Pos())
 	}
 	off := float64((float64(k) - float64(float64(n-1)/2)) * laneGap)
-	lane[0] = w.f.t(gw.Point{X: float64((p.X + q.X) / 2), Y: float64((p.Y+q.Y)/2) + off})
-	w.through, w.k, w.n = gw.PointsOf(lane[:]), k, n
+	lane := w.f.t(gw.Point{X: float64((p.X + q.X) / 2), Y: float64((p.Y+q.Y)/2) + off})
+	w.through, w.k, w.n = gw.PointOf(lane), k, n
 	w.a, w.b = ends(d, i, w.through)
 	return w
 }
@@ -529,7 +529,7 @@ func turnAt(p, q gw.Point) float64 { return float64((p.X + q.X) / 2) }
 // keeps its label at the turn, clear of any edge that its last leg runs
 // beside into the same target.
 func sharesTurn(d *gw.Document, i gw.EdgeIndex, w way) bool {
-	e := d.Edge(i)
+	e := shownEdge(d, i)
 	if w.route != gw.Orthogonal || w.through.Len() > 0 {
 		return false
 	}
@@ -776,8 +776,7 @@ func segmentDistance(p, a, b gw.Point) float64 {
 // path: each leg sampled into edgeSamples segments, or one when it is a
 // line.
 func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
-	var lane [1]gw.Point
-	wy := wayOf(d, i, &lane)
+	wy := wayOf(d, i)
 	kind := d.Kinds().Edge(d.Edge(i).Kind())
 	route := wy.route
 	f := wy.f
@@ -812,7 +811,7 @@ func nearEdge(d *gw.Document, i gw.EdgeIndex, p gw.Point) bool {
 // Margin is the space Bounds leaves around the vertices.
 const Margin = 24
 
-// Bounds is the box around every live vertex with a margin, which a
+// Bounds is the box around every live vertex drawn, and the edges drawn, with a margin, which a
 // viewport the host left empty takes; an empty document gets a unit box.
 func Bounds(d *gw.Document) gw.Viewport { return bounds(d) }
 
@@ -831,13 +830,18 @@ func usable(v gw.Viewport) bool {
 // inCoord reports whether x is within gw.MaxCoord of the origin.
 func inCoord(x float64) bool { return x >= -gw.MaxCoord && x <= gw.MaxCoord }
 
+// drawnVertex reports whether vertex v is live and not hidden in a fold.
+func drawnVertex(d *gw.Document, v gw.VertexIndex) bool {
+	return d.Vertex(v).Live() && !d.Hidden(v)
+}
+
 func bounds(d *gw.Document) gw.Viewport {
 	const margin, labelPad = Margin, 4
 	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 	lx0, ly0, lx1, ly1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1) // the edges' labels
 	for i := range d.VertexSlots() {
-		v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
-		if !v.Live() {
+		v := d.Vertex(gw.VertexIndex(i))        //nolint:gosec // bounded by the capacity
+		if !drawnVertex(d, gw.VertexIndex(i)) { //nolint:gosec // bounded by the capacity
 			continue
 		}
 		half, foot := v.Size().W/2, 0.0
@@ -859,7 +863,7 @@ func bounds(d *gw.Document) gw.Viewport {
 		}
 	}
 	for i := range d.EdgeSlots() {
-		if e := d.Edge(gw.EdgeIndex(i)); e.Live() { //nolint:gosec // bounded by the capacity
+		if e := d.Edge(gw.EdgeIndex(i)); EdgeDrawn(d, gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
 			for at := range e.Bends().Len() {
 				p := e.Bends().At(at)
 				x0, y0, x1, y1 = math.Min(x0, p.X), math.Min(y0, p.Y), math.Max(x1, p.X), math.Max(y1, p.Y)

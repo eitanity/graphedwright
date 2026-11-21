@@ -560,6 +560,9 @@ func followFor(asked int, d *gw.Document) (int, error) {
 
 // draw patches the drawing from a change, or redraws it.
 func (h *Handle) draw(ch gw.Change) {
+	// The selection loses what the change deleted or folded away before
+	// the overlay draws it.
+	h.ed.Settle()
 	if ch.Layout || !h.patch {
 		h.renderAll()
 		return

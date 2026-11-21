@@ -154,6 +154,25 @@ type Editor struct {
 	inE     []bool         // per edge, whether changeE holds it
 	atV     []gw.EdgeIndex // the edges at a dragged vertex, found before they are recorded
 	layout  bool
+
+	focus     []bool           // per vertex, in the focus (Focus)
+	focusFrom []gw.VertexIndex // the vertices a focus is taken from
+	focused   bool
+	focusN    int  // the vertex slots when the focus was taken or last drawn: those after are in it
+	focusHide bool // what is out of the focus is not drawn
+}
+
+// errNotLive refuses a reveal of a vertex that is not in the document.
+var errNotLive = errors.New("edit: the vertex is not in the document")
+
+// errBusy refuses a reveal while a gesture is under way.
+var errBusy = errors.New("edit: a gesture is under way")
+
+// idle reports whether no gesture is under way, in either mode, held or
+// not.
+func (e *Editor) idle() bool {
+	s := e.g.Activity()
+	return s == gesture.Idle || s == gesture.ViewIdle || s == gesture.HeldIdle || s == gesture.ViewHeldIdle
 }
 
 func background() svg.Hit {
@@ -376,6 +395,7 @@ func (e *Editor) Overlay(opts *svg.Options) {
 	opts.Target, opts.HasTarget = e.Target()
 	opts.Handle, opts.HasHandle = e.ResizeHandle()
 	opts.Hover, opts.HasHover = e.Expanded()
+	e.focusOptions(opts)
 	if e.g.View() {
 		opts.Mode = svg.View
 	} else {

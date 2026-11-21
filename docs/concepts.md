@@ -132,6 +132,7 @@ way, and undo is a log of commands.
 | `DeletePort` | removes a port of the vertex's own that no edge uses | `Vertex`, `Text` (the port's name) |
 | `Layout` | records positions before a layout, so it can be undone | `Text: "all"` to lay out placed vertices too; `Value` a flow |
 | `SetParent` | puts a vertex in a container, or takes it out with `To: gw.None` | `Vertex`, `To` |
+| `Fold`, `Unfold` | folds a container into one vertex, hiding what it holds, and unfolds it ([Large drawings](#large-drawings)) | `Vertex` |
 | `Compact` | drops tombstones and renumbers; clears the undo log | |
 | `HostChange` | a change to the host's own data, made by its `Store` | `Vertex`, or `Edge` with `Vertex: gw.None`, or neither for the document; `Token` |
 
@@ -442,6 +443,43 @@ containers nest.
   puts it in, dragging it out takes it out, and dragging the container
   carries its contents. Dragging the handle on a selected container's
   corner resizes it, which gives it its own size.
+- **A group the host names:** a container kind marked `Frameless`, such
+  as a template's instance, is not drawn while it is open: what it
+  holds is laid out and fitted together, and the group is drawn only
+  when it is folded.
+
+## Large drawings
+
+A drawing larger than the screen stays usable: a vertex is found and
+brought into view, a container is folded into one vertex, the
+selection's neighbourhood is shown with the rest dimmed, and a host's
+panel lists an outline. Nothing here allocates.
+
+- **Fold:** `Fold` and `Unfold` are commands, so they undo, and a fold
+  is saved with the document. A folded container is drawn at its own
+  size, with its label and how many vertices it holds; what it holds
+  keeps its place and is not drawn, hit, laid out or selected
+  (`Hidden`). Moving the fold carries what it holds. An edge with an
+  end hidden in a fold is drawn to the fold (`DrawnAs`); one with both
+  ends in the same fold is not drawn (`EdgeHidden`). Edges a fold brings
+  to the same two drawn ends, the same way, are drawn as one, with their
+  number. The edges themselves don't change: unfolding draws them as
+  they were. A command on a hidden vertex is applied as any other.
+- **Search:** `Find(text, after)` is the next live vertex after `after`,
+  round to the start, whose label or ID holds the text, its case
+  folded; `FindCount(text)` counts them. Hidden vertices are found too.
+- **Reveal:** the editor's `Reveal(v)` unfolds the folds `v` is in, as
+  one step for undo, selects it alone and centres the view on it.
+- **Focus:** `Around(from, depth, way, in)` marks the vertices within
+  `depth` edges of those given, following edges forward
+  (`Successors`), backward (`Predecessors`) or `Both`. The editor's
+  `Focus(depth, way)` focuses on the selection's neighbourhood: the rest
+  is dimmed, or with `SetFocusHide(true)` not drawn or hit. Escape with
+  nothing selected, or `Unfocus`, ends it. The focus, the selection and
+  the view are not undone.
+- **Outline:** `Outline(dst)` lists the live vertices in drawing order,
+  each container before what it holds, with how deep each is, whether
+  it is folded and how many it holds, for a host's panel.
 
 ## Notes
 

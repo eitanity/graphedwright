@@ -99,7 +99,10 @@ type AttrSpec struct {
 // whatever its Contains lists, and an edge that joins one, an anchor, is
 // drawn straight between the two boxes and left out of the layout, which
 // puts each note beside the vertex its first anchor joins it to. A note
-// kind is not a container.
+// kind is not a container. A frameless container kind is a group the
+// host names, such as a template's instance: what it holds is laid out
+// and fitted together, but the container is drawn only when it is
+// folded (see Fold).
 type VertexKind struct {
 	Name         string
 	Shape        Shape
@@ -118,6 +121,7 @@ type VertexKind struct {
 	LabelFormat  string
 	EditAttr     string
 	Note         bool
+	Frameless    bool
 }
 
 // KeywordHeight is the least height of a vertex kind with a keyword,
@@ -219,13 +223,17 @@ func checkVertexKind(s Schema, i int, k VertexKind) error {
 }
 
 // checkHolding refuses a note kind that is a container, a kind that
-// holds kinds without being a container, and a held kind out of range.
+// holds kinds without being a container, a frameless kind that is not
+// one, and a held kind out of range.
 func checkHolding(s Schema, k VertexKind) error {
 	if k.Note && k.Container {
 		return refusal("is a note and a container")
 	}
 	if len(k.Contains) > 0 && !k.Container {
 		return refusal("holds kinds without being a container")
+	}
+	if k.Frameless && !k.Container {
+		return refusal("is frameless without being a container")
 	}
 	for _, kind := range k.Contains {
 		if kind < 0 || int(kind) >= len(s.VertexKinds) {

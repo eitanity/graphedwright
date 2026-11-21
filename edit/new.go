@@ -18,6 +18,7 @@ func New(d *gw.Document, mode Mode, grid float64) *Editor {
 		orig: make([]gw.Point, caps.Vertices), dragV: make([]gw.VertexIndex, 0, caps.Vertices), dropTo: make([]gw.VertexIndex, caps.Vertices),
 		changeV: make([]gw.VertexIndex, 0, caps.Vertices), changeE: make([]gw.EdgeIndex, 0, caps.Edges),
 		inV: make([]bool, caps.Vertices), inE: make([]bool, caps.Edges), atV: make([]gw.EdgeIndex, 0, caps.Edges),
+		focus: make([]bool, caps.Vertices), focusFrom: make([]gw.VertexIndex, 0, caps.Vertices),
 	}
 	e.renew(d, mode, grid)
 	return e
@@ -67,4 +68,5 @@ func (e *Editor) renew(d *gw.Document, mode Mode, grid float64) {
 	e.changeV, e.changeE, e.atV, e.layout = e.changeV[:0], e.changeE[:0], e.atV[:0], false
 	clear(e.inV)
 	clear(e.inE)
+	e.focused, e.focusN, e.focusHide = false, 0, false
 }

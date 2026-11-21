@@ -201,6 +201,7 @@ type Layouter struct {
 	crossing []bool // the vertices an edge from outside their container runs to or into
 	pin      []bool // the placed ones among them
 	eOn      []bool // the edges of the level, between the nodes that hold their ends
+	eFold    []bool // an edge of the level with an end hidden in a fold, laid out to the fold and given no route
 	eFrom    []int32
 	eTo      []int32
 	members  int       // vertices in the level
@@ -265,7 +266,7 @@ func New(caps gw.Caps) *Layouter {
 		segF: make([]int32, maxS), segT: make([]int32, maxS), segE: make([]int32, maxS), off: make([]int32, maxN+1), adj: make([]int32, maxS),
 		keys: make([]int32, maxN+1), fen: make([]int32, maxN+1), byTo: make([]int32, maxS), rev: make([]gw.EdgeIndex, 0, caps.Edges),
 		liveReal: make([]bool, caps.Vertices), crossing: make([]bool, caps.Vertices), pin: make([]bool, caps.Vertices), roomB: make([]bool, caps.Vertices), roomA: make([]bool, caps.Vertices), lRun: make([]int8, caps.Edges), runW: make([]float64, caps.Edges), textW: make([]float64, caps.Edges),
-		eOn: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
+		eOn: make([]bool, caps.Edges), eFold: make([]bool, caps.Edges), eFrom: make([]int32, caps.Edges), eTo: make([]int32, caps.Edges),
 		w: make([]float64, maxN), lw: make([]float64, maxN+1), lx: make([]float64, maxN+1), lg: make([]float64, maxN+1), rg: make([]float64, maxN+1),
 		fx: make([]float64, caps.Vertices), fy: make([]float64, caps.Vertices), bw: make([]float64, caps.Vertices), bh: make([]float64, caps.Vertices),
 		rx: make([]float64, caps.Vertices), ry: make([]float64, caps.Vertices), depth: make([]int32, caps.Vertices),
@@ -341,14 +342,16 @@ func (l *Layouter) Run(d *gw.Document, opts Options) (Result, error) {
 }
 
 // contents lays out what each container holds, deepest first, and sizes
-// the container to it. It returns the crossings of the orders kept.
+// the container to it; a folded container is one node of its own size,
+// and what it holds is not laid out. It returns the crossings of the
+// orders kept.
 func (l *Layouter) contents(d *gw.Document, opts Options, deepest int) (int64, error) {
 	crossings := int64(0)
 	// bound: the deepest nesting, at most the vertex count
 	for k := deepest; k >= 0; k-- {
 		for i := range d.VertexSlots() {
-			c := gw.VertexIndex(i)                                                                                                                //nolint:gosec // bounded by the capacity
-			if !d.Vertex(gw.VertexIndex(i)).Live() || int(l.depth[i]) != k || !d.Kinds().Vertex(d.Vertex(gw.VertexIndex(i)).Kind()).Container() { //nolint:gosec // bounded by the capacity
+			c := gw.VertexIndex(i) //nolint:gosec // bounded by the capacity
+			if v := d.Vertex(c); !v.Live() || int(l.depth[i]) != k || !d.Kinds().Vertex(v.Kind()).Container() || v.Folded() || d.Hidden(c) {
 				continue
 			}
 			n, cr, err := l.level(d, opts, c)
@@ -367,29 +370,87 @@ func (l *Layouter) contents(d *gw.Document, opts Options, deepest int) (int64, e
 
 // compose places every vertex from the top level, just laid out, down:
 // each at its container's centre plus its offset; a placed vertex at the
-// top level stays where it is.
+// top level stays where it is. A hidden vertex keeps its offset from the
+// folded container it is drawn as, so that it moves with it.
 func (l *Layouter) compose(d *gw.Document, deepest int) {
 	for i := range d.VertexSlots() {
+		if l.keepOffset(d, gw.VertexIndex(i)) { //nolint:gosec // bounded by the capacity
+			continue
+		}
 		if l.liveReal[i] {
 			l.rx[i], l.ry[i] = l.swap(l.x[i], l.y[i])
 		}
 	}
 	// bound: the deepest nesting, at most the vertex count
 	for k := 0; k <= deepest; k++ {
-		for i := range d.VertexSlots() {
-			v := d.Vertex(gw.VertexIndex(i)) //nolint:gosec // bounded by the capacity
-			if !v.Live() || int(l.depth[i]) != k {
-				continue
-			}
-			if v.Parent() != gw.None {
-				l.rx[i] += l.rx[v.Parent()]
-				l.ry[i] += l.ry[v.Parent()]
-			}
-			if v.Parent() != gw.None || !l.fixed[i] {
-				d.Place(gw.VertexIndex(i), gw.Point{X: l.rx[i], Y: l.ry[i]}, l.fixed[i]) //nolint:gosec // bounded by the capacity
-			}
+		l.composeDepth(d, k)
+	}
+}
+
+// composeDepth places the vertices k containers deep, each at its
+// container's centre, placed by now, plus its offset.
+func (l *Layouter) composeDepth(d *gw.Document, k int) {
+	for i := range d.VertexSlots() {
+		v := d.Vertex(gw.VertexIndex(i))                                           //nolint:gosec // bounded by the capacity
+		if !v.Live() || int(l.depth[i]) != k || l.withFold(d, gw.VertexIndex(i)) { //nolint:gosec // bounded by the capacity
+			continue
+		}
+		if v.Parent() != gw.None {
+			l.rx[i] += l.rx[v.Parent()]
+			l.ry[i] += l.ry[v.Parent()]
+		}
+		if v.Parent() != gw.None || !l.fixed[i] {
+			d.Place(gw.VertexIndex(i), gw.Point{X: l.rx[i], Y: l.ry[i]}, l.fixed[i]) //nolint:gosec // bounded by the capacity
 		}
 	}
+}
+
+// routed reports whether edge i of the level is given a route: one
+// with an end hidden in a fold is not.
+func (l *Layouter) routed(i int) bool { return l.eOn[i] && !l.eFold[i] }
+
+// levelEdges takes the edges of container c's level, or the top's for
+// None, between the members that hold their ends.
+func (l *Layouter) levelEdges(d *gw.Document, c gw.VertexIndex) {
+	for i := range d.EdgeSlots() {
+		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
+		l.eOn[i], l.eFold[i] = false, false
+		if !e.Live() || d.EdgeHidden(gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
+			continue
+		}
+		// An edge with an end hidden in a fold is laid out to the fold,
+		// which holds the end, and is given no route.
+		l.eFold[i] = d.DrawnAs(e.From()) != e.From() || d.DrawnAs(e.To()) != e.To()
+		a, b := holder(d, e.From(), c), holder(d, e.To(), c)
+		if a >= 0 && b >= 0 && a != b && !d.Anchor(gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
+			l.eOn[i], l.eFrom[i], l.eTo[i] = true, a, b
+		}
+	}
+}
+
+// keepOffset notes a hidden vertex's offset from the fold it is drawn
+// as, and reports whether it is hidden.
+func (l *Layouter) keepOffset(d *gw.Document, v gw.VertexIndex) bool {
+	f := d.DrawnAs(v)
+	if f == v || !d.Vertex(v).Live() {
+		return false
+	}
+	p, q := d.Vertex(v).Pos(), d.Vertex(f).Pos()
+	l.rx[v], l.ry[v] = p.X-q.X, p.Y-q.Y
+	return true
+}
+
+// withFold places a hidden vertex at its offset from the fold it is
+// drawn as, which is placed by now, being shallower, and reports
+// whether it is hidden.
+func (l *Layouter) withFold(d *gw.Document, v gw.VertexIndex) bool {
+	f := d.DrawnAs(v)
+	if f == v {
+		return false
+	}
+	q := d.Vertex(f).Pos()
+	d.Place(v, gw.Point{X: q.X + l.rx[v], Y: q.Y + l.ry[v]}, d.Vertex(v).Placed())
+	return true
 }
 
 // placeBends makes the bends of the edges laid out in a container
@@ -533,7 +594,7 @@ func (l *Layouter) bends(d *gw.Document, c gw.VertexIndex, ox, oy float64, opts 
 	g := opts.Grid
 	l.sorted = !l.anyPinned()
 	for i := range l.eOn[:l.edges] {
-		if !l.eOn[i] {
+		if !l.routed(i) {
 			continue
 		}
 		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
@@ -793,17 +854,7 @@ func (l *Layouter) level(d *gw.Document, opts Options, c gw.VertexIndex) (int, i
 	if n == 0 {
 		return 0, 0, nil
 	}
-	for i := range d.EdgeSlots() {
-		e := d.Edge(gw.EdgeIndex(i)) //nolint:gosec // bounded by the capacity
-		l.eOn[i] = false
-		if !e.Live() {
-			continue
-		}
-		a, b := holder(d, e.From(), c), holder(d, e.To(), c)
-		if a >= 0 && b >= 0 && a != b && !d.Anchor(gw.EdgeIndex(i)) { //nolint:gosec // bounded by the capacity
-			l.eOn[i], l.eFrom[i], l.eTo[i] = true, a, b
-		}
-	}
+	l.levelEdges(d, c)
 	l.topoOrder(d)
 	l.assignLayers(opts)
 	l.notes = l.noteTargets(d, c)

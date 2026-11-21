@@ -206,6 +206,7 @@ func run(page js.Value, r *report) {
 	once(page, r)
 	reuse(page, r)
 	grown(page, r)
+	large(page, r)
 }
 
 // chains checks follow-ups that cannot be completed: past the bound, or
@@ -671,6 +672,58 @@ func grown(page js.Value, r *report) {
 	r.check("a document grown and loaded keeps its undo: a drag made before is undone after",
 		moved && undone && n == 3 && g.Caps().Vertices == 64,
 		"moved "+strconv.FormatBool(moved)+", undone "+strconv.FormatBool(undone)+", drawn "+strconv.Itoa(n)+errText(err))
+}
+
+// folds is a box outside a group of two, with an edge to each.
+const folds = `{"schema":"basic","vertices":[
+	{"id":"x","kind":"box","label":"outside","x":60,"y":60,"placed":true},
+	{"id":"a","kind":"box","label":"pump one","x":260,"y":60,"placed":true,"parent":"grp"},
+	{"id":"b","kind":"box","label":"pump two","x":260,"y":140,"placed":true,"parent":"grp"},
+	{"id":"grp","kind":"group","label":"pumps"}],
+	"edges":[{"id":"xa","kind":"arrow","from":"x","to":"a"},{"id":"xb","kind":"arrow","from":"x","to":"b"}]}`
+
+// large folds a group through the handle, reveals what it hides and
+// focuses on it: the fold is drawn as one vertex with the two edges as
+// one, the reveal opens it and selects the vertex, and the focus dims
+// the rest until it ends.
+func large(page js.Value, r *report) {
+	const what = "a fold is drawn as one vertex, a reveal opens it, and a focus dims the rest"
+	el := page.Call("createElement", "div")
+	el.Get("style").Set("cssText", "width:500px;height:200px")
+	page.Get("body").Call("appendChild", el)
+	defer page.Get("body").Call("removeChild", el)
+	d, err := doc.Decode([]byte(folds), doc.Options{Schemas: doc.Builtin()})
+	if err != nil {
+		r.check(what, false, err.Error())
+		return
+	}
+	t := &host{first: gw.None}
+	h, err := dom.Mount(el, d, dom.Options{IDPrefix: "gof-"}, t)
+	if err != nil {
+		r.check(what, false, err.Error())
+		return
+	}
+	t.h = h
+	defer r.destroy(h)
+	_, err = h.Apply(gw.Command{Op: gw.Fold, Vertex: d.VertexByID("grp")})
+	drawn := el.Call("querySelectorAll", "svg g.vertex").Length()
+	merged := el.Call("querySelectorAll", "svg g.edge.merged").Length()
+	if err == nil {
+		err = h.Reveal(d.VertexByID("b"))
+	}
+	sv, _ := h.Editor().Selected(make([]gw.VertexIndex, 0, 4), nil)
+	opened := !d.Vertex(d.VertexByID("grp")).Folded() && len(sv) == 1 && sv[0] == d.VertexByID("b")
+	focused, ferr := h.Focus(0, gw.Both)
+	dimmed := el.Call("querySelectorAll", "svg .dim").Length()
+	if err == nil {
+		err = ferr
+	}
+	if err == nil {
+		err = h.Unfocus()
+	}
+	after := el.Call("querySelectorAll", "svg .dim").Length()
+	r.check(what, err == nil && drawn == 2 && merged == 1 && opened && focused && dimmed > 0 && after == 0,
+		"drawn "+strconv.Itoa(drawn)+", merged "+strconv.Itoa(merged)+", opened "+strconv.FormatBool(opened)+", dimmed "+strconv.Itoa(dimmed)+", after "+strconv.Itoa(after)+errText(err))
 }
 
 // loadCost mounts the example at the capacities, reads documents into

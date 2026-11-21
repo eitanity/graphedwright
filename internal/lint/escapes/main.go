@@ -1,9 +1,13 @@
-// Command escapes is the escape-analysis gate. It reads the output
-// of `go build -gcflags=-m ./... 2>&1` on stdin and the hot-path
-// file list, and fails if any listed file has a value that escapes to or
-// is moved to the heap.
+// Command escapes is the escape-analysis gate. It reads on stdin the
+// output of `go build -gcflags=-m ./... 2>&1`, or of a TinyGo build
+// with -print-allocs, and the hot-path file list, and fails if any
+// listed file has a value that escapes to or is moved to the heap, or
+// that TinyGo allocates on it. The two differ: TinyGo keeps on the heap
+// what Go's escape analysis keeps on the stack, among them what a
+// closure captures and a buffer handed to strconv.
 //
 //	go build -gcflags=-m ./... 2>&1 | escapes internal/lint/hotpath.txt
+//	tinygo build -print-allocs=. ... 2>&1 | escapes internal/lint/hotpath.txt
 package main
 
 import (
@@ -27,7 +31,8 @@ func main() {
 	sc := bufio.NewScanner(os.Stdin)
 	for sc.Scan() {
 		line := sc.Text()
-		if !strings.Contains(line, "escapes to heap") && !strings.Contains(line, "moved to heap") {
+		if !strings.Contains(line, "escapes to heap") && !strings.Contains(line, "moved to heap") &&
+			!strings.Contains(line, "object allocated on the heap") {
 			continue
 		}
 		for _, f := range files {
